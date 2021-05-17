@@ -15,11 +15,11 @@ from torch.nn.utils import parameters_to_vector as ptv
 vis = visdom.Visdom()
 
 #%% hparams
-dataset = 'mnist'
+dataset = 'cifar10'
 if dataset == 'mnist':
     img_size = 32
     n_channels = 1
-    emb_size = 10
+    codebook_size = 10
     emb_dim = 64
     batch_size = 128
     buffer_size = 10000
@@ -31,12 +31,13 @@ elif dataset == 'cifar10':
     batch_size = 128
     img_size = 32
     n_channels = 3
-    emb_size = 128
+    codebook_size = 128
     emb_dim = 256
     buffer_size = 10000
     sampling_steps = 50
     warmup_iters = 2000
     main_lr = 1e-4
+    latent_shape = [1, 8, 8]
 
 training_steps = 10001
 steps_per_eval = 20
@@ -128,10 +129,10 @@ class BasicBlock(nn.Module):
         return self.nonlin(out)
 
 class ResNetEBM_cat(nn.Module):
-    def __init__(self, n_channels=64):
+    def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(*[BasicBlock(n_channels, n_channels, 1) for _ in range(6)])
-        self.energy_linear = nn.Linear(n_channels, 1)
+        self.net = nn.Sequential(*[BasicBlock(emb_dim, emb_dim, 1) for _ in range(6)])
+        self.energy_linear = nn.Linear(emb_dim, 1)
 
     def forward(self, x):
         out = self.net(x)
@@ -159,13 +160,11 @@ class EBM(nn.Module):
         self.mean = None if mean is None else nn.Parameter(mean, requires_grad=False)
     
     def embed(self, z):
-        # z: B, H*W, 10
-        # z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, 10
-        z_flattened = z.view(-1, 10) # B*H*W, 10
-        return torch.matmul(z_flattened, self.embedding.weight).view(z.size(0), 8, 8, 64).permute(0, 3, 1, 2).contiguous()
+        z_flattened = z.view(-1, codebook_size) # B*H*W, codebook_size
+        return torch.matmul(z_flattened, self.embedding.weight).view(z.size(0), latent_shape[1], latent_shape[2], emb_dim).permute(0, 3, 1, 2).contiguous()
 
     def forward(self, x):
-        # x: B, H*W, 10
+        # x: B, H*W, codebook_size
         if self.mean is None:
             bd = 0.
         else:
@@ -183,7 +182,7 @@ def get_latents(ae, dataloader):
         z = ae.encoder(x) # B, 64, H, W
 
         z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, 64
-        z_flattened = z.view(-1, 64) # B*H*W, 64
+        z_flattened = z.view(-1, emb_dim) # B*H*W, 64
 
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
@@ -192,29 +191,29 @@ def get_latents(ae, dataloader):
         min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.n_e).to(z)
         min_encodings.scatter_(1, min_encoding_indices, 1)
 
-        one_hot = min_encodings.view(z.size(0), 8, 8, 10)
+        one_hot = min_encodings.view(z.size(0), latent_shape[1], latent_shape[2], codebook_size)
 
-        latents.append(one_hot.reshape(one_hot.size(0), -1, 10).cpu().contiguous())
+        latents.append(one_hot.reshape(one_hot.size(0), -1, codebook_size).cpu().contiguous())
     
     return torch.cat(latents, dim=0)
 
 data_dim = np.prod(latent_shape)
 sampler = DiffSamplerMultiDim(data_dim, 1)
 
-ae = VQAutoEncoder(n_channels, emb_dim, emb_size)
+ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
 ae = load_model(ae, 'ae', 10000, f'logs_{dataset}')
 
 if os.path.exists(f'{dataset}_latents.pkl'):
     latents = torch.load(f'{dataset}_latents.pkl')
 else:
-    full_dataloader = get_data_loader('mnist', img_size, batch_size, drop_last=False)
+    full_dataloader = get_data_loader(dataset, img_size, batch_size, drop_last=False)
     latents = get_latents(ae, full_dataloader)
     torch.save(latents, f'{dataset}_latents.pkl')
 
 data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
 
 # latents # B, H*W, 10
-eps = 1e-3 / emb_size
+eps = 1e-3 / codebook_size
 init_mean = latents.mean(0) + eps # H*W, 10
 init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
