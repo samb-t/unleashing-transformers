@@ -5,7 +5,6 @@ import torchvision
 
 import numpy as np
 import visdom
-vis = visdom.Visdom()
 
 # From taming transformers
 class VectorQuantizer(nn.Module):
@@ -170,6 +169,7 @@ class Discriminator(nn.Module):
         return self.discriminator(x)
 
 if __name__ == '__main__':
+    vis = visdom.Visdom()
     disc_factor = 1.0
     codebook_weight = 1.0
 
