@@ -1,3 +1,4 @@
+#%% imports
 import torch
 import torch.nn as nn
 import torch.distributions as dists
@@ -9,11 +10,14 @@ import os
 import visdom
 from utils import *
 
-batch_size = 128
-buffer_size = 10000
-sampling_steps = 50
-warmup_iters = 2000
-main_lr = 1e-4
+#%% hparams
+dataset = 'mnist'
+if dataset == 'minist':
+    batch_size = 128
+    buffer_size = 10000
+    sampling_steps = 50
+    warmup_iters = 2000
+    main_lr = 1e-4
 
 vis = visdom.Visdom()
 
@@ -174,15 +178,12 @@ data_dim = np.prod(input_size)
 sampler = DiffSamplerMultiDim(data_dim, 1)
 
 ae = VQAutoEncoder(1, 64, 10)
-ae = torch.load('autoencoder.pkl').cuda()
-
-transform = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor()])
-dataset = torchvision.datasets.MNIST('~/workspace/data', train=True, transform=transform, download=True)
+ae = load_model(ae, 'ae', 10000)
 
 if os.path.exists('latents.pkl'):
     latents = torch.load('latents.pkl')
 else:
-    full_dataloader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True, drop_last=False)
+    full_dataloader = get_data_loader('mnist', img_size, batch_size, drop_last=False)
     latents = get_latents(ae, full_dataloader)
     torch.save(latents, 'latents.pkl')
 

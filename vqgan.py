@@ -3,12 +3,15 @@ from numpy.lib import emath
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.serialization import load
 import torchvision
 import numpy as np
 import visdom
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
+LOAD_MODEL = True
+LOAD_MODEL_STEP = 9000
 #%% hparams
 dataset = 'cifar10'
 if dataset == 'cifar10':
@@ -17,9 +20,9 @@ if dataset == 'cifar10':
     n_channels = 3
     emb_size = 128
     emb_dim = 256
-    train_steps = 10000
-    steps_per_eval = 50
-    steps_per_checkpoint = 1000
+    train_steps = 100001
+    steps_per_eval = 250
+    steps_per_checkpoint = 10000
 
 #%% set up logs
 log_dir = f'logs_{dataset}'
@@ -201,6 +204,12 @@ def main():
     autoencoder = VQAutoEncoder(n_channels, emb_dim, emb_size).cuda()
     discriminator = Discriminator(n_channels, 64).cuda()
 
+    start_step = 0 
+    if LOAD_MODEL:
+        autoencoder = load_model(autoencoder, 'ae', LOAD_MODEL_STEP, log_dir)
+        discriminator = load_model(discriminator, 'discriminator', LOAD_MODEL_STEP, log_dir)
+        start_step = LOAD_MODEL_STEP
+
     log(f'AE Parameters: {len(ptv(autoencoder.parameters()))}')
     log(f'Discriminator Parameters: {len(ptv(discriminator.parameters()))}')
 
@@ -209,7 +218,7 @@ def main():
 
     g_losses, d_losses = np.array([]), np.array([])
     
-    for step in range(train_steps):
+    for step in range(start_step, train_steps):
         x, _ = next(train_iterator)
         x = x.cuda()
         ## update autoencoder
@@ -253,9 +262,9 @@ def main():
             save_model(autoencoder, 'ae', step, log_dir)
             save_model(discriminator, 'discriminator', step, log_dir)
 
-#%% main run
-main()
-
+#%%
 if __name__ == '__main__':
     main()
 
+
+# %%
