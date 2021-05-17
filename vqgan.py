@@ -10,7 +10,7 @@ import visdom
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_STEP = 9000
 #%% hparams
 dataset = 'cifar10'
@@ -21,7 +21,7 @@ if dataset == 'cifar10':
     emb_size = 128
     emb_dim = 256
     train_steps = 100001
-    steps_per_eval = 250
+    steps_per_eval = 50
     steps_per_checkpoint = 10000
 
 #%% set up logs
@@ -169,13 +169,10 @@ class Discriminator(nn.Module):
         self.disc_weight = weight
         self.discriminator = nn.Sequential(
             nn.utils.spectral_norm(nn.Conv2d(nc, nf, kernel_size=4, stride=2, padding=1)), # 16x16 
-            nn.BatchNorm2d(nf),
             nn.LeakyReLU(0.2, True),
             nn.utils.spectral_norm(nn.Conv2d(nf, nf*2, kernel_size=4, stride=2, padding=1)), # 8x8
-            nn.BatchNorm2d(nf*2),
             nn.LeakyReLU(0.2, True),
             nn.utils.spectral_norm(nn.Conv2d(nf*2, nf*4, kernel_size=4, stride=2, padding=1)), # 4x4
-            nn.BatchNorm2d(nf*4),
             nn.LeakyReLU(0.2, True),
             nn.utils.spectral_norm(nn.Conv2d(nf*4, 1, kernel_size=4, stride=1)), # 1x1
         )
@@ -238,7 +235,7 @@ def main():
         ae_optim.step()
 
         ## update discriminator
-        if step % 2  == 0:
+        if step % 1  == 0:
             x_hat, _ = autoencoder(x)
             
             loss_real = F.relu(1. - discriminator(x)).mean()

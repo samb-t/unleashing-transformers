@@ -1,10 +1,11 @@
 #%% imports
+from pickle import FALSE
 import torch
 import torch.nn as nn
 import torch.distributions as dists
 import torchvision
 import numpy as np
-from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
+from vqgan import LOAD_MODEL, LOAD_MODEL_STEP, VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 import os
 import visdom
@@ -37,8 +38,12 @@ elif dataset == 'cifar10':
     warmup_iters = 2000
     main_lr = 1e-4
 
-training_steps = 10000
-steps_per_
+training_steps = 10001
+steps_per_eval = 20
+steps_per_checkpoint = 1000
+
+LOAD_MODEL = False
+LOAD_MODEL_STEP = 0
 
 log_dir = f'ebm_logs_{dataset}'
 config_log(log_dir, dataset)
@@ -206,7 +211,7 @@ else:
     latents = get_latents(ae, full_dataloader)
     torch.save(latents, f'{dataset}_latents.pkl')
 
-dataloader = torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True)
+data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
 
 # latents # B, H*W, 10
 eps = 1e-3 / emb_size
@@ -222,58 +227,64 @@ net = ResNetEBM_cat()
 energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
 optim = torch.optim.Adam(energy.parameters())
 
+start_step = 0 
+if LOAD_MODEL:
+    energy = load_model(energy, 'ebm', LOAD_MODEL_STEP, log_dir)
+    start_step = LOAD_MODEL_STEP
+
 log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
 
 # check reocnstructions are correct
-latent_batch = next(iter(dataloader))[:64].cuda()
+latent_batch = next(data_iterator)[:64].cuda()
 quant = energy.embed(latent_batch)
 recons = ae.generator(quant)
 vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
 
 hop_dists = []
 
-global_step = 0
-for epoch in range(10000):
-    for x in dataloader:
-        # linearly anneal in learning rate
-        if global_step < warmup_iters:
-            lr = main_lr * float(global_step) / warmup_iters
-            for param_group in optim.param_groups:
-                param_group['lr'] = lr
-        
-        x = x.cuda()#.requires_grad_()
+#%% main training loop
+for step in range(start_step, training_steps):
+    # linearly anneal in learning rate
+    if step < warmup_iters:
+        lr = main_lr * float(step) / warmup_iters
+        for param_group in optim.param_groups:
+            param_group['lr'] = lr
+    
+    x = next(data_iterator)
+    x = x.cuda()
 
-        buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
-        x_buffer = buffer[buffer_inds].cuda()
-        x_fake = x_buffer
+    buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
+    x_buffer = buffer[buffer_inds].cuda()
+    x_fake = x_buffer
 
-        hops = []  # keep track of how much the sampler moves particles around
-        for k in range(sampling_steps):
-            x_fake_new = sampler.step(x_fake.detach(), energy).detach()
-            h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
-            hops.append(h)
-            x_fake = x_fake_new
-        hop_dists.append(np.mean(hops))
+    hops = []  # keep track of how much the sampler moves particles around
+    for k in range(sampling_steps):
+        x_fake_new = sampler.step(x_fake.detach(), energy).detach()
+        h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
+        hops.append(h)
+        x_fake = x_fake_new
+    hop_dists.append(np.mean(hops))
 
-        # update buffer
-        buffer[buffer_inds] = x_fake.detach().cpu()
+    # update buffer
+    buffer[buffer_inds] = x_fake.detach().cpu()
 
-        logp_real = energy(x).squeeze()
-        logp_fake = energy(x_fake).squeeze()
+    logp_real = energy(x).squeeze()
+    logp_fake = energy(x_fake).squeeze()
 
-        obj = logp_real.mean() - logp_fake.mean()
+    obj = logp_real.mean() - logp_fake.mean()
 
-        loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
+    loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
-        optim.zero_grad()
-        loss.backward()
-        optim.step()
+    optim.zero_grad()
+    loss.backward()
+    optim.step()
 
-        if global_step % 20 == 0:
-            print(f"Step: {global_step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
+    if step % steps_per_eval == 0:
+        log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
 
-            q = energy.embed(x_fake)
-            samples = ae.generator(q)
-            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+        q = energy.embed(x_fake)
+        samples = ae.generator(q)
+        vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
 
-        global_step += 1
+    if step % steps_per_checkpoint == 0 and step > 0:
+        save_model(energy, 'ebm', step, log_dir)
