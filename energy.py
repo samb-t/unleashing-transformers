@@ -9,17 +9,39 @@ from tqdm import tqdm
 import os
 import visdom
 from utils import *
+from torch.nn.utils import parameters_to_vector as ptv
+
+vis = visdom.Visdom()
 
 #%% hparams
 dataset = 'mnist'
-if dataset == 'minist':
+if dataset == 'mnist':
+    img_size = 32
+    n_channels = 1
+    emb_size = 10
+    emb_dim = 64
     batch_size = 128
     buffer_size = 10000
     sampling_steps = 50
     warmup_iters = 2000
     main_lr = 1e-4
+    latent_shape = [1, 8, 8]
+elif dataset == 'cifar10':
+    batch_size = 128
+    img_size = 32
+    n_channels = 3
+    emb_size = 128
+    emb_dim = 256
+    buffer_size = 10000
+    sampling_steps = 50
+    warmup_iters = 2000
+    main_lr = 1e-4
 
-vis = visdom.Visdom()
+training_steps = 10000
+steps_per_
+
+log_dir = f'ebm_logs_{dataset}'
+config_log(log_dir, dataset)
 
 def approx_difference_function_multi_dim(x, model):
     x = x.requires_grad_()
@@ -149,7 +171,6 @@ class EBM(nn.Module):
         logp = self.net(x).squeeze()
         return logp + bd
 
-
 def get_latents(ae, dataloader):
     latents = []
     for x, _ in tqdm(dataloader):
@@ -172,25 +193,23 @@ def get_latents(ae, dataloader):
     
     return torch.cat(latents, dim=0)
 
-
-input_size = [1, 8, 8]
-data_dim = np.prod(input_size)
+data_dim = np.prod(latent_shape)
 sampler = DiffSamplerMultiDim(data_dim, 1)
 
-ae = VQAutoEncoder(1, 64, 10)
-ae = load_model(ae, 'ae', 10000)
+ae = VQAutoEncoder(n_channels, emb_dim, emb_size)
+ae = load_model(ae, 'ae', 10000, f'logs_{dataset}')
 
-if os.path.exists('latents.pkl'):
-    latents = torch.load('latents.pkl')
+if os.path.exists(f'{dataset}_latents.pkl'):
+    latents = torch.load(f'{dataset}_latents.pkl')
 else:
     full_dataloader = get_data_loader('mnist', img_size, batch_size, drop_last=False)
     latents = get_latents(ae, full_dataloader)
-    torch.save(latents, 'latents.pkl')
+    torch.save(latents, f'{dataset}_latents.pkl')
 
 dataloader = torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True)
 
 # latents # B, H*W, 10
-eps = 1e-3 / 10
+eps = 1e-3 / emb_size
 init_mean = latents.mean(0) + eps # H*W, 10
 init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
@@ -202,6 +221,8 @@ all_inds = list(range(buffer_size))
 net = ResNetEBM_cat()
 energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
 optim = torch.optim.Adam(energy.parameters())
+
+log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
 
 # check reocnstructions are correct
 latent_batch = next(iter(dataloader))[:64].cuda()
