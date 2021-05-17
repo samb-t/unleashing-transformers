@@ -175,10 +175,6 @@ sampler = DiffSamplerMultiDim(data_dim, 1)
 ae = VQAutoEncoder(1, 64, 10)
 ae = torch.load('autoencoder.pkl').cuda()
 
-net = ResNetEBM_cat()
-energy = EBM(net, ae.quantize.embedding).cuda() # 10x64
-optim = torch.optim.Adam(energy.parameters())
-
 transform = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor()])
 dataset = torchvision.datasets.MNIST('~/workspace/data', train=True, transform=transform, download=True)
 
@@ -191,11 +187,6 @@ else:
 
 dataloader = torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True)
 
-latent_batch = next(iter(dataloader))[:64].cuda()
-quant = energy.embed(latent_batch)
-recons = ae.generator(quant)
-vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
-
 # latents # B, H*W, 10
 eps = 1e-3 / 10
 init_mean = latents.mean(0) + eps # H*W, 10
@@ -204,6 +195,17 @@ init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after addi
 init_dist = MyOneHotCategorical(init_mean)
 buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
 all_inds = list(range(buffer_size))
+
+# create energy model
+net = ResNetEBM_cat()
+energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
+optim = torch.optim.Adam(energy.parameters())
+
+# check reocnstructions are correct
+latent_batch = next(iter(dataloader))[:64].cuda()
+quant = energy.embed(latent_batch)
+recons = ae.generator(quant)
+vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
 
 hop_dists = []
 
@@ -238,7 +240,7 @@ for epoch in range(10000):
 
         obj = logp_real.mean() - logp_fake.mean()
 
-        loss = -obj + 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
+        loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
         optim.zero_grad()
         loss.backward()
