@@ -7,6 +7,7 @@ from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 import os
 import visdom
+from utils import *
 
 batch_size = 128
 buffer_size = 10000

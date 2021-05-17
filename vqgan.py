@@ -1,11 +1,31 @@
+#%% imports
+from numpy.lib import emath
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
-
 import numpy as np
 import visdom
+from utils import *
+from torch.nn.utils import parameters_to_vector as ptv
 
+#%% hparams
+dataset = 'cifar10'
+if dataset == 'cifar10':
+    batch_size = 128
+    img_size = 32
+    n_channels = 3
+    emb_size = 128
+    emb_dim = 256
+    train_steps = 10000
+    steps_per_eval = 50
+    steps_per_checkpoint = 1000
+
+#%% set up logs
+log_dir = f'logs_{dataset}'
+config_log(log_dir, dataset)
+
+#%% Define VQVAE classes
 # From taming transformers
 class VectorQuantizer(nn.Module):
     def __init__(self, n_e, e_dim, beta):
@@ -168,69 +188,74 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.discriminator(x)
 
-if __name__ == '__main__':
+def main():
     vis = visdom.Visdom()
     disc_factor = 1.0
     codebook_weight = 1.0
 
-    transform = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor()])
-    dataset = torchvision.datasets.MNIST('~/workspace/data', train=True, transform=transform, download=True)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True)
+    # transform = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor()])
+    # dataset = torchvision.datasets.MNIST('~/workspace/data', train=True, transform=transform, download=True)
+    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True)
+    train_iterator = cycle(get_data_loader('cifar10', img_size, batch_size))
 
-    autoencoder = VQAutoEncoder(1, 64, 10)
-    discriminator = Discriminator(1, 32)
+    autoencoder = VQAutoEncoder(n_channels, emb_dim, emb_size).cuda()
+    discriminator = Discriminator(n_channels, 64).cuda()
+
+    log(f'AE Parameters: {len(ptv(autoencoder.parameters()))}')
+    log(f'Discriminator Parameters: {len(ptv(discriminator.parameters()))}')
 
     ae_optim = torch.optim.Adam(autoencoder.parameters())
     d_optim = torch.optim.Adam(discriminator.parameters())
 
     g_losses, d_losses = np.array([]), np.array([])
-    global_step = 0
-    for epoch in range(10000):
-        for x, _ in dataloader:
+    
+    for step in range(train_steps):
+        x, _ = next(train_iterator)
+        x = x.cuda()
+        ## update autoencoder
+        x_hat, codebook_loss = autoencoder(x)
 
-            ## update autoencoder
-            x_hat, codebook_loss = autoencoder(x)
+        recon_loss = torch.abs(x - x_hat).mean()
+        disc_loss = -discriminator(x_hat).mean()
 
-            recon_loss = torch.abs(x - x_hat).mean()
-            disc_loss = -discriminator(x_hat).mean()
+        last_layer = autoencoder.generator[-1].weight # might have to be conv2d not convtranspose2d?
+        d_weight = discriminator.calculate_adaptive_weight(recon_loss, disc_loss, last_layer=last_layer)
 
-            last_layer = autoencoder.generator[-1].weight # might have to be conv2d not convtranspose2d?
-            d_weight = discriminator.calculate_adaptive_weight(recon_loss, disc_loss, last_layer=last_layer)
+        g_loss = recon_loss + d_weight * disc_factor * disc_loss + codebook_weight * codebook_loss.mean()
+        g_losses = np.append(g_losses, g_loss.item())
 
-            g_loss = recon_loss + d_weight * disc_factor * disc_loss + codebook_weight * codebook_loss.mean()
-            g_losses = np.append(g_losses, g_loss.item())
+        ae_optim.zero_grad()
+        g_loss.backward()
+        ae_optim.step()
 
-            ae_optim.zero_grad()
-            g_loss.backward()
-            ae_optim.step()
-
-            ## update discriminator
-            if global_step % 2  == 0:
-                x_hat, _ = autoencoder(x)
-                
-                loss_real = F.relu(1. - discriminator(x)).mean()
-                loss_fake = F.relu(1. + discriminator(x_hat)).mean()
-                d_loss = disc_factor * 0.5 * (loss_real + loss_fake)
-
-                d_optim.zero_grad()
-                d_loss.backward()
-                d_optim.step()
-
-                d_losses = np.append(d_losses, d_loss.item())
-
-            if global_step % 50 == 0:
-                print(f"Step {global_step}, G Loss: {g_losses.mean():.3f}, D Loss: {d_losses.mean():.3f}")
-                g_losses, d_losses = np.array([]), np.array([])
-                vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
-                vis.images(x_hat.clamp(0,1)[:64], win="x_hat", opts=dict(title="x_hat"))
+        ## update discriminator
+        if step % 2  == 0:
+            x_hat, _ = autoencoder(x)
             
-            global_step += 1
-        
-        print("Saving model")
-        torch.save(autoencoder, f"autoencoder_{epoch}.pkl")
-        torch.save(discriminator, f"discriminator_{epoch}.pkl")
+            loss_real = F.relu(1. - discriminator(x)).mean()
+            loss_fake = F.relu(1. + discriminator(x_hat)).mean()
+            d_loss = disc_factor * 0.5 * (loss_real + loss_fake)
 
-            
+            d_optim.zero_grad()
+            d_loss.backward()
+            d_optim.step()
 
+            d_losses = np.append(d_losses, d_loss.item())
 
+        if step % steps_per_eval == 0:
+            log(f"Step {step}, G Loss: {g_losses.mean():.3f}, D Loss: {d_losses.mean():.3f}")
+            g_losses, d_losses = np.array([]), np.array([])
+            vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
+            vis.images(x_hat.clamp(0,1)[:64], win="x_hat", opts=dict(title="x_hat"))
+    
+        if step % steps_per_checkpoint == 0 and step > 0:
+            print("Saving model")
+            save_model(autoencoder, 'ae', step, log_dir)
+            save_model(discriminator, 'discriminator', step, log_dir)
+
+#%% main run
+main()
+
+if __name__ == '__main__':
+    main()
 
