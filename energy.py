@@ -1,27 +1,23 @@
 #%% imports
-from pickle import FALSE
 import torch
 import torch.nn as nn
 import torch.distributions as dists
-import torchvision
 import numpy as np
-from vqgan import LOAD_MODEL, LOAD_MODEL_STEP, VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
+from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 import os
 import visdom
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
-vis = visdom.Visdom()
-
 #%% hparams
-dataset = 'cifar10'
+dataset = 'mnist'
 if dataset == 'mnist':
+    batch_size = 128
     img_size = 32
     n_channels = 1
     codebook_size = 10
     emb_dim = 64
-    batch_size = 128
     buffer_size = 10000
     sampling_steps = 50
     warmup_iters = 2000
@@ -40,20 +36,19 @@ elif dataset == 'cifar10':
     latent_shape = [1, 8, 8]
 
 training_steps = 10001
+steps_per_log = 5
 steps_per_eval = 20
 steps_per_checkpoint = 1000
 
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 0
 
-log_dir = f'ebm_logs_{dataset}'
-config_log(log_dir, dataset)
-
 def approx_difference_function_multi_dim(x, model):
     x = x.requires_grad_()
     gx = torch.autograd.grad(model(x).sum(), x)[0]
     gx_cur = (gx * x).sum(-1)[:, :, None]
     return gx - gx_cur
+
 
 # TODO: Try multiple flips per step
 # Gibbs-With-Gradients for categorical data
@@ -72,7 +67,6 @@ class DiffSamplerMultiDim(nn.Module):
         self.diff_fn = lambda x, m: approx_difference_function_multi_dim(x, m) / self.temp
 
     def step(self, x, model):
-
         x_cur = x
         a_s = []
         m_terms = []
@@ -116,6 +110,7 @@ class DiffSamplerMultiDim(nn.Module):
         self._hops = (x != x_cur).float().sum(-1).sum(-1).mean().item()
         return x_cur
 
+
 class BasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
@@ -128,6 +123,7 @@ class BasicBlock(nn.Module):
         out = x + self.conv2(out)
         return self.nonlin(out)
 
+
 class ResNetEBM_cat(nn.Module):
     def __init__(self):
         super().__init__()
@@ -138,6 +134,7 @@ class ResNetEBM_cat(nn.Module):
         out = self.net(x)
         out = out.view(out.size(0), out.size(1), -1).mean(-1)
         return self.energy_linear(out).squeeze()
+
 
 class MyOneHotCategorical:
     def __init__(self, mean):
@@ -150,6 +147,7 @@ class MyOneHotCategorical:
         logits = self.dist.logits
         lp = torch.log_softmax(logits, -1)
         return (x * lp[None]).sum(-1)
+
 
 class EBM(nn.Module):
     def __init__(self, net, embedding, mean=None):
@@ -175,6 +173,7 @@ class EBM(nn.Module):
         logp = self.net(x).squeeze()
         return logp + bd
 
+
 def get_latents(ae, dataloader):
     latents = []
     for x, _ in tqdm(dataloader):
@@ -197,93 +196,117 @@ def get_latents(ae, dataloader):
     
     return torch.cat(latents, dim=0)
 
-data_dim = np.prod(latent_shape)
-sampler = DiffSamplerMultiDim(data_dim, 1)
 
-ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-ae = load_model(ae, 'ae', 10000, f'logs_{dataset}')
+def main():
+    data_dim = np.prod(latent_shape)
+    sampler = DiffSamplerMultiDim(data_dim, 1)
 
-if os.path.exists(f'{dataset}_latents.pkl'):
-    latents = torch.load(f'{dataset}_latents.pkl')
-else:
-    full_dataloader = get_data_loader(dataset, img_size, batch_size, drop_last=False)
-    latents = get_latents(ae, full_dataloader)
-    torch.save(latents, f'{dataset}_latents.pkl')
+    ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
+    ae = load_model(ae, 'ae', 1000, f'vq_gan_{dataset}')
 
-data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
+    if os.path.exists(f'latents/{dataset}_latents.pkl'):
+        latents = torch.load(f'latents/{dataset}_latents.pkl')
+    else:
+        full_dataloader = get_data_loader(dataset, img_size, batch_size, drop_last=False)
+        latents = get_latents(ae, full_dataloader)
+        save_latents(latents, dataset)
 
-# latents # B, H*W, 10
-eps = 1e-3 / codebook_size
-init_mean = latents.mean(0) + eps # H*W, 10
-init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
+    data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
 
-init_dist = MyOneHotCategorical(init_mean)
-buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
-all_inds = list(range(buffer_size))
+    # latents # B, H*W, 10
+    eps = 1e-3 / codebook_size
+    init_mean = latents.mean(0) + eps # H*W, 10
+    init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
-# create energy model
-net = ResNetEBM_cat()
-energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
-optim = torch.optim.Adam(energy.parameters())
+    init_dist = MyOneHotCategorical(init_mean)
+    buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
+    all_inds = list(range(buffer_size))
 
-start_step = 0 
-if LOAD_MODEL:
-    energy = load_model(energy, 'ebm', LOAD_MODEL_STEP, log_dir)
-    start_step = LOAD_MODEL_STEP
+    # create energy model
+    net = ResNetEBM_cat()
+    energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
+    optim = torch.optim.Adam(energy.parameters())
 
-log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
+    start_step = 0 
+    if LOAD_MODEL:
+        energy = load_model(energy, 'ebm', LOAD_MODEL_STEP, log_dir)
+        optim = load_model(optim, 'ebm_optim', LOAD_MODEL_STEP, log_dir)
+        start_step = LOAD_MODEL_STEP
 
-# check reocnstructions are correct
-latent_batch = next(data_iterator)[:64].cuda()
-quant = energy.embed(latent_batch)
-recons = ae.generator(quant)
-vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
+    log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
 
-hop_dists = []
+    # check reocnstructions are correct
+    latent_batch = next(data_iterator)[:64].cuda()
+    quant = energy.embed(latent_batch)
+    recons = ae.generator(quant)
+    vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
 
-#%% main training loop
-for step in range(start_step, training_steps):
-    # linearly anneal in learning rate
-    if step < warmup_iters:
-        lr = main_lr * float(step) / warmup_iters
-        for param_group in optim.param_groups:
-            param_group['lr'] = lr
-    
-    x = next(data_iterator)
-    x = x.cuda()
+    hop_dists = []
 
-    buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
-    x_buffer = buffer[buffer_inds].cuda()
-    x_fake = x_buffer
+    #%% main training loop
+    for step in range(start_step, training_steps):
+        # linearly anneal in learning rate
+        if step < warmup_iters:
+            lr = main_lr * float(step) / warmup_iters
+            for param_group in optim.param_groups:
+                param_group['lr'] = lr
+        
+        x = next(data_iterator)
+        x = x.cuda()
 
-    hops = []  # keep track of how much the sampler moves particles around
-    for k in range(sampling_steps):
-        x_fake_new = sampler.step(x_fake.detach(), energy).detach()
-        h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
-        hops.append(h)
-        x_fake = x_fake_new
-    hop_dists.append(np.mean(hops))
+        buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
+        x_buffer = buffer[buffer_inds].cuda()
+        x_fake = x_buffer
 
-    # update buffer
-    buffer[buffer_inds] = x_fake.detach().cpu()
+        hops = []  # keep track of how much the sampler moves particles around
+        for k in range(sampling_steps):
+            x_fake_new = sampler.step(x_fake.detach(), energy).detach()
+            h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
+            hops.append(h)
+            x_fake = x_fake_new
+        hop_dists.append(np.mean(hops))
 
-    logp_real = energy(x).squeeze()
-    logp_fake = energy(x_fake).squeeze()
+        # update buffer
+        buffer[buffer_inds] = x_fake.detach().cpu()
 
-    obj = logp_real.mean() - logp_fake.mean()
+        logp_real = energy(x).squeeze()
+        logp_fake = energy(x_fake).squeeze()
 
-    loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
+        obj = logp_real.mean() - logp_fake.mean()
 
-    optim.zero_grad()
-    loss.backward()
-    optim.step()
+        loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
-    if step % steps_per_eval == 0:
-        log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
+        optim.zero_grad()
+        loss.backward()
+        optim.step()
 
-        q = energy.embed(x_fake)
-        samples = ae.generator(q)
-        vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+        if step % steps_per_log == 0:
+            log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
+        
+        if step % steps_per_eval == 0:
+            q = energy.embed(x_fake)
+            samples = ae.generator(q)
+            save_images(samples[:64], vis, 'samples', step, log_dir)
 
-    if step % steps_per_checkpoint == 0 and step > 0:
-        save_model(energy, 'ebm', step, log_dir)
+        if step % steps_per_checkpoint == 0 and step > 0:
+            save_model(energy, 'ebm', step, log_dir)
+            save_model(optim, 'ebm_optim', step, log_dir)
+
+if __name__ == '__main__':
+    vis = visdom.Visdom()
+    log_dir = f'ebm_{dataset}'
+    config_log(log_dir)
+    start_training_log(dict(
+        dataset = dataset,
+        batch_size = batch_size,
+        img_size = img_size,
+        n_channels = n_channels,
+        codebook_size = codebook_size,
+        emb_dim = emb_dim,
+        buffer_size = buffer_size,
+        sampling_steps = sampling_steps,
+        warmup_iters = warmup_iters,
+        main_lr = main_lr,
+        latent_shape = latent_shape
+    ))
+    main()

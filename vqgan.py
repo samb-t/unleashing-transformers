@@ -10,23 +10,27 @@ import visdom
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
-LOAD_MODEL = False
-LOAD_MODEL_STEP = 9000
+LOAD_MODEL = True
+LOAD_MODEL_STEP = 100
 #%% hparams
-dataset = 'cifar10'
-if dataset == 'cifar10':
+dataset = 'mnist'
+if dataset == 'mnist':
+    batch_size = 128
+    img_size = 32
+    n_channels = 1
+    codebook_size = 10
+    emb_dim = 64
+elif dataset == 'cifar10':
     batch_size = 128
     img_size = 32
     n_channels = 3
-    emb_size = 128
+    codebook_size = 128
     emb_dim = 256
-    train_steps = 100001
-    steps_per_eval = 50
-    steps_per_checkpoint = 10000
 
-#%% set up logs
-log_dir = f'logs_{dataset}'
-config_log(log_dir, dataset)
+train_steps = 100001
+steps_per_log = 10
+steps_per_eval = 50
+steps_per_checkpoint = 100
 
 #%% Define VQVAE classes
 # From taming transformers
@@ -80,6 +84,7 @@ class VectorQuantizer(nn.Module):
 
         return z_q
 
+
 class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super(ResBlock, self).__init__()
@@ -113,6 +118,7 @@ class Encoder(nn.Module):
     def forward(self, x):
         return self.encoder(x)
 
+
 class Generator(nn.Module):
     def __init__(self, nc, nf):
         super().__init__()
@@ -128,6 +134,7 @@ class Generator(nn.Module):
     
     def forward(self, x):
         return self.generator(x)
+
 
 class VQAutoEncoder(nn.Module):
     def __init__(self, nc, nf, ne, beta=0.25):
@@ -162,6 +169,7 @@ class VQAutoEncoder(nn.Module):
         x = self.generator(quant)
         return x, codebook_loss
 
+
 class Discriminator(nn.Module):
     def __init__(self, nc, nf, factor=1.0, weight=0.8):
         super().__init__()
@@ -188,33 +196,29 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.discriminator(x)
 
-def main():
-    vis = visdom.Visdom()
+def main(): 
     disc_factor = 1.0
     codebook_weight = 1.0
-
-    # transform = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor()])
-    # dataset = torchvision.datasets.MNIST('~/workspace/data', train=True, transform=transform, download=True)
-    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True)
-    train_iterator = cycle(get_data_loader('cifar10', img_size, batch_size))
-
-    autoencoder = VQAutoEncoder(n_channels, emb_dim, emb_size).cuda()
+    train_iterator = cycle(get_data_loader(dataset, img_size, batch_size))
+    autoencoder = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
     discriminator = Discriminator(n_channels, 64).cuda()
-
+    ae_optim = torch.optim.Adam(autoencoder.parameters())
+    d_optim = torch.optim.Adam(discriminator.parameters())
     start_step = 0 
     if LOAD_MODEL:
         autoencoder = load_model(autoencoder, 'ae', LOAD_MODEL_STEP, log_dir)
         discriminator = load_model(discriminator, 'discriminator', LOAD_MODEL_STEP, log_dir)
+        ae_optim = load_model(ae_optim, 'ae_optim', LOAD_MODEL_STEP, log_dir)
+        d_optim = load_model(d_optim, 'disc_optim', LOAD_MODEL_STEP, log_dir)
         start_step = LOAD_MODEL_STEP
 
     log(f'AE Parameters: {len(ptv(autoencoder.parameters()))}')
     log(f'Discriminator Parameters: {len(ptv(discriminator.parameters()))}')
 
-    ae_optim = torch.optim.Adam(autoencoder.parameters())
-    d_optim = torch.optim.Adam(discriminator.parameters())
+
 
     g_losses, d_losses = np.array([]), np.array([])
-    
+
     for step in range(start_step, train_steps):
         x, _ = next(train_iterator)
         x = x.cuda()
@@ -248,19 +252,31 @@ def main():
 
             d_losses = np.append(d_losses, d_loss.item())
 
-        if step % steps_per_eval == 0:
+        if step % steps_per_log == 0:
             log(f"Step {step}, G Loss: {g_losses.mean():.3f}, D Loss: {d_losses.mean():.3f}")
             g_losses, d_losses = np.array([]), np.array([])
+            
+        if step % steps_per_eval == 0:
             vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
-            vis.images(x_hat.clamp(0,1)[:64], win="x_hat", opts=dict(title="x_hat"))
-    
+            save_images(x_hat[:64], vis, 'recons', step, log_dir)
+
         if step % steps_per_checkpoint == 0 and step > 0:
             print("Saving model")
             save_model(autoencoder, 'ae', step, log_dir)
             save_model(discriminator, 'discriminator', step, log_dir)
+            save_model(ae_optim, 'ae_optim', step, log_dir)
+            save_model(d_optim, 'disc_optim', step, log_dir)
 
-#%%
+#%% main
 if __name__ == '__main__':
+    vis = visdom.Visdom()
+    log_dir = f'vq_gan_test_{dataset}'
+    config_log(log_dir)
+    start_training_log(dict(
+        batch_size = batch_size,
+        img_size = img_size,
+        n_channels = n_channels,
+        codebook_size = codebook_size,
+        emb_dim = emb_dim,
+    ))
     main()
-
-# %%

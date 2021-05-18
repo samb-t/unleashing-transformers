@@ -1,4 +1,5 @@
 *.pkl
 *.th
 __pycache__/
-logs*
+logs/
+latents/
