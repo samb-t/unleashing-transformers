@@ -10,10 +10,10 @@ import visdom
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
-LOAD_MODEL = True
-LOAD_MODEL_STEP = 100
+LOAD_MODEL = False
+LOAD_MODEL_STEP = 10000
 #%% hparams
-dataset = 'mnist'
+dataset = 'cifar10'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -29,8 +29,8 @@ elif dataset == 'cifar10':
 
 train_steps = 100001
 steps_per_log = 10
-steps_per_eval = 50
-steps_per_checkpoint = 100
+steps_per_eval = 500
+steps_per_checkpoint = 10000
 
 #%% Define VQVAE classes
 # From taming transformers
