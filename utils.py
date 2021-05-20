@@ -43,30 +43,30 @@ def load_model(model, model_load_name, step, log_dir):
     return model
 
 
-def download_flowers_data(dataset_folder):
-    import tarfile
-    try:
-        from urllib.request import urlretrieve
-    except ImportError:
-        from urllib import urlretrieve
+# def download_flowers_data(dataset_folder):
+#     import tarfile
+#     try:
+#         from urllib.request import urlretrieve
+#     except ImportError:
+#         from urllib import urlretrieve
 
-    if not os.path.exists(os.path.join(dataset_folder, "jpg")):
-        if not os.path.exists(dataset_folder):
-            os.makedirs(dataset_folder)
-        print('Downloading data from http://www.robots.ox.ac.uk/~vgg/data/flowers/102/ ...')
-        tar_filename = os.path.join(dataset_folder, "102flowers.tgz")
-        if not os.path.exists(tar_filename):
-            urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz", tar_filename)
+#     if not os.path.exists(os.path.join(dataset_folder, "jpg")):
+#         if not os.path.exists(dataset_folder):
+#             os.makedirs(dataset_folder)
+#         print('Downloading data from http://www.robots.ox.ac.uk/~vgg/data/flowers/102/ ...')
+#         tar_filename = os.path.join(dataset_folder, "102flowers.tgz")
+#         if not os.path.exists(tar_filename):
+#             urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz", tar_filename)
 
-        # extract flower images from tar file
-        print('Extracting ' + tar_filename + '...')
-        tarfile.open(tar_filename).extractall(path=dataset_folder)
+#         # extract flower images from tar file
+#         print('Extracting ' + tar_filename + '...')
+#         tarfile.open(tar_filename).extractall(path=dataset_folder)
 
-        # clean up
-        os.remove(tar_filename)
-        print('Done.')
-    else:
-        print('Data available at ' + dataset_folder)
+#         # clean up
+#         os.remove(tar_filename)
+#         print('Done.')
+#     else:
+#         print('Data available at ' + dataset_folder)
 
 
 def get_data_loader(dataset_name, img_size, batch_size, train=True, drop_last=True, download=False):
@@ -79,7 +79,6 @@ def get_data_loader(dataset_name, img_size, batch_size, train=True, drop_last=Tr
         torchvision.transforms.Resize(img_size), torchvision.transforms.ToTensor()
     ]))
     elif dataset_name == 'flowers':
-        download_flowers_data('~/Repos/_datasets/flowers')
         dataset = torchvision.datasets.ImageFolder('~/Repos/_datasets/flowers', transform=torchvision.transforms.Compose([
         torchvision.transforms.Resize(img_size), torchvision.transforms.CenterCrop(img_size), torchvision.transforms.ToTensor()
     ])) # normalize?

@@ -35,8 +35,8 @@ elif dataset == 'flowers':
 
 train_steps = 100001
 steps_per_log = 10
-steps_per_eval = 500
-steps_per_checkpoint = 10000
+steps_per_eval = 100
+steps_per_checkpoint = 100
 
 #%% Define VQVAE classes
 # From taming transformers

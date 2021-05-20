@@ -50,6 +50,7 @@ training_steps = 100001
 steps_per_log = 10
 steps_per_eval = 100
 steps_per_checkpoint = 500
+grad_clip_threshold = 1000
 
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 0
@@ -213,7 +214,7 @@ def main():
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 20000, f'vq_gan_test_{dataset}')
+    ae = load_model(ae, 'ae', 300, f'vq_gan_test_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -254,6 +255,8 @@ def main():
 
     hop_dists = []
 
+    grad_norms = []
+
     #%% main training loop
     for step in range(start_step, training_steps):
         # linearly anneal in learning rate
@@ -289,6 +292,11 @@ def main():
 
         optim.zero_grad()
         loss.backward()
+
+        # gradient clipping / tracking
+        grad_norm = torch.nn.utils.clip_grad_norm_(energy.parameters(), grad_clip_threshold).item()
+        grad_norms.append(grad_norm)
+
         optim.step()
 
         if step % steps_per_log == 0:
@@ -296,6 +304,7 @@ def main():
             q = energy.embed(x_fake)
             samples = ae.generator(q)
             vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+            vis.line(grad_norms, win='grad_norms', opts=dict(title='Gradient Norms'))
 
         if step % steps_per_eval == 0:
             q = energy.embed(x_fake)
