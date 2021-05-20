@@ -51,32 +51,6 @@ def load_buffer(step, log_dir):
     buffer = torch.load(os.path.join(log_dir, f'buffer_{step}.pt'))
     return buffer
 
-# def download_flowers_data(dataset_folder):
-#     import tarfile
-#     try:
-#         from urllib.request import urlretrieve
-#     except ImportError:
-#         from urllib import urlretrieve
-
-#     if not os.path.exists(os.path.join(dataset_folder, "jpg")):
-#         if not os.path.exists(dataset_folder):
-#             os.makedirs(dataset_folder)
-#         print('Downloading data from http://www.robots.ox.ac.uk/~vgg/data/flowers/102/ ...')
-#         tar_filename = os.path.join(dataset_folder, "102flowers.tgz")
-#         if not os.path.exists(tar_filename):
-#             urlretrieve("http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz", tar_filename)
-
-#         # extract flower images from tar file
-#         print('Extracting ' + tar_filename + '...')
-#         tarfile.open(tar_filename).extractall(path=dataset_folder)
-
-#         # clean up
-#         os.remove(tar_filename)
-#         print('Done.')
-#     else:
-#         print('Data available at ' + dataset_folder)
-
-
 def get_data_loader(dataset_name, img_size, batch_size, train=True, drop_last=True, download=False):
     if dataset_name == 'mnist':
         dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=train, download=download, transform=torchvision.transforms.Compose([
