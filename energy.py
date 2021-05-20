@@ -11,7 +11,7 @@ from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'mnist'
+dataset = 'flowers'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -34,11 +34,22 @@ elif dataset == 'cifar10':
     warmup_iters = 2000
     main_lr = 1e-4
     latent_shape = [1, 8, 8]
+elif dataset == 'flowers':
+    batch_size = 128
+    img_size = 32
+    n_channels = 3
+    codebook_size = 128
+    emb_dim = 128
+    buffer_size = 1000
+    sampling_steps = 50
+    warmup_iters = 2000
+    main_lr = 1e-4
+    latent_shape = [1, 8, 8]
 
-training_steps = 10001
-steps_per_log = 5
-steps_per_eval = 20
-steps_per_checkpoint = 1000
+training_steps = 100001
+steps_per_log = 10
+steps_per_eval = 100
+steps_per_checkpoint = 500
 
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 0
@@ -202,7 +213,7 @@ def main():
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 1000, f'vq_gan_{dataset}')
+    ae = load_model(ae, 'ae', 20000, f'vq_gan_test_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -282,7 +293,10 @@ def main():
 
         if step % steps_per_log == 0:
             log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
-        
+            q = energy.embed(x_fake)
+            samples = ae.generator(q)
+            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+
         if step % steps_per_eval == 0:
             q = energy.embed(x_fake)
             samples = ae.generator(q)
