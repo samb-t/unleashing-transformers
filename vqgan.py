@@ -13,7 +13,7 @@ from torch.nn.utils import parameters_to_vector as ptv
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 10000
 #%% hparams
-dataset = 'mnist'
+dataset = 'flowers'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -26,11 +26,17 @@ elif dataset == 'cifar10':
     n_channels = 3
     codebook_size = 128
     emb_dim = 256
+elif dataset == 'flowers':
+    batch_size = 128
+    img_size = 32
+    n_channels = 3
+    codebook_size = 128
+    emb_dim = 128
 
 train_steps = 100001
 steps_per_log = 10
-steps_per_eval = 500
-steps_per_checkpoint = 10000
+steps_per_eval = 100
+steps_per_checkpoint = 100
 
 #%% Define VQVAE classes
 # From taming transformers
@@ -136,6 +142,7 @@ class Generator(nn.Module):
         return self.generator(x)
 
 
+# TODO: Increase number of inner channels - easier for cifar etc.
 class VQAutoEncoder(nn.Module):
     def __init__(self, nc, nf, ne, beta=0.25):
         super().__init__()
@@ -255,9 +262,10 @@ def main():
         if step % steps_per_log == 0:
             log(f"Step {step}, G Loss: {g_losses.mean():.3f}, D Loss: {d_losses.mean():.3f}")
             g_losses, d_losses = np.array([]), np.array([])
+            vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
+            vis.images(x_hat.clamp(0,1)[:64], win="recons", opts=dict(title="recons"))
             
         if step % steps_per_eval == 0:
-            vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
             save_images(x_hat[:64], vis, 'recons', step, log_dir)
 
         if step % steps_per_checkpoint == 0 and step > 0:

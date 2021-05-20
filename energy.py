@@ -11,7 +11,7 @@ from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'cifar10'
+dataset = 'flowers'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -36,11 +36,23 @@ elif dataset == 'cifar10':
     main_lr = 1e-4
     l2_coef = 5e-2
     latent_shape = [1, 8, 8]
+elif dataset == 'flowers':
+    batch_size = 128
+    img_size = 32
+    n_channels = 3
+    codebook_size = 128
+    emb_dim = 128
+    buffer_size = 1000
+    sampling_steps = 50
+    warmup_iters = 2000
+    main_lr = 1e-4
+    latent_shape = [1, 8, 8]
 
-training_steps = 10001
-steps_per_log = 1
-steps_per_eval = 50
-steps_per_checkpoint = 1000
+training_steps = 100001
+steps_per_log = 10
+steps_per_eval = 100
+steps_per_checkpoint = 500
+grad_clip_threshold = 1000
 
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 0
@@ -245,6 +257,8 @@ def main():
 
     hop_dists = []
 
+    grad_norms = []
+
     #%% main training loop
     for step in range(start_step, training_steps):
         # linearly anneal in learning rate
@@ -284,11 +298,20 @@ def main():
 
         optim.zero_grad()
         loss.backward()
+
+        # gradient clipping / tracking
+        grad_norm = torch.nn.utils.clip_grad_norm_(energy.parameters(), grad_clip_threshold).item()
+        grad_norms.append(grad_norm)
+
         optim.step()
 
         if step % steps_per_log == 0:
             log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
-        
+            q = energy.embed(x_fake)
+            samples = ae.generator(q)
+            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+            vis.line(grad_norms, win='grad_norms', opts=dict(title='Gradient Norms'))
+
         if step % steps_per_eval == 0:
             q = energy.embed(x_fake)
             samples = ae.generator(q)
