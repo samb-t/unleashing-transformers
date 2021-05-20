@@ -46,16 +46,18 @@ elif dataset == 'flowers':
     sampling_steps = 50
     warmup_iters = 2000
     main_lr = 1e-4
+    l2_coef = 0
     latent_shape = [1, 8, 8]
 
 training_steps = 100001
 steps_per_log = 10
 steps_per_eval = 100
-steps_per_checkpoint = 500
+steps_per_checkpoint = 5
 grad_clip_threshold = 1000
 
-LOAD_MODEL = False
-LOAD_MODEL_STEP = 0
+LOAD_MODEL = True
+LOAD_OPTIM = False
+LOAD_MODEL_STEP = 5
 
 def approx_difference_function_multi_dim(x, model):
     x = x.requires_grad_()
@@ -216,7 +218,7 @@ def main():
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 70000, f'vq_gan_{dataset}')
+    ae = load_model(ae, 'ae', 100, f'vq_gan_test_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -232,20 +234,25 @@ def main():
     init_mean = latents.mean(0) + eps # H*W, codebook_size
     init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
-    init_dist = MyOneHotCategorical(init_mean)
-    buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
-    all_inds = list(range(buffer_size))
-
     # create energy model
     net = ResNetEBM_cat()
     energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
     optim = torch.optim.Adam(energy.parameters())
 
-    start_step = 0 
+    
     if LOAD_MODEL:
         energy = load_model(energy, 'ebm', LOAD_MODEL_STEP, log_dir)
-        optim = load_model(optim, 'ebm_optim', LOAD_MODEL_STEP, log_dir)
+        buffer = load_buffer(LOAD_MODEL_STEP, log_dir)
+        
+        if LOAD_OPTIM:
+            optim = load_model(optim, 'ebm_optim', LOAD_MODEL_STEP, log_dir)
+        
         start_step = LOAD_MODEL_STEP
+
+    else:
+        init_dist = MyOneHotCategorical(init_mean)
+        buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
+        start_step = 0 
 
     log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
 
@@ -256,8 +263,8 @@ def main():
     vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
 
     hop_dists = []
-
     grad_norms = []
+    all_inds = list(range(buffer_size))
 
     #%% main training loop
     for step in range(start_step, training_steps):
@@ -317,13 +324,14 @@ def main():
             samples = ae.generator(q)
             save_images(samples[:64], vis, 'samples', step, log_dir)
 
-        if step % steps_per_checkpoint == 0 and step > 0:
+        if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
             save_model(energy, 'ebm', step, log_dir)
             save_model(optim, 'ebm_optim', step, log_dir)
+            save_buffer(buffer, step, log_dir)
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_with_L2_5e-2_{dataset}'
+    log_dir = f'ebm_test_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         dataset = dataset,

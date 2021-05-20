@@ -42,6 +42,14 @@ def load_model(model, model_load_name, step, log_dir):
     log(f'Loading {model_load_name} from step {step}')
     return model
 
+def save_buffer(buffer, step, log_dir):
+    log_dir = 'logs/' + log_dir + '/saved_models'
+    torch.save(buffer, os.path.join(log_dir, f'buffer_{step}.pt'))
+
+def load_buffer(step, log_dir):
+    log_dir = 'logs/' + log_dir + '/saved_models'
+    buffer = torch.load(os.path.join(log_dir, f'buffer_{step}.pt'))
+    return buffer
 
 # def download_flowers_data(dataset_folder):
 #     import tarfile
