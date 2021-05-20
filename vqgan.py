@@ -36,7 +36,7 @@ elif dataset == 'flowers':
 train_steps = 100001
 steps_per_log = 10
 steps_per_eval = 100
-steps_per_checkpoint = 100
+steps_per_checkpoint = 1000
 
 #%% Define VQVAE classes
 # From taming transformers
@@ -278,7 +278,7 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'vq_gan_test_{dataset}'
+    log_dir = f'vq_gan_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         batch_size = batch_size,

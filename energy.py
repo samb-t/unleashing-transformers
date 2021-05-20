@@ -52,7 +52,7 @@ elif dataset == 'flowers':
 training_steps = 100001
 steps_per_log = 10
 steps_per_eval = 100
-steps_per_checkpoint = 5
+steps_per_checkpoint = 500
 grad_clip_threshold = 1000
 
 LOAD_MODEL = True
@@ -218,7 +218,7 @@ def main():
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 100, f'vq_gan_test_{dataset}')
+    ae = load_model(ae, 'ae', 2000, f'vq_gan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -331,7 +331,7 @@ def main():
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_test_{dataset}'
+    log_dir = f'ebm_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         dataset = dataset,
