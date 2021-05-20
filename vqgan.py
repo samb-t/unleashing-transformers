@@ -13,7 +13,7 @@ from torch.nn.utils import parameters_to_vector as ptv
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 10000
 #%% hparams
-dataset = 'cifar10'
+dataset = 'mnist'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -270,7 +270,7 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'vq_gan_test_{dataset}'
+    log_dir = f'vq_gan_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         batch_size = batch_size,

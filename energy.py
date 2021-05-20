@@ -11,7 +11,7 @@ from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'mnist'
+dataset = 'cifar10'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -22,6 +22,7 @@ if dataset == 'mnist':
     sampling_steps = 50
     warmup_iters = 2000
     main_lr = 1e-4
+    l2_coef = 1
     latent_shape = [1, 8, 8]
 elif dataset == 'cifar10':
     batch_size = 128
@@ -33,11 +34,12 @@ elif dataset == 'cifar10':
     sampling_steps = 50
     warmup_iters = 2000
     main_lr = 1e-4
+    l2_coef = 5e-2
     latent_shape = [1, 8, 8]
 
 training_steps = 10001
-steps_per_log = 5
-steps_per_eval = 20
+steps_per_log = 1
+steps_per_eval = 50
 steps_per_checkpoint = 1000
 
 LOAD_MODEL = False
@@ -202,7 +204,7 @@ def main():
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 1000, f'vq_gan_{dataset}')
+    ae = load_model(ae, 'ae', 70000, f'vq_gan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -213,9 +215,9 @@ def main():
 
     data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
 
-    # latents # B, H*W, 10
+    # latents # B, H*W, codebook_size
     eps = 1e-3 / codebook_size
-    init_mean = latents.mean(0) + eps # H*W, 10
+    init_mean = latents.mean(0) + eps # H*W, codebook_size
     init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
     init_dist = MyOneHotCategorical(init_mean)
@@ -274,7 +276,11 @@ def main():
 
         obj = logp_real.mean() - logp_fake.mean()
 
-        loss = -obj #+ 0.01 * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
+        # no regularisation
+        # loss = -obj
+
+        # L2 regularisation
+        loss = -obj + l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
         optim.zero_grad()
         loss.backward()
@@ -294,7 +300,7 @@ def main():
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_{dataset}'
+    log_dir = f'ebm_with_L2_5e-2_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         dataset = dataset,
@@ -307,6 +313,7 @@ if __name__ == '__main__':
         sampling_steps = sampling_steps,
         warmup_iters = warmup_iters,
         main_lr = main_lr,
+        l2_coef = l2_coef,
         latent_shape = latent_shape
     ))
     main()
