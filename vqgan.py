@@ -13,28 +13,38 @@ from torch.nn.utils import parameters_to_vector as ptv
 LOAD_MODEL = False
 LOAD_MODEL_STEP = 10000
 #%% hparams
-dataset = 'flowers'
+dataset = 'celeba'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
     n_channels = 1
     codebook_size = 10
     emb_dim = 64
+    nf = 64
 elif dataset == 'cifar10':
     batch_size = 128
     img_size = 32
     n_channels = 3
     codebook_size = 128
     emb_dim = 256
+    nf = 64
 elif dataset == 'flowers':
     batch_size = 128
     img_size = 32
     n_channels = 3
     codebook_size = 128
     emb_dim = 128
+    nf = 64
+elif dataset == 'celeba':
+    batch_size = 32
+    img_size = 256
+    n_channels = 3
+    codebook_size = 256
+    emb_dim = 1024
+    nf = 128
 
 train_steps = 100001
-steps_per_log = 10
+steps_per_log = 1
 steps_per_eval = 100
 steps_per_checkpoint = 1000
 
@@ -106,6 +116,7 @@ class ResBlock(nn.Module):
     def forward(self, x):
         return x + self.convs(x)
 
+
 class Encoder(nn.Module):
     def __init__(self, nc, nf):
         super().__init__()
@@ -140,7 +151,6 @@ class Generator(nn.Module):
     
     def forward(self, x):
         return self.generator(x)
-
 
 # TODO: Increase number of inner channels - easier for cifar etc.
 class VQAutoEncoder(nn.Module):
@@ -207,8 +217,8 @@ def main():
     disc_factor = 1.0
     codebook_weight = 1.0
     train_iterator = cycle(get_data_loader(dataset, img_size, batch_size))
-    autoencoder = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    discriminator = Discriminator(n_channels, 64).cuda()
+    autoencoder = VQAutoEncoder(n_channels, nf*2, codebook_size).cuda()
+    discriminator = Discriminator(n_channels, nf).cuda()
     ae_optim = torch.optim.Adam(autoencoder.parameters())
     d_optim = torch.optim.Adam(discriminator.parameters())
     start_step = 0 
@@ -262,8 +272,8 @@ def main():
         if step % steps_per_log == 0:
             log(f"Step {step}, G Loss: {g_losses.mean():.3f}, D Loss: {d_losses.mean():.3f}")
             g_losses, d_losses = np.array([]), np.array([])
-            vis.images(x.clamp(0,1)[:64], win="x", opts=dict(title="x"))
-            vis.images(x_hat.clamp(0,1)[:64], win="recons", opts=dict(title="recons"))
+            vis.images(x.clamp(0,1)[:64], win="x", nrow=int(np.sqrt(batch_size)), opts=dict(title="x"))
+            vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(batch_size)), opts=dict(title="recons"))
             
         if step % steps_per_eval == 0:
             save_images(x_hat[:64], vis, 'recons', step, log_dir)
@@ -278,13 +288,15 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'vq_gan_{dataset}'
+    log_dir = f'vq_gan_test_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
+        dataset = dataset,
         batch_size = batch_size,
         img_size = img_size,
         n_channels = n_channels,
         codebook_size = codebook_size,
         emb_dim = emb_dim,
+        nf = nf
     ))
     main()

@@ -3,15 +3,16 @@ import torch
 import torch.nn as nn
 import torch.distributions as dists
 import numpy as np
-from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
-from tqdm import tqdm
-import os
 import visdom
+import os
+import time
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
+from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
+from tqdm import tqdm
 
 #%% hparams
-dataset = 'flowers'
+dataset = 'cifar10'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -33,8 +34,8 @@ elif dataset == 'cifar10':
     buffer_size = 10000
     sampling_steps = 50
     warmup_iters = 2000
-    main_lr = 1e-4
-    l2_coef = 5e-2
+    main_lr = 1e-5
+    l2_coef = 0
     latent_shape = [1, 8, 8]
 elif dataset == 'flowers':
     batch_size = 128
@@ -50,15 +51,18 @@ elif dataset == 'flowers':
     latent_shape = [1, 8, 8]
 
 training_steps = 100001
-steps_per_log = 10
-steps_per_eval = 100
-steps_per_checkpoint = 500
+steps_per_log = 1
+steps_per_eval = 25
+steps_per_checkpoint = 1000
+steps_per_backup = 250
+
 grad_clip_threshold = 1000
 
 LOAD_MODEL = True
 LOAD_OPTIM = False
-LOAD_MODEL_STEP = 5
+LOAD_MODEL_STEP = 6000
 
+# eq 4 in paper
 def approx_difference_function_multi_dim(x, model):
     x = x.requires_grad_()
     gx = torch.autograd.grad(model(x).sum(), x)[0]
@@ -212,13 +216,13 @@ def get_latents(ae, dataloader):
     
     return torch.cat(latents, dim=0)
 
-
+#%% main fn
 def main():
     data_dim = np.prod(latent_shape)
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 2000, f'vq_gan_{dataset}')
+    ae = load_model(ae, 'ae', 70000, f'vq_gan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -237,7 +241,7 @@ def main():
     # create energy model
     net = ResNetEBM_cat()
     energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
-    optim = torch.optim.Adam(energy.parameters())
+    optim = torch.optim.Adam(energy.parameters(), lr=main_lr)
 
     
     if LOAD_MODEL:
@@ -264,10 +268,14 @@ def main():
 
     hop_dists = []
     grad_norms = []
+    diffs = []
     all_inds = list(range(buffer_size))
+    # backup_buffer = buffer.clone()
+    # backup_state_dict = energy.state_dict()
 
-    #%% main training loop
+    # main training loop
     for step in range(start_step, training_steps):
+        step_time_start = time.time()
         # linearly anneal in learning rate
         if step < warmup_iters:
             lr = main_lr * float(step) / warmup_iters
@@ -276,7 +284,7 @@ def main():
         
         x = next(data_iterator)
         x = x.cuda()
-
+        
         buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
         x_buffer = buffer[buffer_inds].cuda()
         x_fake = x_buffer
@@ -297,37 +305,58 @@ def main():
 
         obj = logp_real.mean() - logp_fake.mean()
 
-        # no regularisation
-        # loss = -obj
-
         # L2 regularisation
         loss = -obj + l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
         optim.zero_grad()
         loss.backward()
 
-        # gradient clipping / tracking
+        # gradient clipping
         grad_norm = torch.nn.utils.clip_grad_norm_(energy.parameters(), grad_clip_threshold).item()
+
         grad_norms.append(grad_norm)
+        diffs.append(obj.item())
+        steps = list(range(start_step, step+1))
+        vis.line(grad_norms, steps, win='grad_norms', opts=dict(title='Gradient Norms'))
+        vis.line(diffs, steps, win='diffs', opts=dict(title='Energy Difference'))
+        vis.line(hop_dists, steps, win='hops', opts=dict(title='Hops'))
 
-        optim.step()
+        if grad_norm > grad_clip_threshold:
+            log(f'Grad norm breached threshold, skipping step {step}')
+            # energy = load_model(energy, 'ebm', 'latest', log_dir)
+            # buffer = load_buffer('latest', log_dir)
+        
+            # if LOAD_OPTIM:
+            #     optim = load_model(optim, 'ebm_optim', 'latest', log_dir)
 
-        if step % steps_per_log == 0:
-            log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}")
-            q = energy.embed(x_fake)
-            samples = ae.generator(q)
-            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
-            vis.line(grad_norms, win='grad_norms', opts=dict(title='Gradient Norms'))
+        else:
+            
+            optim.step()
+            # backup buffer if buffer is in good sampling point
+            # if hop_dists[-1] > hops_backup_threshold:
+            #     log(f'Backing up buffer at step {step}')
+            #     backup_buffer = buffer.detach().clone()
+            #     backup_state_dict = energy.state_dict()
 
-        if step % steps_per_eval == 0:
-            q = energy.embed(x_fake)
-            samples = ae.generator(q)
-            save_images(samples[:64], vis, 'samples', step, log_dir)
+            if step % steps_per_log == 0:
+                log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
+                q = energy.embed(x_fake)
+                samples = ae.generator(q)
+                vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
 
-        if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
-            save_model(energy, 'ebm', step, log_dir)
-            save_model(optim, 'ebm_optim', step, log_dir)
-            save_buffer(buffer, step, log_dir)
+            if step % steps_per_eval == 0:
+                q = energy.embed(x_fake)
+                samples = ae.generator(q)
+                save_images(samples[:64], vis, 'samples', step, log_dir)
+
+            if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
+                save_model(energy, 'ebm', 'latest', log_dir)
+                save_model(optim, 'ebm_optim', 'latest', log_dir)
+                save_buffer(buffer, 'latest', log_dir)
+            # if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
+            #     save_model(energy, 'ebm', step, log_dir)
+            #     save_model(optim, 'ebm_optim', step, log_dir)
+            #     save_buffer(buffer, step, log_dir)
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
@@ -345,6 +374,7 @@ if __name__ == '__main__':
         warmup_iters = warmup_iters,
         main_lr = main_lr,
         l2_coef = l2_coef,
+        grad_clip_threshold = grad_clip_threshold,
         latent_shape = latent_shape
     ))
     main()

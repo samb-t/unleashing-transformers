@@ -28,27 +28,27 @@ def start_training_log(hparams):
         log(f'> {param}: {hparams[param]}')
 
 
-def save_model(model, model_save_name, step, log_dir):
+def save_model(model, model_save_name, suffix, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
     os.makedirs(log_dir, exist_ok=True)
-    model_name = f'{model_save_name}_{step}.th'
-    log(f'Saving {model_save_name} at step {step}')
+    model_name = f'{model_save_name}_{suffix}.th'
+    log(f'Saving {model_save_name} to {model_save_name}_{str(suffix)}.th')
     torch.save(model.state_dict(), os.path.join(log_dir, model_name))
 
 
-def load_model(model, model_load_name, step, log_dir):
+def load_model(model, model_load_name, suffix, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
-    model.load_state_dict(torch.load(os.path.join(log_dir, f'{model_load_name}_{step}.th')))
-    log(f'Loading {model_load_name} from step {step}')
+    model.load_state_dict(torch.load(os.path.join(log_dir, f'{model_load_name}_{suffix}.th')))
+    log(f'Loading {model_load_name}_{str(suffix)}.th')
     return model
 
 def save_buffer(buffer, step, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
     torch.save(buffer, os.path.join(log_dir, f'buffer_{step}.pt'))
 
-def load_buffer(step, log_dir):
+def load_buffer(name, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
-    buffer = torch.load(os.path.join(log_dir, f'buffer_{step}.pt'))
+    buffer = torch.load(os.path.join(log_dir, f'buffer_{name}.pt'))
     return buffer
 
 def get_data_loader(dataset_name, img_size, batch_size, train=True, drop_last=True, download=False):
@@ -63,8 +63,13 @@ def get_data_loader(dataset_name, img_size, batch_size, train=True, drop_last=Tr
     elif dataset_name == 'flowers':
         dataset = torchvision.datasets.ImageFolder('~/Repos/_datasets/flowers', transform=torchvision.transforms.Compose([
         torchvision.transforms.Resize(img_size), torchvision.transforms.CenterCrop(img_size), torchvision.transforms.ToTensor()
-    ])) # normalize?
-    
+    ]))
+    elif dataset_name =='celeba':
+        dataset = torchvision.datasets.CelebA('~/Repos/_datasets/celeba', download=True, transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.ToTensor()
+        ]))
     loader = torch.utils.data.DataLoader(dataset, sampler=None, shuffle=True, batch_size=batch_size, drop_last=drop_last)
     return loader
 
@@ -81,3 +86,8 @@ def save_latents(latents, dataset):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
     torch.save(latents, f'latents/{dataset}_latents.pkl')
+
+
+def update_model(model1, model2):
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        p2.data = p1.data
