@@ -50,23 +50,24 @@ elif dataset == 'celeba':
     batch_size = 3
     img_size = 256
     n_channels = 3
-    nf = 128
+    nf = 128 # autoencoder features
+    ndf = 64 # discriminator features
     ch_mult = [1, 1, 2, 2, 4]
     attn_resolutions = [16]
     res_blocks = 2
     disc_layers = 3
-    codebook_size = 256
-    emb_dim = 1024
+    codebook_size = 1024
+    emb_dim = 256
     disc_start_step = 30001
 
 base_lr = 4.5e-6
 lr = base_lr * batch_size
 train_steps = 1000001
 steps_per_log = 10
-steps_per_eval = 100
-steps_per_checkpoint = 1000
+steps_per_eval = 1000
+steps_per_checkpoint = 10000
 
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_STEP = 100000
 
 #%% helper functions
@@ -359,6 +360,7 @@ class Generator(nn.Module):
             x = block(x)
         return x
 
+
 class VQAutoEncoder(nn.Module):
     def __init__(self, in_channels, nf, n_blocks, n_e, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25):
         super().__init__()
@@ -374,33 +376,32 @@ class VQAutoEncoder(nn.Module):
 
 # patch based discriminator
 class Discriminator(nn.Module):
-    def __init__(self, nc, nf, n_layers=3, factor=1.0, weight=0.8):
+    def __init__(self, nc, ndf, n_layers=3):
         super().__init__()
-        self.disc_factor = factor
-        self.disc_weight = weight
-        layers = [nn.Conv2d(nc, nf, kernel_size=4, stride=2, padding=1), nn.LeakyReLU(0.2, True)]
-        nf_mult = 1
-        nf_mult_prev = 1
+
+        layers = [nn.Conv2d(nc, ndf, kernel_size=4, stride=2, padding=1), nn.LeakyReLU(0.2, True)]
+        ndf_mult = 1
+        ndf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
-            nf_mult_prev = nf_mult
-            nf_mult = min(2 ** n, 8)
+            ndf_mult_prev = ndf_mult
+            ndf_mult = min(2 ** n, 8)
             layers += [
-                nn.Conv2d(nf * nf_mult_prev, nf * nf_mult, kernel_size=4, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(nf * nf_mult),
+                nn.Conv2d(ndf * ndf_mult_prev, ndf * ndf_mult, kernel_size=4, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(ndf * ndf_mult),
                 nn.LeakyReLU(0.2, True)
             ]
         
-        nf_mult_prev = nf_mult
-        nf_mult = min(2 ** n_layers, 8)
+        ndf_mult_prev = ndf_mult
+        ndf_mult = min(2 ** n_layers, 8)
 
         layers += [
-            nn.Conv2d(nf * nf_mult_prev, nf * nf_mult, kernel_size=4, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(nf * nf_mult),
+            nn.Conv2d(ndf * ndf_mult_prev, ndf * ndf_mult, kernel_size=4, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(ndf * ndf_mult),
             nn.LeakyReLU(0.2, True)
         ]
 
         layers += [
-            nn.Conv2d(nf * nf_mult, 1, kernel_size=4, stride=1, padding=1)]  # output 1 channel prediction map
+            nn.Conv2d(ndf * ndf_mult, 1, kernel_size=4, stride=1, padding=1)]  # output 1 channel prediction map
         self.main = nn.Sequential(*layers)   
     
     def forward(self, x):
@@ -408,14 +409,14 @@ class Discriminator(nn.Module):
 
 # %% main training loop
 def main(): 
-    train_iterator = cycle(get_data_loader(dataset, img_size, batch_size))
+    train_iterator = cycle(get_data_loader(dataset, img_size, batch_size, num_workers=8))
     
     autoencoder = VQAutoEncoder(n_channels, nf, res_blocks, codebook_size, emb_dim, ch_mult, img_size, attn_resolutions).cuda()
-    discriminator = Discriminator(n_channels, nf, n_layers=disc_layers).cuda()
+    discriminator = Discriminator(n_channels, ndf, n_layers=disc_layers).cuda()
     perceptual_loss = lpips.LPIPS(net='vgg').cuda()
 
-    ae_optim = torch.optim.Adam(autoencoder.parameters(), lr=lr)
-    d_optim = torch.optim.Adam(discriminator.parameters(), lr=lr)
+    ae_optim = torch.optim.Adam(autoencoder.parameters(), lr=lr, betas=(0.5,0.9))
+    d_optim = torch.optim.Adam(discriminator.parameters(), lr=lr, betas=(0.5,0.9))
 
     start_step = 0 
     if LOAD_MODEL:
@@ -497,6 +498,7 @@ if __name__ == '__main__':
         img_size = img_size,
         n_channels = n_channels,
         nf=nf,
+        ndf=ndf,
         ch_mult=ch_mult,
         attn_resolutions=attn_resolutions,
         res_blocks=res_blocks,
