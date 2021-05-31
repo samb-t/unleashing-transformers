@@ -10,64 +10,21 @@ import numpy as np
 import lpips
 import visdom
 from utils import *
+from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'celeba'
-if dataset == 'mnist':
-    batch_size = 128
-    img_size = 32
-    n_channels = 1
-    nf = 64
-    ch_mult = [1,2]
-    attn_resolutions = [8]
-    res_blocks = 1
-    disc_layers = 1
-    codebook_size = 10
-    emb_dim = 64
-    disc_start_step = 2000
-elif dataset == 'cifar10':
-    batch_size = 128
-    img_size = 32
-    n_channels = 3
-    nf = 64
-    ch_mult = [1,2]
-    attn_resolutions = [8]
-    res_blocks = 1
-    disc_layers = 1
-    codebook_size = 128
-    emb_dim = 256
-    disc_start_step = 10000
-elif dataset == 'flowers':
-    batch_size = 128
-    img_size = 32
-    n_channels = 3
-    nf = 64
-    ae_blocks = 2
-    codebook_size = 128
-    emb_dim = 128
-elif dataset == 'celeba':
-    batch_size = 3
-    img_size = 256
-    n_channels = 3
-    nf = 128 # autoencoder features
-    ndf = 64 # discriminator features
-    ch_mult = [1, 1, 2, 2, 4]
-    attn_resolutions = [16]
-    res_blocks = 2
-    disc_layers = 3
-    codebook_size = 1024
-    emb_dim = 256
-    disc_start_step = 30001
+dataset = 'mnist'
+H = Hparams(dataset)
 
-base_lr = 4.5e-6
-lr = base_lr * batch_size
+
+lr = H.vq_base_lr * H.batch_size
 train_steps = 1000001
 steps_per_log = 10
 steps_per_eval = 1000
-steps_per_checkpoint = 10000
+steps_per_checkpoint = 100
 
-LOAD_MODEL = True
+LOAD_MODEL = False
 LOAD_MODEL_STEP = 470000
 
 #%% helper functions
@@ -409,10 +366,21 @@ class Discriminator(nn.Module):
 
 # %% main training loop
 def main(): 
-    train_iterator = cycle(get_data_loader(dataset, img_size, batch_size, num_workers=8))
+    train_iterator = cycle(get_data_loader(dataset, H.img_size, H.batch_size, num_workers=8))
     
-    autoencoder = VQAutoEncoder(n_channels, nf, res_blocks, codebook_size, emb_dim, ch_mult, img_size, attn_resolutions).cuda()
-    discriminator = Discriminator(n_channels, ndf, n_layers=disc_layers).cuda()
+    autoencoder = VQAutoEncoder(
+        H.n_channels, 
+        H.nf, 
+        H.res_blocks, 
+        H.codebook_size, 
+        H.emb_dim, 
+        H.ch_mult, 
+        H.img_size, 
+        H.attn_resolutions).cuda()
+    discriminator = Discriminator(
+        H.n_channels, 
+        H.ndf, 
+        n_layers=H.disc_layers).cuda()
     perceptual_loss = lpips.LPIPS(net='vgg').cuda()
 
     ae_optim = torch.optim.Adam(autoencoder.parameters(), lr=lr, betas=(0.5,0.9))
@@ -439,7 +407,7 @@ def main():
         # get recon/perceptual loss
         recon_loss = torch.abs(x.contiguous() - x_hat.contiguous()) # L1 loss
         p_loss = perceptual_loss(x.contiguous(), x_hat.contiguous())
-        nll_loss = recon_loss + p_loss
+        nll_loss = recon_loss + H.perceptual_weight * p_loss
         nll_loss = torch.mean(nll_loss)
 
         # update generator on every training step
@@ -447,7 +415,7 @@ def main():
         g_loss = -torch.mean(logits_fake)
         last_layer = autoencoder.generator.blocks[-1].weight
         d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer)
-        d_weight *= adopt_weight(1, step, disc_start_step)
+        d_weight *= adopt_weight(1, step, H.disc_start_step)
         loss = nll_loss + d_weight * g_loss + codebook_loss
         g_losses = np.append(g_losses, loss.item())
 
@@ -456,7 +424,7 @@ def main():
         ae_optim.step()
 
         # update discriminator
-        if step > disc_start_step:
+        if step > H.disc_start_step:
             logits_real = discriminator(x.contiguous().detach()) # detach so that generator isn't also updated
             logits_fake = discriminator(x_hat.contiguous().detach())
             d_loss = hinge_d_loss(logits_real, logits_fake)
@@ -474,8 +442,8 @@ def main():
             
             log(f"Step {step}  G Loss: {g_losses.mean():.3f}  D Loss: {d_loss_str}  L1: {recon_loss.mean().item():.3f}  Perceptual: {p_loss.mean().item():.3f}  Disc: {g_loss.item():.3f}")
             g_losses, d_losses = np.array([]), np.array([])
-            vis.images(x.clamp(0,1)[:64], win="x", nrow=int(np.sqrt(batch_size)), opts=dict(title="x"))
-            vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(batch_size)), opts=dict(title="recons"))
+            vis.images(x.clamp(0,1)[:64], win="x", nrow=int(np.sqrt(H.batch_size)), opts=dict(title="x"))
+            vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(H.batch_size)), opts=dict(title="recons"))
             
         if step % steps_per_eval == 0:
             save_images(x_hat[:64], vis, 'recons', step, log_dir)
@@ -490,21 +458,7 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'new_vq_gan_{dataset}'
+    log_dir = f'vqgan_{dataset}'
     config_log(log_dir)
-    start_training_log(dict(
-        dataset = dataset,
-        batch_size = batch_size,
-        img_size = img_size,
-        n_channels = n_channels,
-        nf=nf,
-        ndf=ndf,
-        ch_mult=ch_mult,
-        attn_resolutions=attn_resolutions,
-        res_blocks=res_blocks,
-        disc_layers=disc_layers,
-        disc_start_step=disc_start_step,
-        codebook_size = codebook_size,
-        emb_dim = emb_dim,
-    ))
+    start_training_log(H.get_vqgan_param_dict())
     main()

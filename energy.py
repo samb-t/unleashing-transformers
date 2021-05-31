@@ -7,67 +7,20 @@ import visdom
 import os
 import time
 from utils import *
+from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 from vqgan_new import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 
 #%% hparams
 dataset = 'celeba'
-if dataset == 'mnist':
-    batch_size = 128
-    img_size = 32
-    n_channels = 1
-    codebook_size = 10
-    emb_dim = 64
-    buffer_size = 10000
-    sampling_steps = 50
-    warmup_iters = 2000
-    main_lr = 1e-4
-    l2_coef = 1
-    latent_shape = [1, 8, 8]
-elif dataset == 'cifar10':
-    batch_size = 128
-    img_size = 32
-    n_channels = 3
-    codebook_size = 128
-    emb_dim = 256
-    buffer_size = 10000
-    sampling_steps = 50
-    warmup_iters = 2000
-    main_lr = 1e-5
-    l2_coef = 0
-    latent_shape = [1, 8, 8]
-elif dataset == 'flowers':
-    batch_size = 128
-    img_size = 32
-    n_channels = 3
-    codebook_size = 128
-    emb_dim = 128
-    buffer_size = 1000
-    sampling_steps = 50
-    warmup_iters = 2000
-    main_lr = 1e-4
-    l2_coef = 0
-    latent_shape = [1, 8, 8]
-elif dataset == 'celeba':
-    batch_size = 3
-    img_size = 256
-    n_channels = 3
-    codebook_size = 1024
-    emb_dim = 256
-    buffer_size = 10000 # might be way too large
-    sampling_steps = 50
-    warmup_iters = 2000
-    main_lr = 1e-4
-    l2_coef = 0
-    latent_shape = [1, 16, 16]
+H = Hparams(dataset)
 
 training_steps = 100001
 steps_per_log = 1
 steps_per_display_samples = 5
 steps_per_save_samples = 25
 steps_per_checkpoint = 1000
-steps_per_backup = 250
 
 grad_clip_threshold = 10000
 
@@ -90,10 +43,10 @@ def get_latents(ae, dataloader):
     latents = []
     for x, _ in tqdm(dataloader):
         x = x.cuda()
-        z = ae.encoder(x) # B, 64, H, W
+        z = ae.encoder(x) # B, emb_dim, H, W
 
-        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, 64
-        z_flattened = z.view(-1, emb_dim) # B*H*W, 64
+        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, emb_dim
+        z_flattened = z.view(-1, H.emb_dim) # B*H*W, emb_dim
 
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
@@ -102,9 +55,9 @@ def get_latents(ae, dataloader):
         min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.n_e).to(z)
         min_encodings.scatter_(1, min_encoding_indices, 1)
 
-        one_hot = min_encodings.view(z.size(0), latent_shape[1], latent_shape[2], codebook_size)
+        one_hot = min_encodings.view(z.size(0), H.latent_shape[1], H.latent_shape[2], H.codebook_size)
 
-        latents.append(one_hot.reshape(one_hot.size(0), -1, codebook_size).cpu().contiguous())
+        latents.append(one_hot.reshape(one_hot.size(0), -1, H.codebook_size).cpu().contiguous())
     
     return torch.cat(latents, dim=0)
 
@@ -184,10 +137,10 @@ class BasicBlock(nn.Module):
 
 
 class ResNetEBM_cat(nn.Module):
-    def __init__(self):
+    def __init__(self, e_dim):
         super().__init__()
-        self.net = nn.Sequential(*[BasicBlock(emb_dim, emb_dim, 1) for _ in range(6)])
-        self.energy_linear = nn.Linear(emb_dim, 1)
+        self.net = nn.Sequential(*[BasicBlock(e_dim, e_dim, 1) for _ in range(6)])
+        self.energy_linear = nn.Linear(e_dim, 1)
 
     def forward(self, x):
         out = self.net(x)
@@ -209,16 +162,24 @@ class MyOneHotCategorical:
 
 
 class EBM(nn.Module):
-    def __init__(self, net, embedding, mean=None):
+    def __init__(self, net, embedding, codebook_size, emb_dim, latent_shape, mean=None):
         super().__init__()
         self.net = net
         self.embedding = embedding
         self.embedding.requires_grad = False
         self.mean = None if mean is None else nn.Parameter(mean, requires_grad=False)
-    
+        self.codebook_size = codebook_size
+        self.emb_dim = emb_dim
+        self.latent_shape = latent_shape
+
     def embed(self, z):
-        z_flattened = z.view(-1, codebook_size) # B*H*W, codebook_size
-        return torch.matmul(z_flattened, self.embedding.weight).view(z.size(0), latent_shape[1], latent_shape[2], emb_dim).permute(0, 3, 1, 2).contiguous()
+        z_flattened = z.view(-1, H.codebook_size) # B*H*W, codebook_size
+        return torch.matmul(
+            z_flattened, self.embedding.weight).view(z.size(0), 
+            self.latent_shape[1],
+            self.latent_shape[2],
+            self.emb_dim
+        ).permute(0, 3, 1, 2).contiguous()
 
     def forward(self, x):
         # x: B, H*W, codebook_size
@@ -235,30 +196,46 @@ class EBM(nn.Module):
 
 #%% main
 def main():
-    data_dim = np.prod(latent_shape)
+    data_dim = np.prod(H.latent_shape)
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
-    ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', AE_LOAD_STEP, f'new_vq_gan_{dataset}')
+    ae = VQAutoEncoder(
+        H.n_channels,
+        H.nf,
+        H.res_blocks, 
+        H.codebook_size, 
+        H.emb_dim, 
+        H.ch_mult, 
+        H.img_size, 
+        H.attn_resolutions
+    ).cuda()
+    ae = load_model(ae, 'ae', AE_LOAD_STEP, f'vqgan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
     else:
-        full_dataloader = get_data_loader(dataset, img_size, batch_size, drop_last=False)
+        full_dataloader = get_data_loader(dataset, H.img_size, H.batch_size, drop_last=False)
         latents = get_latents(ae, full_dataloader)
         save_latents(latents, dataset)
 
-    data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=batch_size, shuffle=True))
+    data_iterator = cycle(torch.utils.data.DataLoader(latents, batch_size=H.batch_size, shuffle=True))
 
     # latents # B, H*W, codebook_size
-    eps = 1e-3 / codebook_size
+    eps = 1e-3 / H.codebook_size
     init_mean = latents.mean(0) + eps # H*W, codebook_size
     init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
 
     # create energy model
-    net = ResNetEBM_cat()
-    energy = EBM(net, ae.quantize.embedding, mean=init_mean).cuda() # 10x64
-    optim = torch.optim.Adam(energy.parameters(), lr=main_lr)
+    net = ResNetEBM_cat(H.emb_dim)
+    energy = EBM(
+        net,
+        ae.quantize.embedding,
+        H.codebook_size,
+        H.emb_dim,
+        H.latent_shape,
+        mean=init_mean,
+    ).cuda()
+    optim = torch.optim.Adam(energy.parameters(), lr=H.ebm_lr)
 
     
     if LOAD_MODEL:
@@ -272,7 +249,7 @@ def main():
 
     else:
         init_dist = MyOneHotCategorical(init_mean)
-        buffer = init_dist.sample((buffer_size,)) # 1000, H*W, 10
+        buffer = init_dist.sample((H.buffer_size,)) # 1000, H*W, 10
         start_step = 0 
 
     log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
@@ -286,26 +263,26 @@ def main():
     hop_dists = []
     grad_norms = []
     diffs = []
-    all_inds = list(range(buffer_size))
+    all_inds = list(range(H.buffer_size))
 
     # main training loop
     for step in range(start_step, training_steps):
         step_time_start = time.time()
         # linearly anneal in learning rate
-        if step < warmup_iters:
-            lr = main_lr * float(step) / warmup_iters
+        if step < H.warmup_iters:
+            lr = H.ebm_lr * float(step) / H.warmup_iters
             for param_group in optim.param_groups:
                 param_group['lr'] = lr
         
         x = next(data_iterator)
         x = x.cuda()
         
-        buffer_inds = sorted(np.random.choice(all_inds, batch_size, replace=False))
+        buffer_inds = sorted(np.random.choice(all_inds, H.batch_size, replace=False))
         x_buffer = buffer[buffer_inds].cuda()
         x_fake = x_buffer
 
         hops = []  # keep track of how much the sampler moves particles around
-        for k in range(sampling_steps):
+        for k in range(H.sampling_steps):
             x_fake_new = sampler.step(x_fake.detach(), energy).detach()
             h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
             hops.append(h)
@@ -321,7 +298,7 @@ def main():
         obj = logp_real.mean() - logp_fake.mean()
 
         # L2 regularisation
-        loss = -obj + l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
+        loss = -obj + H.l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
 
         optim.zero_grad()
         loss.backward()
@@ -361,20 +338,6 @@ if __name__ == '__main__':
     vis = visdom.Visdom()
     log_dir = f'ebm_test_{dataset}'
     config_log(log_dir)
-    start_training_log(dict(
-        dataset = dataset,
-        batch_size = batch_size,
-        img_size = img_size,
-        n_channels = n_channels,
-        codebook_size = codebook_size,
-        emb_dim = emb_dim,
-        buffer_size = buffer_size,
-        sampling_steps = sampling_steps,
-        warmup_iters = warmup_iters,
-        main_lr = main_lr,
-        l2_coef = l2_coef,
-        grad_clip_threshold = grad_clip_threshold,
-        latent_shape = latent_shape
-    ))
+    start_training_log(H.get_ebm_param_dict())
     main()
 # %%
