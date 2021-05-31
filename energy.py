@@ -8,11 +8,11 @@ import os
 import time
 from utils import *
 from torch.nn.utils import parameters_to_vector as ptv
-from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
+from vqgan_new import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 
 #%% hparams
-dataset = 'cifar10'
+dataset = 'celeba'
 if dataset == 'mnist':
     batch_size = 128
     img_size = 32
@@ -49,27 +49,66 @@ elif dataset == 'flowers':
     main_lr = 1e-4
     l2_coef = 0
     latent_shape = [1, 8, 8]
+elif dataset == 'celeba':
+    batch_size = 3
+    img_size = 256
+    n_channels = 3
+    codebook_size = 1024
+    emb_dim = 256
+    buffer_size = 10000 # might be way too large
+    sampling_steps = 50
+    warmup_iters = 2000
+    main_lr = 1e-4
+    l2_coef = 0
+    latent_shape = [1, 16, 16]
 
 training_steps = 100001
 steps_per_log = 1
-steps_per_eval = 25
+steps_per_display_samples = 5
+steps_per_save_samples = 25
 steps_per_checkpoint = 1000
 steps_per_backup = 250
 
-grad_clip_threshold = 1000
+grad_clip_threshold = 10000
 
-LOAD_MODEL = True
+AE_LOAD_STEP = 470000
+
+LOAD_MODEL = False
 LOAD_OPTIM = False
 LOAD_MODEL_STEP = 6000
 
-# eq 4 in paper
+#%% helper functions
 def approx_difference_function_multi_dim(x, model):
+    # eq 4 in paper
     x = x.requires_grad_()
     gx = torch.autograd.grad(model(x).sum(), x)[0]
     gx_cur = (gx * x).sum(-1)[:, :, None]
     return gx - gx_cur
 
 
+def get_latents(ae, dataloader):
+    latents = []
+    for x, _ in tqdm(dataloader):
+        x = x.cuda()
+        z = ae.encoder(x) # B, 64, H, W
+
+        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, 64
+        z_flattened = z.view(-1, emb_dim) # B*H*W, 64
+
+        # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
+        d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
+            2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
+        min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
+        min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.n_e).to(z)
+        min_encodings.scatter_(1, min_encoding_indices, 1)
+
+        one_hot = min_encodings.view(z.size(0), latent_shape[1], latent_shape[2], codebook_size)
+
+        latents.append(one_hot.reshape(one_hot.size(0), -1, codebook_size).cpu().contiguous())
+    
+    return torch.cat(latents, dim=0)
+
+#%% define EBM classes
 # TODO: Try multiple flips per step
 # Gibbs-With-Gradients for categorical data
 class DiffSamplerMultiDim(nn.Module):
@@ -194,35 +233,13 @@ class EBM(nn.Module):
         return logp + bd
 
 
-def get_latents(ae, dataloader):
-    latents = []
-    for x, _ in tqdm(dataloader):
-        x = x.cuda()
-        z = ae.encoder(x) # B, 64, H, W
-
-        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, 64
-        z_flattened = z.view(-1, emb_dim) # B*H*W, 64
-
-        # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
-        d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
-            2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
-        min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-        min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.n_e).to(z)
-        min_encodings.scatter_(1, min_encoding_indices, 1)
-
-        one_hot = min_encodings.view(z.size(0), latent_shape[1], latent_shape[2], codebook_size)
-
-        latents.append(one_hot.reshape(one_hot.size(0), -1, codebook_size).cpu().contiguous())
-    
-    return torch.cat(latents, dim=0)
-
-#%% main fn
+#%% main
 def main():
     data_dim = np.prod(latent_shape)
     sampler = DiffSamplerMultiDim(data_dim, 1)
 
     ae = VQAutoEncoder(n_channels, emb_dim, codebook_size).cuda()
-    ae = load_model(ae, 'ae', 70000, f'vq_gan_{dataset}')
+    ae = load_model(ae, 'ae', AE_LOAD_STEP, f'new_vq_gan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents.pkl'):
         latents = torch.load(f'latents/{dataset}_latents.pkl')
@@ -270,8 +287,6 @@ def main():
     grad_norms = []
     diffs = []
     all_inds = list(range(buffer_size))
-    # backup_buffer = buffer.clone()
-    # backup_state_dict = energy.state_dict()
 
     # main training loop
     for step in range(start_step, training_steps):
@@ -323,44 +338,28 @@ def main():
 
         if grad_norm > grad_clip_threshold:
             log(f'Grad norm breached threshold, skipping step {step}')
-            # energy = load_model(energy, 'ebm', 'latest', log_dir)
-            # buffer = load_buffer('latest', log_dir)
-        
-            # if LOAD_OPTIM:
-            #     optim = load_model(optim, 'ebm_optim', 'latest', log_dir)
 
-        else:
-            
+        else:     
             optim.step()
-            # backup buffer if buffer is in good sampling point
-            # if hop_dists[-1] > hops_backup_threshold:
-            #     log(f'Backing up buffer at step {step}')
-            #     backup_buffer = buffer.detach().clone()
-            #     backup_state_dict = energy.state_dict()
 
             if step % steps_per_log == 0:
                 log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
+            if step % steps_per_display_samples == 0:
                 q = energy.embed(x_fake)
                 samples = ae.generator(q)
                 vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
-
-            if step % steps_per_eval == 0:
-                q = energy.embed(x_fake)
-                samples = ae.generator(q)
-                save_images(samples[:64], vis, 'samples', step, log_dir)
+                
+                if step % steps_per_save_samples == 0:
+                    save_images(samples[:64], vis, 'samples', step, log_dir)
 
             if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
-                save_model(energy, 'ebm', 'latest', log_dir)
-                save_model(optim, 'ebm_optim', 'latest', log_dir)
-                save_buffer(buffer, 'latest', log_dir)
-            # if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
-            #     save_model(energy, 'ebm', step, log_dir)
-            #     save_model(optim, 'ebm_optim', step, log_dir)
-            #     save_buffer(buffer, step, log_dir)
+                save_model(energy, 'ebm', step, log_dir)
+                save_model(optim, 'ebm_optim', step, log_dir)
+                save_buffer(buffer, step, log_dir)
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_{dataset}'
+    log_dir = f'ebm_test_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         dataset = dataset,
@@ -378,3 +377,4 @@ if __name__ == '__main__':
         latent_shape = latent_shape
     ))
     main()
+# %%

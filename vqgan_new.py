@@ -67,8 +67,8 @@ steps_per_log = 10
 steps_per_eval = 1000
 steps_per_checkpoint = 10000
 
-LOAD_MODEL = False
-LOAD_MODEL_STEP = 100000
+LOAD_MODEL = True
+LOAD_MODEL_STEP = 470000
 
 #%% helper functions
 def normalize(in_channels):
@@ -490,7 +490,7 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'new_vq_gan_test_{dataset}'
+    log_dir = f'new_vq_gan_{dataset}'
     config_log(log_dir)
     start_training_log(dict(
         dataset = dataset,
