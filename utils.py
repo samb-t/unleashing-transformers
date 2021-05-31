@@ -85,7 +85,7 @@ def save_images(images, vis_win, win_name, step, log_dir):
 def save_latents(latents, dataset):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
-    torch.save(latents, f'latents/{dataset}_latents.pkl')
+    torch.save(latents, f'latents/{dataset}_latents')
 
 
 def update_model(model1, model2):

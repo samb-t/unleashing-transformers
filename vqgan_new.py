@@ -70,19 +70,19 @@ def weights_init(m):
 #%% Define VQVAE classes
 # From taming transformers
 class VectorQuantizer(nn.Module):
-    def __init__(self, n_e, e_dim, beta):
+    def __init__(self, codebook_size, emb_dim, beta):
         super(VectorQuantizer, self).__init__()
-        self.n_e = n_e # number of embeddings
-        self.e_dim = e_dim # dimension of embedding
+        self.codebook_size = codebook_size # number of embeddings
+        self.emb_dim = emb_dim # dimension of embedding
         self.beta = beta # commitment cost used in loss term, beta * ||z_e(x)-sg[e]||^2
 
-        self.embedding = nn.Embedding(self.n_e, self.e_dim)
-        self.embedding.weight.data.uniform_(-1.0 / self.n_e, 1.0 / self.n_e)
+        self.embedding = nn.Embedding(self.codebook_size, self.emb_dim)
+        self.embedding.weight.data.uniform_(-1.0 / self.codebook_size, 1.0 / self.codebook_size)
 
     def forward(self, z):
         # reshape z -> (batch, height, width, channel) and flatten
         z = z.permute(0, 2, 3, 1).contiguous()
-        z_flattened = z.view(-1, self.e_dim)
+        z_flattened = z.view(-1, self.emb_dim)
 
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (self.embedding.weight**2).sum(1) - \
@@ -90,7 +90,7 @@ class VectorQuantizer(nn.Module):
 
         # find closest encodings
         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-        min_encodings = torch.zeros(min_encoding_indices.shape[0], self.n_e).to(z)
+        min_encodings = torch.zeros(min_encoding_indices.shape[0], self.codebook_size).to(z)
         min_encodings.scatter_(1, min_encoding_indices, 1)
 
         # get quantized latent vectors
@@ -109,7 +109,7 @@ class VectorQuantizer(nn.Module):
         return z_q, loss, (perplexity, min_encodings, min_encoding_indices)
 
     def get_codebook_entry(self, indices, shape):
-        min_encodings = torch.zeros(indices.shape[0], self.n_e).to(indices)
+        min_encodings = torch.zeros(indices.shape[0], self.codebook_size).to(indices)
         min_encodings.scatter_(1, indices[:,None], 1)
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings.float(), self.embedding.weight)
@@ -319,10 +319,10 @@ class Generator(nn.Module):
 
 
 class VQAutoEncoder(nn.Module):
-    def __init__(self, in_channels, nf, n_blocks, n_e, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25):
+    def __init__(self, in_channels, nf, n_blocks, codebook_size, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25):
         super().__init__()
         self.encoder = Encoder(in_channels, nf, embed_dim, ch_mults, n_blocks, resolution, attn_resolutions)
-        self.quantize = VectorQuantizer(n_e, embed_dim, beta)
+        self.quantize = VectorQuantizer(codebook_size, embed_dim, beta)
         self.generator = Generator(embed_dim, nf, in_channels, ch_mults, n_blocks, resolution, attn_resolutions)
 
     def forward(self, x):

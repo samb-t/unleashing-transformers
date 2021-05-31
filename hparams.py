@@ -90,7 +90,7 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             # ebm only params
-            self.buffer_size = 10000 # might be way too large
+            self.buffer_size = 1000 # might be way too large
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
@@ -134,3 +134,6 @@ class Hparams():
             l2_coef = self.l2_coef,
             latent_shape = self.latent_shape
         )
+
+    def __str__(self):
+        return f'H object of dataset: {self.dataset}'
