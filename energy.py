@@ -17,11 +17,11 @@ from tqdm import tqdm
 dataset = 'celeba'
 H = Hparams(dataset)
 
-training_steps = 100001
+training_steps = 1000001
 steps_per_log = 1
 steps_per_display_samples = 1
 steps_per_save_samples = 25
-steps_per_checkpoint = 100
+steps_per_checkpoint = 1000
 
 grad_clip_threshold = 10000
 
@@ -252,7 +252,7 @@ def main():
         latent_ids = torch.load(f'latents/{dataset}_latents')
         # latents = torch.load(f'latents/{dataset}_latents')
     else:
-        full_dataloader = get_data_loader(dataset, H.img_size, H.batch_size, drop_last=False)
+        full_dataloader = get_data_loader(dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
 
         # latents = get_latents(ae, full_dataloader)
         # save_latents(latents, dataset)
@@ -270,12 +270,14 @@ def main():
         # latents # B, H*W, codebook_size
         eps = 1e-3 / H.codebook_size
 
-        init_mean = 0
+        batch_sum = torch.zeros(H.latent_shape[1]*H.latent_shape[2], H.codebook_size).cuda()
         log('Generating init distribution:')
         for batch in tqdm(latent_loader):
             batch = batch.cuda()
             latents = latent_ids_to_onehot(batch, H)
-            init_mean += latents.sum(0) / len(latent_loader)
+            batch_sum += latents.sum(0)
+
+        init_mean = batch_sum / (len(latent_loader) * H.batch_size)
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
@@ -345,10 +347,15 @@ def main():
 
         hops = []  # keep track of how much the sampler moves particles around
         for k in range(H.sampling_steps):
-            x_fake_new = sampler.step(x_fake.detach(), energy).detach()
-            h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
-            hops.append(h)
-            x_fake = x_fake_new
+            try:
+                x_fake_new = sampler.step(x_fake.detach(), energy).detach()
+                h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
+                hops.append(h)
+                x_fake = x_fake_new
+            except ValueError as e:
+                log(f'Error at step {step}, sampling step {k}: {e}')
+                log(f'Skipping sampling step and hoping it still works')
+                hops.append(0)
         hop_dists.append(np.mean(hops))
 
         # update buffer
@@ -398,7 +405,7 @@ def main():
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_test_{dataset}'
+    log_dir = f'ebm_{dataset}'
     config_log(log_dir)
     start_training_log(H.get_ebm_param_dict())
     main()
