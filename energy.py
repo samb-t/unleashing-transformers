@@ -19,9 +19,9 @@ H = Hparams(dataset)
 
 training_steps = 100001
 steps_per_log = 1
-steps_per_display_samples = 5
+steps_per_display_samples = 1
 steps_per_save_samples = 25
-steps_per_checkpoint = 1000
+steps_per_checkpoint = 100
 
 grad_clip_threshold = 10000
 
@@ -275,7 +275,7 @@ def main():
         for batch in tqdm(latent_loader):
             batch = batch.cuda()
             latents = latent_ids_to_onehot(batch, H)
-            init_mean += latents.mean(0)
+            init_mean += latents.sum(0) / len(latent_loader)
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
@@ -384,12 +384,13 @@ def main():
             if step % steps_per_log == 0:
                 log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
             if step % steps_per_display_samples == 0:
-                q = energy.embed(x_fake)
-                samples = ae.generator(q)
-                vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+                # q = energy.embed(x_fake)
+                # samples = ae.generator(q)
+                # vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
                 
-                if step % steps_per_save_samples == 0:
-                    save_images(samples[:64], vis, 'samples', step, log_dir)
+                # if step % steps_per_save_samples == 0:
+                #     save_images(samples[:64], vis, 'samples', step, log_dir)
+                pass
             if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
                 save_model(energy, 'ebm', step, log_dir)
                 save_model(optim, 'ebm_optim', step, log_dir)
