@@ -12,7 +12,7 @@ from utils import *
 from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 from vqgan_new import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
-from energy import ResNetEBM_cat, EBM, DiffSamplerMultiDim
+from energy import ResNetEBM_cat, EBM, DiffSamplerMultiDim, MyOneHotCategorical
 from tqdm import tqdm
 
 
@@ -21,7 +21,7 @@ log_dir = f'ebm_{dataset}'
 H = Hparams(dataset)
 
 AE_LOAD_STEP = 470000
-EBM_LOAD_STEP = 1000
+EBM_LOAD_STEP = 18000
 
 data_dim = np.prod(H.latent_shape)
 sampler = DiffSamplerMultiDim(data_dim, 1)

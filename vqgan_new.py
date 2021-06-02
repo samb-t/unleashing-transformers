@@ -14,13 +14,13 @@ from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'mnist'
+dataset = 'ffhq'
 H = Hparams(dataset)
 
 
 lr = H.vq_base_lr * H.batch_size
 train_steps = 1000001
-steps_per_log = 10
+steps_per_log = 1
 steps_per_eval = 1000
 steps_per_checkpoint = 100
 
@@ -458,7 +458,7 @@ def main():
 #%% main
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'vqgan_{dataset}'
+    log_dir = f'vqgan_test_{dataset}'
     config_log(log_dir)
     start_training_log(H.get_vqgan_param_dict())
     main()
