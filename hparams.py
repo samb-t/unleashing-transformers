@@ -74,7 +74,7 @@ class Hparams():
             self.latent_shape = [1, 8, 8]
 
         elif self.dataset == 'celeba':
-            self.batch_size = 3
+            self.batch_size = 32
             self.img_size = 256
             self.n_channels = 3
             self.nf = 128
@@ -90,7 +90,7 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             # ebm only params
-            self.buffer_size = 1000 # might be way too large
+            self.buffer_size = 10000 # might be way too large
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4

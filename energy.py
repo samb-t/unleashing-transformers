@@ -91,7 +91,7 @@ def generate_latent_ids(ae, dataloader):
 
 def latent_ids_to_onehot(latent_ids, H):
     min_encoding_indices = latent_ids.view(-1).unsqueeze(1)
-    encodings = torch.zeros(min_encoding_indices.shape[0], H.codebook_size).cuda()
+    encodings = torch.zeros(min_encoding_indices.shape[0], H.codebook_size).to(latent_ids.device)
     encodings.scatter_(1, min_encoding_indices, 1)
     one_hot = encodings.view(latent_ids.shape[0], H.latent_shape[1], H.latent_shape[2], H.codebook_size)
 
@@ -245,14 +245,14 @@ def main():
         H.ch_mult, 
         H.img_size, 
         H.attn_resolutions
-    ).cuda()
+    )
     ae = load_model(ae, 'ae', AE_LOAD_STEP, f'vqgan_{dataset}')
 
     if os.path.exists(f'latents/{dataset}_latents'):
         latent_ids = torch.load(f'latents/{dataset}_latents')
         # latents = torch.load(f'latents/{dataset}_latents')
     else:
-        full_dataloader = get_data_loader(dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
+        full_dataloader = get_data_loader(dataset, H.img_size, 5, drop_last=False, shuffle=False)
 
         # latents = get_latents(ae, full_dataloader)
         # save_latents(latents, dataset)
@@ -281,7 +281,7 @@ def main():
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
-        init_dist = MyOneHotCategorical(init_mean)
+        init_dist = MyOneHotCategorical(init_mean.cpu())
         
         torch.save(init_dist, f'latents/{dataset}_init_dist')
 
@@ -308,18 +308,25 @@ def main():
         start_step = LOAD_MODEL_STEP
 
     else:
-        buffer = init_dist.sample((H.buffer_size,)).cpu()
+        # HACK
+        buffer = []
+        for _ in range(int(H.buffer_size / 100)):
+            buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
+        buffer = torch.cat(buffer, dim=0)
+
         start_step = 0 
 
     print('Buffer successfully generated')
     log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
 
     # check reocnstructions are correct
-    latent_id_batch = next(latent_iterator)[:64].cuda()
+    latent_id_batch = next(latent_iterator)[:64]
+
     # latent_batch = next(latent_iterator)[:64].cuda()
     latent_batch = latent_ids_to_onehot(latent_id_batch, H)
-    quant = energy.embed(latent_batch)
-    recons = ae.generator(quant)
+    quant = energy.embed(latent_batch.cuda()).cpu()
+    with torch.no_grad():
+        recons = ae.generator(quant)
     vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
 
     hop_dists = []
@@ -342,7 +349,8 @@ def main():
 
 
         buffer_inds = sorted(np.random.choice(all_inds, H.batch_size, replace=False))
-        x_buffer = buffer[buffer_inds].cuda()
+        x_buffer_ids = buffer[buffer_inds]
+        x_buffer = latent_ids_to_onehot(x_buffer_ids, H).cuda()
         x_fake = x_buffer
 
         hops = []  # keep track of how much the sampler moves particles around
@@ -359,7 +367,8 @@ def main():
         hop_dists.append(np.mean(hops))
 
         # update buffer
-        buffer[buffer_inds] = x_fake.detach().cpu()
+        buffer_ids = x_fake.max(2)[1] 
+        buffer[buffer_inds] = buffer_ids.detach().cpu()
 
         logp_real = energy(x).squeeze()
         logp_fake = energy(x_fake).squeeze()
@@ -391,13 +400,13 @@ def main():
             if step % steps_per_log == 0:
                 log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
             if step % steps_per_display_samples == 0:
-                # q = energy.embed(x_fake)
-                # samples = ae.generator(q)
-                # vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+                q = energy.embed(x_fake).cpu()
+                with torch.no_grad():
+                    samples = ae.generator(q)
+                vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
                 
-                # if step % steps_per_save_samples == 0:
-                #     save_images(samples[:64], vis, 'samples', step, log_dir)
-                pass
+                if step % steps_per_save_samples == 0:
+                    save_images(samples[:64], vis, 'samples', step, log_dir)
             if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
                 save_model(energy, 'ebm', step, log_dir)
                 save_model(optim, 'ebm_optim', step, log_dir)
