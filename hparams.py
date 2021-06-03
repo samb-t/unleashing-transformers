@@ -2,7 +2,7 @@ class Hparams():
     def __init__(self, dataset):
         self.dataset = dataset
         if self.dataset == 'mnist':
-            self.batch_size = 128
+            self.vqgan_batch_size = 128
             self.img_size = 32
             self.n_channels = 1
             self.nf = 32
@@ -18,15 +18,17 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             #ebm only params
+            self.ebm_batch_size = 128
             self.buffer_size = 10000
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 1
             self.latent_shape = [1, 8, 8]
+            self.block_str = 'rdrdr'
         
         elif self.dataset == 'cifar10':
-            self.batch_size = 128
+            self.vqgan_batch_size = 128
             self.img_size = 32
             self.n_channels = 3
             self.nf = 64
@@ -42,15 +44,17 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             #ebm only params
+            self.ebm_batch_size = 128
             self.buffer_size = 10000
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-5
             self.l2_coef = 0
             self.latent_shape = [1, 8, 8]
+            self.block_str = 'rdrrdrr'
 
         elif self.dataset == 'flowers':
-            self.batch_size = 128
+            self.vqgan_batch_size = 128
             self.img_size = 32
             self.n_channels = 3
             self.nf = 64
@@ -66,15 +70,17 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             #ebm only params
+            self.ebm_batch_size = 128
             self.buffer_size = 1000
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
             self.latent_shape = [1, 8, 8]
+            self.block_str = 'rdrrdrr'
 
         elif self.dataset == 'celeba':
-            self.batch_size = 32
+            self.vqgan_batch_size = 3
             self.img_size = 256
             self.n_channels = 3
             self.nf = 128
@@ -90,12 +96,14 @@ class Hparams():
             self.vq_base_lr = 4.5e-6
 
             # ebm only params
+            self.ebm_batch_size = 32
             self.buffer_size = 10000 # might be way too large
             self.sampling_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
             self.latent_shape = [1, 16, 16]
+            self.block_str = 'rdrrdrrdrr'
 
         else:
             raise KeyError(f'Unknown dataset: {self.dataset}')

@@ -1,6 +1,7 @@
 #%% imports
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
 from torch.utils import data
@@ -14,18 +15,18 @@ from vqgan_new import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generat
 from tqdm import tqdm
 
 #%% hparams
-dataset = 'celeba'
+dataset = 'mnist'
 H = Hparams(dataset)
 
 training_steps = 1000001
 steps_per_log = 1
-steps_per_display_samples = 100
+steps_per_display_samples = 1
 steps_per_save_samples = 100
 steps_per_checkpoint = 1000
 
 grad_clip_threshold = 10000
 
-AE_LOAD_STEP = 470000
+AE_LOAD_STEP = 100 
 
 LOAD_MODEL = False
 LOAD_OPTIM = False
@@ -159,23 +160,52 @@ class DiffSamplerMultiDim(nn.Module):
         return x_cur
 
 
-class BasicBlock(nn.Module):
-    def __init__(self, in_planes, planes, stride=1):
-        super(BasicBlock, self).__init__()
-        self.nonlin = lambda x: x * torch.sigmoid(x) # swish
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
-        self.conv2 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
+# class BasicBlock(nn.Module):
+#     def __init__(self, in_planes, planes, stride=1):
+#         super(BasicBlock, self).__init__()
+#         self.nonlin = lambda x: x * torch.sigmoid(x) # swish
+#         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
+#         self.conv2 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
+#     def forward(self, x):
+#         out = self.nonlin(self.conv1(x))
+#         out = x + self.conv2(out)
+#         return self.nonlin(out)
+
+
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, downsample=False):
+        super().__init__()
+        self.nonlin = lambda x: x * torch.sigmoid(x) # swish
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True)
+        self.downsample = downsample
+        if self.downsample:
+            self.down_conv = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True)
+            
     def forward(self, x):
-        out = self.nonlin(self.conv1(x))
-        out = x + self.conv2(out)
-        return self.nonlin(out)
+        h = self.nonlin(self.conv1(x))
+        h = x + self.conv2(h)
+
+        if self.downsample:
+            h = self.down_conv(self.nonlin(h))
+            h = F.avg_pool2d(h, kernel_size=3, stride=2, padding=1)
+
+        return self.nonlin(h)
 
 
 class ResNetEBM_cat(nn.Module):
-    def __init__(self, e_dim):
+    def __init__(self, e_dim, block_str):
         super().__init__()
-        self.net = nn.Sequential(*[BasicBlock(e_dim, e_dim, 1) for _ in range(6)])
+
+        blocks = []
+        for block_id in block_str:
+            if block_id == 'r':
+                blocks.append(ResBlock(e_dim, e_dim, downsample=False))
+            elif block_id == 'd':
+                blocks.append(ResBlock(e_dim, e_dim, downsample=True))
+        
+        self.net = nn.Sequential(*blocks)
         self.energy_linear = nn.Linear(e_dim, 1)
 
     def forward(self, x):
@@ -259,7 +289,7 @@ def main():
         latent_ids = generate_latent_ids(ae, full_dataloader)
         save_latents(latent_ids, dataset)
 
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=False)
+    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.ebm_bach_size, shuffle=False)
     latent_iterator = cycle(latent_loader)
 
     if os.path.exists(f'latents/{dataset}_init_dist'):
@@ -277,7 +307,7 @@ def main():
             latents = latent_ids_to_onehot(batch, H)
             batch_sum += latents.sum(0)
 
-        init_mean = batch_sum / (len(latent_loader) * H.batch_size)
+        init_mean = batch_sum / (len(latent_loader) * H.ebm_bach_size)
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
@@ -287,7 +317,7 @@ def main():
 
 
     # create energy model
-    net = ResNetEBM_cat(H.emb_dim)
+    net = ResNetEBM_cat(H.emb_dim, H.block_str)
     energy = EBM(
         net,
         ae.quantize.embedding,
@@ -348,7 +378,7 @@ def main():
         x = latent_ids_to_onehot(latent_ids, H)
 
 
-        buffer_inds = sorted(np.random.choice(all_inds, H.batch_size, replace=False))
+        buffer_inds = sorted(np.random.choice(all_inds, H.ebm_bach_size, replace=False))
         x_buffer_ids = buffer[buffer_inds]
         x_buffer = latent_ids_to_onehot(x_buffer_ids, H).cuda()
         x_fake = x_buffer
@@ -386,6 +416,8 @@ def main():
 
         grad_norms.append(grad_norm)
         diffs.append(obj.item())
+        step_time_finish = time.time()
+        step_time_taken = step_time_finish - step_time_start
         steps = list(range(start_step, step+1))
         vis.line(grad_norms, steps, win='grad_norms', opts=dict(title='Gradient Norms'))
         vis.line(diffs, steps, win='diffs', opts=dict(title='Energy Difference'))
@@ -398,7 +430,7 @@ def main():
             optim.step()
 
             if step % steps_per_log == 0:
-                log(f"Step: {step}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
+                log(f"Step: {step}, time: {step_time_taken:.3f}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
             if step % steps_per_display_samples == 0:
                 q = energy.embed(x_fake).cpu()
                 with torch.no_grad():
@@ -414,7 +446,7 @@ def main():
 
 if __name__ == '__main__':
     vis = visdom.Visdom()
-    log_dir = f'ebm_{dataset}'
+    log_dir = f'ebm_test_{dataset}'
     config_log(log_dir)
     start_training_log(H.get_ebm_param_dict())
     main()

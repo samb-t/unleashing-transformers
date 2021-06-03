@@ -14,11 +14,11 @@ from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'celeba'
+dataset = 'mnist'
 H = Hparams(dataset)
 
 
-lr = H.vq_base_lr * H.batch_size
+lr = H.vq_base_lr * H.vqgan_batch_size
 train_steps = 1000001
 steps_per_log = 1
 steps_per_eval = 1000
@@ -366,7 +366,7 @@ class Discriminator(nn.Module):
 
 # %% main training loop
 def main(): 
-    train_iterator = cycle(get_data_loader(dataset, H.img_size, H.batch_size, num_workers=8))
+    train_iterator = cycle(get_data_loader(dataset, H.img_size, H.vqgan_batch_size, num_workers=8))
     
     autoencoder = VQAutoEncoder(
         H.n_channels, 
@@ -442,8 +442,8 @@ def main():
             
             log(f"Step {step}  G Loss: {g_losses.mean():.3f}  D Loss: {d_loss_str}  L1: {recon_loss.mean().item():.3f}  Perceptual: {p_loss.mean().item():.3f}  Disc: {g_loss.item():.3f}")
             g_losses, d_losses = np.array([]), np.array([])
-            vis.images(x.clamp(0,1)[:64], win="x", nrow=int(np.sqrt(H.batch_size)), opts=dict(title="x"))
-            vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(H.batch_size)), opts=dict(title="recons"))
+            vis.images(x.clamp(0,1)[:64], win="x", nrow=int(np.sqrt(H.vqgan_batch_size)), opts=dict(title="x"))
+            vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(H.vqgan_batch_size)), opts=dict(title="recons"))
             
         if step % steps_per_eval == 0:
             save_images(x_hat[:64], vis, 'recons', step, log_dir)
