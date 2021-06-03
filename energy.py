@@ -19,8 +19,8 @@ H = Hparams(dataset)
 
 training_steps = 1000001
 steps_per_log = 1
-steps_per_display_samples = 1
-steps_per_save_samples = 25
+steps_per_display_samples = 100
+steps_per_save_samples = 100
 steps_per_checkpoint = 1000
 
 grad_clip_threshold = 10000

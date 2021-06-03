@@ -14,7 +14,7 @@ from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 
 #%% hparams
-dataset = 'ffhq'
+dataset = 'celeba'
 H = Hparams(dataset)
 
 
