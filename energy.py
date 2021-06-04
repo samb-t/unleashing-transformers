@@ -11,14 +11,14 @@ import time
 from utils import *
 from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
-from vqgan_new import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
+from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 
 #%% hparams
 dataset = 'mnist'
 H = Hparams(dataset)
 
-training_steps = 1000001
+train_steps = 1000001
 steps_per_log = 1
 steps_per_display_samples = 1
 steps_per_save_samples = 100
@@ -365,7 +365,7 @@ def main():
     all_inds = list(range(H.buffer_size))
 
     # main training loop
-    for step in range(start_step, training_steps):
+    for step in range(start_step, train_steps):
         step_time_start = time.time()
         # linearly anneal in learning rate
         if step < H.warmup_iters:
