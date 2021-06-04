@@ -4,33 +4,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
-from torch.utils import data
-import visdom
-import os
-import time
 from utils import *
-from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
 from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
 from tqdm import tqdm
 
-#%% hparams
-dataset = 'mnist'
-H = Hparams(dataset)
-
-train_steps = 1000001
-steps_per_log = 1
-steps_per_display_samples = 1
-steps_per_save_samples = 100
-steps_per_checkpoint = 1000
-
-grad_clip_threshold = 10000
-
-AE_LOAD_STEP = 100 
-
-LOAD_MODEL = False
-LOAD_OPTIM = False
-LOAD_MODEL_STEP = 6000
 
 #%% helper functions
 def approx_difference_function_multi_dim(x, model):
@@ -42,31 +20,31 @@ def approx_difference_function_multi_dim(x, model):
 
 
 # old function - not currently used but keeping for testing purposes
-def get_latents(ae, dataloader):
-    latents = []
-    for x, _ in tqdm(dataloader):
-        x = x.cuda()
-        z = ae.encoder(x) # B, emb_dim, H, W
+# def get_latents(ae, dataloader):
+#     latents = []
+#     for x, _ in tqdm(dataloader):
+#         x = x.cuda()
+#         z = ae.encoder(x) # B, emb_dim, H, W
 
-        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, emb_dim
-        z_flattened = z.view(-1, H.emb_dim) # B*H*W, emb_dim
+#         z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, emb_dim
+#         z_flattened = z.view(-1, H.emb_dim) # B*H*W, emb_dim
 
-        # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
-        d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
-            2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
-        min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-        # print(min_encoding_indices.shape)
-        min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.codebook_size).to(z)
-        min_encodings.scatter_(1, min_encoding_indices, 1)
+#         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
+#         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
+#             2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
+#         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
+#         # print(min_encoding_indices.shape)
+#         min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.codebook_size).to(z)
+#         min_encodings.scatter_(1, min_encoding_indices, 1)
 
-        one_hot = min_encodings.view(z.size(0), H.latent_shape[1], H.latent_shape[2], H.codebook_size)
+#         one_hot = min_encodings.view(z.size(0), H.latent_shape[1], H.latent_shape[2], H.codebook_size)
 
-        latents.append(one_hot.reshape(one_hot.size(0), -1, H.codebook_size).cpu().contiguous())
+#         latents.append(one_hot.reshape(one_hot.size(0), -1, H.codebook_size).cpu().contiguous())
     
-    return torch.cat(latents, dim=0)
+#     return torch.cat(latents, dim=0)
 
 
-def generate_latent_ids(ae, dataloader):
+def generate_latent_ids(ae, dataloader, H):
     latent_ids = []
     for x, _ in tqdm(dataloader):
         x = x.cuda()
@@ -159,20 +137,6 @@ class DiffSamplerMultiDim(nn.Module):
         self._hops = (x != x_cur).float().sum(-1).sum(-1).mean().item()
         return x_cur
 
-
-# class BasicBlock(nn.Module):
-#     def __init__(self, in_planes, planes, stride=1):
-#         super(BasicBlock, self).__init__()
-#         self.nonlin = lambda x: x * torch.sigmoid(x) # swish
-#         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
-#         self.conv2 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
-
-#     def forward(self, x):
-#         out = self.nonlin(self.conv1(x))
-#         out = x + self.conv2(out)
-#         return self.nonlin(out)
-
-
 class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, downsample=False):
         super().__init__()
@@ -240,7 +204,7 @@ class EBM(nn.Module):
         self.latent_shape = latent_shape
 
     def embed(self, z):
-        z_flattened = z.view(-1, H.codebook_size) # B*H*W, codebook_size
+        z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
         return torch.matmul(z_flattened, self.embedding.weight).view(
             z.size(0), 
             self.latent_shape[1],
@@ -259,195 +223,3 @@ class EBM(nn.Module):
         x = self.embed(x)
         logp = self.net(x).squeeze()
         return logp + bd
-
-
-#%% main
-def main():
-    data_dim = np.prod(H.latent_shape)
-    sampler = DiffSamplerMultiDim(data_dim, 1)
-
-    ae = VQAutoEncoder(
-        H.n_channels,
-        H.nf,
-        H.res_blocks, 
-        H.codebook_size, 
-        H.emb_dim, 
-        H.ch_mult, 
-        H.img_size, 
-        H.attn_resolutions
-    )
-    ae = load_model(ae, 'ae', AE_LOAD_STEP, f'vqgan_{dataset}')
-
-    if os.path.exists(f'latents/{dataset}_latents'):
-        latent_ids = torch.load(f'latents/{dataset}_latents')
-        # latents = torch.load(f'latents/{dataset}_latents')
-    else:
-        full_dataloader = get_data_loader(dataset, H.img_size, 5, drop_last=False, shuffle=False)
-
-        # latents = get_latents(ae, full_dataloader)
-        # save_latents(latents, dataset)
-        latent_ids = generate_latent_ids(ae, full_dataloader)
-        save_latents(latent_ids, dataset)
-
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.ebm_bach_size, shuffle=False)
-    latent_iterator = cycle(latent_loader)
-
-    if os.path.exists(f'latents/{dataset}_init_dist'):
-        log(f'Loading init distribution from {dataset}_init_dist')
-        init_dist = torch.load(f'latents/{dataset}_init_dist')
-        init_mean = init_dist.mean
-    else:  
-        # latents # B, H*W, codebook_size
-        eps = 1e-3 / H.codebook_size
-
-        batch_sum = torch.zeros(H.latent_shape[1]*H.latent_shape[2], H.codebook_size).cuda()
-        log('Generating init distribution:')
-        for batch in tqdm(latent_loader):
-            batch = batch.cuda()
-            latents = latent_ids_to_onehot(batch, H)
-            batch_sum += latents.sum(0)
-
-        init_mean = batch_sum / (len(latent_loader) * H.ebm_bach_size)
-
-        init_mean += eps # H*W, codebook_size
-        init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
-        init_dist = MyOneHotCategorical(init_mean.cpu())
-        
-        torch.save(init_dist, f'latents/{dataset}_init_dist')
-
-
-    # create energy model
-    net = ResNetEBM_cat(H.emb_dim, H.block_str)
-    energy = EBM(
-        net,
-        ae.quantize.embedding,
-        H.codebook_size,
-        H.emb_dim,
-        H.latent_shape,
-        mean=init_mean,
-    ).cuda()
-    optim = torch.optim.Adam(energy.parameters(), lr=H.ebm_lr)
-
-    if LOAD_MODEL:
-        energy = load_model(energy, 'ebm', LOAD_MODEL_STEP, log_dir)
-        buffer = load_buffer(LOAD_MODEL_STEP, log_dir)
-        
-        if LOAD_OPTIM:
-            optim = load_model(optim, 'ebm_optim', LOAD_MODEL_STEP, log_dir)
-        
-        start_step = LOAD_MODEL_STEP
-
-    else:
-        # HACK
-        buffer = []
-        for _ in range(int(H.buffer_size / 100)):
-            buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
-        buffer = torch.cat(buffer, dim=0)
-
-        start_step = 0 
-
-    print('Buffer successfully generated')
-    log(f'EBM Parameters: {len(ptv(energy.parameters()))}')
-
-    # check reocnstructions are correct
-    latent_id_batch = next(latent_iterator)[:64]
-
-    # latent_batch = next(latent_iterator)[:64].cuda()
-    latent_batch = latent_ids_to_onehot(latent_id_batch, H)
-    quant = energy.embed(latent_batch.cuda()).cpu()
-    with torch.no_grad():
-        recons = ae.generator(quant)
-    vis.images(recons.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
-
-    hop_dists = []
-    grad_norms = []
-    diffs = []
-    all_inds = list(range(H.buffer_size))
-
-    # main training loop
-    for step in range(start_step, train_steps):
-        step_time_start = time.time()
-        # linearly anneal in learning rate
-        if step < H.warmup_iters:
-            lr = H.ebm_lr * float(step) / H.warmup_iters
-            for param_group in optim.param_groups:
-                param_group['lr'] = lr
-        
-        latent_ids = next(latent_iterator)
-        latent_ids = latent_ids.cuda()
-        x = latent_ids_to_onehot(latent_ids, H)
-
-
-        buffer_inds = sorted(np.random.choice(all_inds, H.ebm_bach_size, replace=False))
-        x_buffer_ids = buffer[buffer_inds]
-        x_buffer = latent_ids_to_onehot(x_buffer_ids, H).cuda()
-        x_fake = x_buffer
-
-        hops = []  # keep track of how much the sampler moves particles around
-        for k in range(H.sampling_steps):
-            try:
-                x_fake_new = sampler.step(x_fake.detach(), energy).detach()
-                h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
-                hops.append(h)
-                x_fake = x_fake_new
-            except ValueError as e:
-                log(f'Error at step {step}, sampling step {k}: {e}')
-                log(f'Skipping sampling step and hoping it still works')
-                hops.append(0)
-        hop_dists.append(np.mean(hops))
-
-        # update buffer
-        buffer_ids = x_fake.max(2)[1] 
-        buffer[buffer_inds] = buffer_ids.detach().cpu()
-
-        logp_real = energy(x).squeeze()
-        logp_fake = energy(x_fake).squeeze()
-
-        obj = logp_real.mean() - logp_fake.mean()
-
-        # L2 regularisation
-        loss = -obj + H.l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())
-
-        optim.zero_grad()
-        loss.backward()
-
-        # gradient clipping
-        grad_norm = torch.nn.utils.clip_grad_norm_(energy.parameters(), grad_clip_threshold).item()
-
-        grad_norms.append(grad_norm)
-        diffs.append(obj.item())
-        step_time_finish = time.time()
-        step_time_taken = step_time_finish - step_time_start
-        steps = list(range(start_step, step+1))
-        vis.line(grad_norms, steps, win='grad_norms', opts=dict(title='Gradient Norms'))
-        vis.line(diffs, steps, win='diffs', opts=dict(title='Energy Difference'))
-        vis.line(hop_dists, steps, win='hops', opts=dict(title='Hops'))
-
-        if grad_norm > grad_clip_threshold:
-            log(f'Grad norm breached threshold, skipping step {step}')
-
-        else:     
-            optim.step()
-
-            if step % steps_per_log == 0:
-                log(f"Step: {step}, time: {step_time_taken:.3f}, log p(real)={logp_real.mean():.4f}, log p(fake)={logp_fake.mean():.4f}, diff={obj:.4f}, hops={hop_dists[-1]:.4f}, grad_norm={grad_norm:.4f}")
-            if step % steps_per_display_samples == 0:
-                q = energy.embed(x_fake).cpu()
-                with torch.no_grad():
-                    samples = ae.generator(q)
-                vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
-                
-                if step % steps_per_save_samples == 0:
-                    save_images(samples[:64], vis, 'samples', step, log_dir)
-            if step % steps_per_checkpoint == 0 and step > 0 and not (LOAD_MODEL and LOAD_MODEL_STEP == step):
-                save_model(energy, 'ebm', step, log_dir)
-                save_model(optim, 'ebm_optim', step, log_dir)
-                save_buffer(buffer, step, log_dir)
-
-if __name__ == '__main__':
-    vis = visdom.Visdom()
-    log_dir = f'ebm_test_{dataset}'
-    config_log(log_dir)
-    start_training_log(H.get_ebm_param_dict())
-    main()
-# %%

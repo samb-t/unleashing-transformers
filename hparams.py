@@ -199,12 +199,13 @@ class Hparams(dict):
 def get_hparams():
     parser = argparse.ArgumentParser(description='Arguments for training a VQGAN')
     
-    # primary args
+    # required args
     parser.add_argument('-d', dest='dataset', type=str)
+    parser.add_argument('--ae_load_step', dest='ae_load_step', type=int) # ebm only
+    
     parser.add_argument('--train_steps', dest='train_steps', type=int, default=1000000)
     parser.add_argument('--load_step', dest='load_step', type=int, default=0)
-    parser.add_argument('--load_optim', const=True, action='store_const', default=False)
-    parser.add_argument('--ae_load_step', dest='ae_load_step', type=int, default=50000) # ebm only
+    parser.add_argument('--load_optim', dest='load_optim', const=True, action='store_const', default=False)
 
     # logging args
     

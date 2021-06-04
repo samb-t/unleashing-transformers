@@ -5,10 +5,6 @@ from torch.functional import norm
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.serialization import load
-import torchvision
-import numpy as np
-import lpips
-import visdom
 from utils import *
 from hparams import Hparams
 from torch.nn.utils import parameters_to_vector as ptv
