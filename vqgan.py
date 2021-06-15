@@ -251,6 +251,7 @@ class Encoder(nn.Module):
         for block in self.blocks:
             # print(block)
             x = block(x)
+        # print(x.shape)
         return x
 
 

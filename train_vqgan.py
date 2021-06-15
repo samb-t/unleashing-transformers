@@ -7,8 +7,12 @@ from utils import *
 
 
 # %% main training loop
-def main(H): 
-    train_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size, num_workers=8))
+def main(H):
+    if H.ncc:
+        num_workers = 2
+    else:
+        num_workers = 8
+    train_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size, num_workers=num_workers))
     
     autoencoder = VQAutoEncoder(
         H.n_channels, 
@@ -32,10 +36,10 @@ def main(H):
     start_step = 0 
     # load previous model from checkpoint
     if H.load_step > 0:
-        autoencoder = load_model(autoencoder, 'ae', H.load_step, log_dir)
-        discriminator = load_model(discriminator, 'discriminator', H.load_step, log_dir)
-        ae_optim = load_model(ae_optim, 'ae_optim', H.load_step, log_dir)
-        d_optim = load_model(d_optim, 'disc_optim', H.load_step, log_dir)
+        autoencoder = load_model(autoencoder, 'ae', H.load_step, H.log_dir)
+        discriminator = load_model(discriminator, 'discriminator', H.load_step, H.log_dir)
+        ae_optim = load_model(ae_optim, 'ae_optim', H.load_step, H.log_dir)
+        d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.log_dir)
         start_step = H.load_step
 
     log(f'AE Parameters: {len(ptv(autoencoder.parameters()))}')
@@ -92,20 +96,19 @@ def main(H):
             vis.images(x_hat.clamp(0,1)[:64], win="recons", nrow=int(np.sqrt(H.vqgan_batch_size)), opts=dict(title="recons"))
             
         if step % H.steps_per_save_recons == 0:
-            save_images(x_hat[:64], vis, 'recons', step, log_dir)
+            save_images(x_hat[:64], vis, 'recons', step, H.log_dir)
 
         if step % H.steps_per_vqgan_checkpoint == 0 and step > 0 and not (step == H.load_step):
             print("Saving model")
-            save_model(autoencoder, 'ae', step, log_dir)
-            save_model(discriminator, 'discriminator', step, log_dir)
-            save_model(ae_optim, 'ae_optim', step, log_dir)
-            save_model(d_optim, 'disc_optim', step, log_dir)
+            save_model(autoencoder, 'ae', step, H.log_dir)
+            save_model(discriminator, 'discriminator', step, H.log_dir)
+            save_model(ae_optim, 'ae_optim', step, H.log_dir)
+            save_model(d_optim, 'disc_optim', step, H.log_dir)
 
 
 if __name__ == '__main__':
-    vis = visdom.Visdom()
     H = get_hparams()
-    log_dir = f'vqgan_test_{H.dataset}'
-    config_log(log_dir)
+    vis = setup_visdom(H)
+    config_log(H.log_dir)
     start_training_log(H.get_vqgan_param_dict())
     main(H)

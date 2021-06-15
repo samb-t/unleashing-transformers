@@ -103,7 +103,7 @@ class Hparams(dict):
             self.grad_clip_threshold = 1000
 
 
-        elif self.dataset == 'celeba':
+        elif self.dataset == 'celeba' or self.dataset == 'ffhq':
             # vqgan architecture defaults
             self.img_size = 256
             self.n_channels = 3
@@ -202,13 +202,19 @@ def get_hparams():
     # required args
     parser.add_argument('-d', dest='dataset', type=str)
     parser.add_argument('--ae_load_step', dest='ae_load_step', type=int) # ebm only
-    
+
+    # training loop control args
+
     parser.add_argument('--train_steps', dest='train_steps', type=int, default=1000000)
     parser.add_argument('--load_step', dest='load_step', type=int, default=0)
     parser.add_argument('--load_optim', dest='load_optim', const=True, action='store_const', default=False)
 
     # logging args
     
+    parser.add_argument('--log_dir', dest='log_dir', type=str, default='test')
+    parser.add_argument('--visdom_port', dest='visdom_port', type=int, default=8900)
+    parser.add_argument('--ncc', dest='ncc', const=True, action='store_const', default=False)
+
     ## vqgan
     parser.add_argument('--steps_per_log', dest='steps_per_log', type=int, default=1)
     parser.add_argument('--steps_per_display_recons', dest='steps_per_display_recons', type=int, default=5)
@@ -225,21 +231,21 @@ def get_hparams():
     parser.add_argument('--n_channels', dest='n_channels', type=int)
     parser.add_argument('--nf', dest='nf', type=int)
     parser.add_argument('--ndf', dest='ndf', type=int)
-    parser.add_argument('--ch_mult', dest='ch_mult', type=list)
-    parser.add_argument('--attn_resolutions', dest='attn_resolutions', type=list)
+    parser.add_argument('--ch_mult', dest='ch_mult', nargs='+', type=int)
+    parser.add_argument('--attn_resolutions', dest='attn_resolutions', nargs='+', type=int)
     parser.add_argument('--res_blocks', dest='res_blocks', type=int)
     parser.add_argument('--disc_layers', dest='disc_layers', type=int)
     parser.add_argument('--codebook_size', dest='codebook_size', type=int)
     parser.add_argument('--emb_dim', dest='emb_dim', type=int)
     
     # vqgan training args
-    parser.add_argument('--vq_gan_bs', dest='vqgan_batch_size', type=int)
+    parser.add_argument('--vqgan_bs', dest='vqgan_batch_size', type=int)
     parser.add_argument('--perceptual_weight', dest='perceptual_weight', type=int)
     parser.add_argument('--disc_start_step', dest='disc_start_step', type=int)
     parser.add_argument('--vq_base_lr', dest='vq_base_lr', type=float)
 
     # ebm architecture args
-    parser.add_argument('--latent_shape', dest='latent_shape', type=list)
+    parser.add_argument('--latent_shape', dest='latent_shape', nargs='+', type=int)
     parser.add_argument('--block_str', dest='block_str', type=str)
 
     # ebm training args

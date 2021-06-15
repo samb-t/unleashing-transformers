@@ -3,6 +3,7 @@ import torchvision
 import logging
 import numpy as np
 import os
+import visdom
 
 def cycle(iterable):
     while True:
@@ -13,7 +14,7 @@ def cycle(iterable):
 def config_log(log_dir):
     log_dir = 'logs/' + log_dir
     os.makedirs(log_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(log_dir, f'log.txt'), level=logging.DEBUG)
+    logging.basicConfig(filename=os.path.join(log_dir, f'log.txt'), level=logging.INFO)
 
 
 def log(output):
@@ -91,12 +92,24 @@ def save_images(images, vis_win, win_name, step, log_dir):
     torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{win_name}_{step}.png', 
             nrow=int(np.sqrt(images.shape[0])), padding=0)
 
-def save_latents(latents, dataset):
+def save_latents(latents, dataset, size):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
-    torch.save(latents, f'latents/{dataset}_latents')
+    torch.save(latents, f'latents/{dataset}_{size}_latents')
 
 
 def update_model(model1, model2):
     for p1, p2 in zip(model1.parameters(), model2.parameters()):
         p2.data = p1.data
+
+def setup_visdom(H):
+    if H.ncc:
+        server = 'ncc1.clients.dur.ac.uk'
+    else:
+        server = None
+
+    if server:
+        vis = visdom.Visdom(server=server, port=H.visdom_port)
+    else:
+        vis = visdom.Visdom(port=H.visdom_port)
+    return vis

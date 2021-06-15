@@ -20,25 +20,25 @@ def main(H):
         H.img_size, 
         H.attn_resolutions
     )
-    ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_{H.dataset}')
+    ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_{H.dataset}_{H.latent_shape[-1]}')
 
-    if os.path.exists(f'latents/{H.dataset}_latents'):
-        latent_ids = torch.load(f'latents/{H.dataset}_latents')
-        # latents = torch.load(f'latents/{dataset}_latents')
+    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
+    if os.path.exists(latents_filepath):
+        latent_ids = torch.load(latents_filepath)
     else:
         full_dataloader = get_data_loader(H.dataset, H.img_size, 5, drop_last=False, shuffle=False)
-
-        # latents = get_latents(ae, full_dataloader)
-        # save_latents(latents, dataset)
+        ae = ae.cuda() # put ae on GPU for generating
         latent_ids = generate_latent_ids(ae, full_dataloader, H)
-        save_latents(latent_ids, H.dataset)
+        ae = ae.cpu() # put back onto CPU to save memory during EBM training
+        save_latents(latent_ids, H.dataset, H.latent_shape[-1])
 
     latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.ebm_batch_size, shuffle=False)
     latent_iterator = cycle(latent_loader)
 
-    if os.path.exists(f'latents/{H.dataset}_init_dist'):
-        log(f'Loading init distribution from {H.dataset}_init_dist')
-        init_dist = torch.load(f'latents/{H.dataset}_init_dist')
+    init_dist_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_init_dist'
+    if os.path.exists(init_dist_filepath):
+        log(f'Loading init distribution from {init_dist_filepath}')
+        init_dist = torch.load(init_dist_filepath)
         init_mean = init_dist.mean
     else:  
         # latents # B, H*W, codebook_size
@@ -71,14 +71,17 @@ def main(H):
         mean=init_mean,
     ).cuda()
     optim = torch.optim.Adam(energy.parameters(), lr=H.ebm_lr)
+    
+    # optim = torch.optim.SGD(energy.parameters(), lr=H.ebm_lr, momentum=.9)
 
     if H.load_step > 0:
-        energy = load_model(energy, 'ebm', H.load_step, log_dir)
-        buffer = load_buffer(H.load_step, log_dir)
+        energy = load_model(energy, 'ebm', H.load_step, H.log_dir)
+        buffer = load_buffer(H.load_step, H.log_dir)
         
         if H.load_optim:
-            optim = load_model(optim, 'ebm_optim', H.load_step, log_dir)
-        
+            optim = load_model(optim, 'ebm_optim', H.load_step, H.log_dir)
+            for param_group in optim.param_groups:
+                param_group['lr'] = H.ebm_lr
         start_step = H.load_step
 
     else:
@@ -181,18 +184,17 @@ def main(H):
                 vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
                 
                 if step % H.steps_per_save_samples == 0:
-                    save_images(samples[:64], vis, 'samples', step, log_dir)
+                    save_images(samples[:64], vis, 'samples', step, H.log_dir)
             if step % H.steps_per_ebm_checkpoint == 0 and step > 0 and not (H.load_step == step):
-                save_model(energy, 'ebm', step, log_dir)
-                save_model(optim, 'ebm_optim', step, log_dir)
-                save_buffer(buffer, step, log_dir)
+                save_model(energy, 'ebm', step, H.log_dir)
+                save_model(optim, 'ebm_optim', step, H.log_dir)
+                save_buffer(buffer, step, H.log_dir)
 
 if __name__ == '__main__':
-    vis = visdom.Visdom()
     H = get_hparams()
+    vis = setup_visdom(H)
     if H.ae_load_step:
-        log_dir = f'ebm_{H.dataset}'
-        config_log(log_dir)
+        config_log(H.log_dir)
         start_training_log(H.get_ebm_param_dict())
         main(H)
     else:
