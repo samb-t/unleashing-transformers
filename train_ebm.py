@@ -1,6 +1,7 @@
 import torch
 import visdom
 import time
+import random
 from vqgan import *
 from energy import *
 from hparams import get_hparams
@@ -26,11 +27,13 @@ def main(H):
     if os.path.exists(latents_filepath):
         latent_ids = torch.load(latents_filepath)
     else:
-        full_dataloader = get_data_loader(H.dataset, H.img_size, 5, drop_last=False, shuffle=False)
+        full_dataloader = get_data_loader(H.dataset, H.img_size, H.vqgan_bs, drop_last=False, shuffle=False)
         ae = ae.cuda() # put ae on GPU for generating
         latent_ids = generate_latent_ids(ae, full_dataloader, H)
         ae = ae.cpu() # put back onto CPU to save memory during EBM training
         save_latents(latent_ids, H.dataset, H.latent_shape[-1])
+
+    print(torch.unique(latent_ids).shape)
 
     latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.ebm_batch_size, shuffle=False)
     latent_iterator = cycle(latent_loader)
@@ -126,8 +129,7 @@ def main(H):
 
         buffer_inds = sorted(np.random.choice(all_inds, H.ebm_batch_size, replace=False))
         x_buffer_ids = buffer[buffer_inds]
-        x_buffer = latent_ids_to_onehot(x_buffer_ids, H).cuda()
-        x_fake = x_buffer
+        x_fake = latent_ids_to_onehot(x_buffer_ids, H).cuda()
 
         hops = []  # keep track of how much the sampler moves particles around
         for k in range(H.sampling_steps):
@@ -142,14 +144,22 @@ def main(H):
                 hops.append(0)
         hop_dists.append(np.mean(hops))
 
-        # update buffer
-        buffer_ids = x_fake.max(2)[1] 
-        buffer[buffer_inds] = buffer_ids.detach().cpu()
-
         logp_real = energy(x).squeeze()
         logp_fake = energy(x_fake).squeeze()
 
         obj = logp_real.mean() - logp_fake.mean()
+
+        # update buffer
+
+        buffer_ids = x_fake.max(2)[1] 
+        for idx, ind in enumerate(buffer_inds):
+            if random.random() < H.reinit_buffer_prob:
+                new_buffer_entry = init_dist.sample((1,)).max(2)[1].cpu()
+                buffer[ind] = new_buffer_entry
+            else:
+                buffer[ind] = buffer_ids[idx].detach().cpu()
+
+        # buffer[buffer_inds] = buffer_ids.detach().cpu()
 
         # L2 regularisation
         loss = -obj + H.l2_coef * ((logp_real ** 2.).mean() + (logp_fake ** 2.).mean())

@@ -35,6 +35,7 @@ class Hparams(dict):
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
+            self.reinit_buffer_prob = 0.05
             self.grad_clip_threshold = 1000
 
         elif self.dataset == 'cifar10':
@@ -67,6 +68,7 @@ class Hparams(dict):
             self.warmup_iters = 2000
             self.ebm_lr = 1e-5
             self.l2_coef = 0
+            self.reinit_buffer_prob = 0.05
             self.grad_clip_threshold = 1000
 
 
@@ -100,6 +102,7 @@ class Hparams(dict):
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
+            self.reinit_buffer_prob = 0.05
             self.grad_clip_threshold = 1000
 
 
@@ -133,6 +136,7 @@ class Hparams(dict):
             self.warmup_iters = 2000
             self.ebm_lr = 5e-6
             self.l2_coef = 0
+            self.reinit_buffer_prob = 0.05
             self.grad_clip_threshold = 10000
 
         elif self.dataset == None:
@@ -177,6 +181,7 @@ class Hparams(dict):
             sampling_steps = self.sampling_steps,
             warmup_iters = self.warmup_iters,
             l2_coef = self.l2_coef,
+            reinit_buffer_prob = self.reinit_buffer_prob,
             grad_clip_threshold = self.grad_clip_threshold,
             latent_shape = self.latent_shape,
             block_str = self.block_str
@@ -212,7 +217,7 @@ def get_hparams():
     # logging args
     
     parser.add_argument('--log_dir', dest='log_dir', type=str, default='test')
-    parser.add_argument('--visdom_port', dest='visdom_port', type=int, default=8900)
+    parser.add_argument('--visdom_port', dest='visdom_port', type=int, default=8097)
     parser.add_argument('--ncc', dest='ncc', const=True, action='store_const', default=False)
 
     ## vqgan
@@ -255,6 +260,7 @@ def get_hparams():
     parser.add_argument('--warmup_iters', dest='warmup_iters', type=int)
     parser.add_argument('--ebm_lr', dest='ebm_lr', type=float)
     parser.add_argument('--l2_coef', dest='l2_coef', type=float)
+    parser.add_argument('--reinit_buffer_prob', dest='reinit_buffer_prob', type=float)
     parser.add_argument('--grad_clip_threshold', dest='grad_clip_threshold', type=int)
 
     args = parser.parse_args().__dict__
