@@ -96,13 +96,14 @@ def main(H):
         if step % H.steps_per_log == 0 and step > 0:
             log(f"Step: {step}, time: {step_time_taken:.3f}, nll={nll:.4f}, grad_norm={grad_norm:.4f}, accuracy={accuracy:.4f}")
             nll_means = np.append(nll_means, nlls.mean())
+            nlls = np.array([])
             vis.line(nll_means, list(range(start_step, step, H.steps_per_log)), win='nll', opts=dict(title='NLL'))
 
         if step % H.steps_per_display_samples == 0 and step > 0:
 
             log('Sampling latents...')
             greedy_samples, samples, acceptance_rate = MH_sampling(transformer, H.codebook_size, data_dim)
-            log(f'Samples generated, accetpance rate: {acceptance_rate}%')
+            log(f'Samples generated, acceptance rate: {acceptance_rate}%')
 
 
             log('Generating images from samples latents...')
@@ -119,7 +120,7 @@ def main(H):
              
             if step % H.steps_per_save_samples == 0:
                 save_images(samples, 'samples', step, H.log_dir)
-        if step % H.steps_per_bert_checkpoint == 0:
+        if step % H.steps_per_bert_checkpoint == 0 and step > H.load_step:
             save_model(transformer, 'transformer', step, H.log_dir)
             save_model(optim, 'transformer_optim', step, H.log_dir)
 
