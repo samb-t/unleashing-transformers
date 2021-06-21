@@ -102,7 +102,7 @@ def main(H):
         if step % H.steps_per_display_samples == 0 and step > 0:
 
             log('Sampling latents...')
-            greedy_samples, samples, acceptance_rate = MH_sampling(transformer, H.codebook_size, data_dim, block_size=H.sample_block_size)
+            greedy_samples, samples, acceptance_rate = MH_sampling(transformer, H.codebook_size, data_dim, mcmc_steps=50)
             log(f'Samples generated, acceptance rate: {acceptance_rate}%')
 
 

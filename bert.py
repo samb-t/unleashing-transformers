@@ -1,6 +1,7 @@
 import math
 import random
 import time
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -145,7 +146,10 @@ class GPT(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            # reduce so that each batch item is weighted equally (some will have more -1 items than others)
+            loss = F.cross_entropy(logits.permute(0,2,1), targets, ignore_index=-1, reduction='none')
+            num_trainable = (targets != -1).float().sum(1) # number of elements used to train
+            loss = torch.mean(loss.sum(1) / num_trainable) # mean down batch
 
         return logits, loss
 
@@ -162,21 +166,35 @@ class BERTDataset(torch.utils.data.Dataset):
         latent = self.latent_ids[item].clone()
         target = []
 
-        for idx, l in enumerate(latent):
-            prob = random.random()
-            if prob < 0.15:
-                prob /= 0.15
-                target.append(l.clone())
+        num_to_mask = random.randint(1, latent.size(0))
+        mask = np.random.choice(np.arange(latent.size(0)), size=num_to_mask, replace=False)
 
-                if prob < 0.8: # 80% randomly change token to mask token
-                    latent[idx] = self.mask_id
-                elif prob < 0.9: # 10% randomly change to random token
-                    latent[idx] = random.randrange(self.num_ids)
-                # 10% randomly don't change but use to train network
-                
+        # NOTE: When calculating loss make sure to mean over dim 1 then over dim 0.
+
+        for idx, l in enumerate(latent):
+            if idx in mask: # mask token
+                target.append(l.clone())
+                latent[idx] = self.mask_id 
+            elif random.random() < 0.02: # randomly change to random token
+                target.append(l.clone())
+                latent[idx] = random.randrange(self.num_ids)
             else:
-                # mark to not train with
                 target.append(-1)
+
+            # prob = random.random()
+            # if prob < 0.15:
+            #     prob /= 0.15
+            #     target.append(l.clone())
+
+            #     if prob < 0.8: # 80% randomly change token to mask token
+            #         latent[idx] = self.mask_id
+            #     elif prob < 0.9: # 10% randomly change to random token
+            #         latent[idx] = random.randrange(self.num_ids)
+            #     # 10% randomly don't change but use to train network
+                
+            # else:
+            #     # mark to not train with
+            #     target.append(-1)
         
         target = torch.tensor(target).reshape(latent.shape).long()
         
@@ -204,50 +222,60 @@ def warm_start_from_real(model, mask_id, data_dim, batch_size=32, latents=None):
 
 
 @torch.no_grad()
-def MH_sampling(model, mask_id, data_dim, block_size=1, n_epochs=1, energy_type='norm'):
+def MH_sampling(model, mask_id, data_dim, mcmc_steps=50, energy_type='norm'):
     warm_start_latents = warm_start_from_real(model, mask_id, data_dim) # batch_size x latent_len
     latents = warm_start_latents.clone()
 
     energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
     # TODO: force changes to occur - don't allow reproducing same token 
     acceptance_percentage = 0
-    for e in range(n_epochs):
-        for i in tqdm(range(latents.size(1))):
+    for i in tqdm(range(mcmc_steps)):
+        block_size = data_dim - int((data_dim / mcmc_steps) * i)
 
-            block_start_index = random.randint(0, latents.size(1)-block_size) 
-            current_x_i = latents[:, block_start_index : block_start_index + block_size].clone() # bs x block_size
-            proposal_latents = latents.clone()
-            proposal_latents[:, block_start_index : block_start_index + block_size] = mask_id 
-            logits, _ = model(proposal_latents) # bs x latent_len x codebook_size
-            
-            q_prop_x = 1
-            q_x_prop = 1
+        block_start_index = random.randint(0, latents.size(1)-block_size) 
+        current_x_i = latents[:, block_start_index : block_start_index + block_size].clone() # bs x block_size
+        proposal_latents = latents.clone()
+        proposal_latents[:, block_start_index : block_start_index + block_size] = mask_id 
+        logits, _ = model(proposal_latents) # bs x latent_len x codebook_size
+        
+        q_prop_x = 1
+        q_x_prop = 1
 
-            block_probs = F.softmax(logits[:, block_start_index:block_start_index+block_size,:], dim=-1) # bs x block_size x codebook_size
-            for idx, probs_index in enumerate(range(block_start_index, block_start_index+block_size)):
-                probs = block_probs[:, idx] # bs x codebook_size
-                proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
-                proposal_latents[:, probs_index] = proposal_tokens.squeeze(1)
+        block_probs = F.softmax(logits[:, block_start_index:block_start_index+block_size,:], dim=-1) # bs x block_size x codebook_size
+        for idx, probs_index in enumerate(range(block_start_index, block_start_index+block_size)):
+            probs = block_probs[:, idx] # bs x codebook_size
+            proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
+            proposal_latents[:, probs_index] = proposal_tokens.squeeze(1)
 
-                q_prop_x *= torch.gather(probs, 1, proposal_tokens) # bs x 1
-                q_x_prop *= torch.gather(probs, 1, current_x_i[:, idx].unsqueeze(1)) # bs x 1
+            q_prop_x *= torch.gather(probs, 1, proposal_tokens) # bs x 1
+            q_x_prop *= torch.gather(probs, 1, current_x_i[:, idx].unsqueeze(1)) # bs x 1
 
-            energy_proposal = implicit_energy_fn(model, proposal_latents, mask_id, energy_type=energy_type) # bs x 1
+        energy_proposal = implicit_energy_fn(model, proposal_latents, mask_id, energy_type=energy_type) # bs x 1
 
-            acceptance_prob = (energy_proposal * q_x_prop) / (energy_prev * q_prop_x)
-            acceptance_prob = acceptance_prob.clamp(max=1)
-            acceptance_mask = torch.rand_like(acceptance_prob) <= acceptance_prob # bs x 1
+        acceptance_prob = (energy_proposal * q_x_prop) / (energy_prev * q_prop_x)
+        acceptance_prob = acceptance_prob.clamp(max=1)
+        acceptance_mask = torch.rand_like(acceptance_prob) <= acceptance_prob # bs x 1
 
-            acceptance_mask_mean = acceptance_mask.float().mean()
-            acceptance_percentage += acceptance_mask_mean
+        acceptance_mask_mean = acceptance_mask.float().mean()
+        acceptance_percentage += acceptance_mask_mean
 
-            energy_prev[acceptance_mask] = energy_proposal[acceptance_mask]
-            latents[acceptance_mask.squeeze(1)] = proposal_latents[acceptance_mask.squeeze(1)]
+        energy_prev[acceptance_mask] = energy_proposal[acceptance_mask]
+        latents[acceptance_mask.squeeze(1)] = proposal_latents[acceptance_mask.squeeze(1)]
         
     acceptance_percentage /= (latents.size(1) * n_epochs)
 
     return warm_start_latents, latents, acceptance_percentage
 
+@torch.no_grad()
+def annealed_block_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=50, energy_type='norm'):
+    latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
+
+    for i in range(mcmc_steps):
+        num_to_mask = data_dim - int((data_dim / mcmc_steps) * i)
+        sparse_mask = torch.stack([torch.tensor(np.random.choice(np.arange(data_dim), size=num_to_mask, replace=False)) for _ in range(latents.size(0))], dim=0)
+
+        mask = torch.zeros_like(latents) == 0
+        mask.scatter_(1)
 
 @torch.no_grad()
 def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
@@ -263,4 +291,3 @@ def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
         latents[:, i] = current_x_i
         
     return energy_total # bs x 1
-        
