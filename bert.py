@@ -1,5 +1,6 @@
 import math
 import random
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -203,7 +204,7 @@ def warm_start_from_real(model, mask_id, data_dim, batch_size=32, latents=None):
 
 
 @torch.no_grad()
-def MH_sampling(model, mask_id, data_dim, n_epochs=1, energy_type='norm'):
+def MH_sampling(model, mask_id, data_dim, block_size=1, n_epochs=1, energy_type='norm'):
     warm_start_latents = warm_start_from_real(model, mask_id, data_dim) # batch_size x latent_len
     latents = warm_start_latents.clone()
 
@@ -212,18 +213,26 @@ def MH_sampling(model, mask_id, data_dim, n_epochs=1, energy_type='norm'):
     acceptance_percentage = 0
     for e in range(n_epochs):
         for i in tqdm(range(latents.size(1))):
-            current_x_i = latents[:, i].clone()
+
+            block_start_index = random.randint(0, latents.size(1)-block_size) 
+            current_x_i = latents[:, block_start_index : block_start_index + block_size].clone() # bs x block_size
             proposal_latents = latents.clone()
-            proposal_latents[:, i] = mask_id 
+            proposal_latents[:, block_start_index : block_start_index + block_size] = mask_id 
             logits, _ = model(proposal_latents) # bs x latent_len x codebook_size
-            probs = F.softmax(logits[:,i,:], dim=-1) # bs x codebook_size
-            proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
-            proposal_latents[:, i] = proposal_tokens.squeeze(1)
+            
+            q_prop_x = 1
+            q_x_prop = 1
+
+            block_probs = F.softmax(logits[:, block_start_index:block_start_index+block_size,:], dim=-1) # bs x block_size x codebook_size
+            for idx, probs_index in enumerate(range(block_start_index, block_start_index+block_size)):
+                probs = block_probs[:, idx] # bs x codebook_size
+                proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
+                proposal_latents[:, probs_index] = proposal_tokens.squeeze(1)
+
+                q_prop_x *= torch.gather(probs, 1, proposal_tokens) # bs x 1
+                q_x_prop *= torch.gather(probs, 1, current_x_i[:, idx].unsqueeze(1)) # bs x 1
 
             energy_proposal = implicit_energy_fn(model, proposal_latents, mask_id, energy_type=energy_type) # bs x 1
-
-            q_prop_x = torch.gather(probs, 1, proposal_tokens) # bs x 1
-            q_x_prop = torch.gather(probs, 1, current_x_i.unsqueeze(1)) # bs x 1
 
             acceptance_prob = (energy_proposal * q_x_prop) / (energy_prev * q_prop_x)
             acceptance_prob = acceptance_prob.clamp(max=1)
@@ -239,10 +248,8 @@ def MH_sampling(model, mask_id, data_dim, n_epochs=1, energy_type='norm'):
 
     return warm_start_latents, latents, acceptance_percentage
 
-        
 
-        
-
+@torch.no_grad()
 def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
     energy_total = 0
     for i in range(latents.size(1)):

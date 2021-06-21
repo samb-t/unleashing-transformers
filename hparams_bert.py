@@ -34,6 +34,7 @@ class Hparams(dict):
             # bert training defaults
             self.bert_batch_size = 32
             self.bert_lr = 1e-4
+            self.sample_block_size = 1
             
         elif self.dataset == 'cifar10':
             # vqgan architecture defaults
@@ -64,6 +65,7 @@ class Hparams(dict):
             # bert training defaults
             self.bert_batch_size = 32
             self.bert_lr = 1e-4
+            self.sample_block_size = 1
 
 
         elif self.dataset == 'flowers':
@@ -95,6 +97,7 @@ class Hparams(dict):
             # bert training defaults
             self.bert_batch_size = 32
             self.bert_lr = 1e-4
+            self.sample_block_size = 1
 
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
@@ -126,6 +129,7 @@ class Hparams(dict):
             # bert training defaults
             self.bert_batch_size = 32
             self.bert_lr = 1e-4
+            self.sample_block_size = 1
 
         elif self.dataset == 'churches':
             # vqgan architecture defaults
@@ -156,6 +160,7 @@ class Hparams(dict):
             # bert training defaults
             self.bert_batch_size = 32
             self.bert_lr = 1e-4
+            self.sample_block_size = 1
 
         elif self.dataset == None:
             raise KeyError('Please specify a dataset using the -d flag')
@@ -200,6 +205,7 @@ class Hparams(dict):
             bert_n_layers = self.bert_n_layers,
             bert_n_head = self.bert_n_head,
             bert_n_emb = self.bert_n_emb,
+            sample_block_size = self.sample_block_size
         )
 
 
@@ -275,6 +281,7 @@ def get_hparams():
     # bert training args
     parser.add_argument('--bert_batch_size', dest='ebm_batch_size', type=int)
     parser.add_argument('--bert_lr', dest='ebm_lr', type=float)
+    parser.add_argument('--sample_block_size', dest='sample_block_size', type=int)
 
     args = parser.parse_args().__dict__
     dataset = args['dataset']
