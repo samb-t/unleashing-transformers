@@ -3,6 +3,7 @@ import random
 import time
 import numpy as np
 import torch
+from torch import sparse
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -222,13 +223,15 @@ def warm_start_from_real(model, mask_id, data_dim, batch_size=32, latents=None):
 
 
 @torch.no_grad()
-def MH_sampling(model, mask_id, data_dim, mcmc_steps=50, energy_type='norm'):
-    warm_start_latents = warm_start_from_real(model, mask_id, data_dim) # batch_size x latent_len
-    latents = warm_start_latents.clone()
+def MH_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=50, energy_type='norm', eps=1e-8):
+    latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
 
-    energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
+    energy_prev = torch.zeros(latents.size(0), 1)
+    # energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
+
     # TODO: force changes to occur - don't allow reproducing same token 
-    acceptance_percentage = 0
+    acceptance_rate = 0
+    all_acceptance_rates = []
     for i in tqdm(range(mcmc_steps)):
         block_size = data_dim - int((data_dim / mcmc_steps) * i)
 
@@ -238,33 +241,48 @@ def MH_sampling(model, mask_id, data_dim, mcmc_steps=50, energy_type='norm'):
         proposal_latents[:, block_start_index : block_start_index + block_size] = mask_id 
         logits, _ = model(proposal_latents) # bs x latent_len x codebook_size
         
-        q_prop_x = 1
-        q_x_prop = 1
+        q_prop_x = 0
+        q_x_prop = 0
 
-        block_probs = F.softmax(logits[:, block_start_index:block_start_index+block_size,:], dim=-1) # bs x block_size x codebook_size
+        # log softmax?
+        block_probs = logits[:, block_start_index:block_start_index+block_size,:] # bs x block_size x codebook_size
         for idx, probs_index in enumerate(range(block_start_index, block_start_index+block_size)):
-            probs = block_probs[:, idx] # bs x codebook_size
+            probs = F.softmax(block_probs[:, idx], dim=1) # bs x codebook_size
             proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
             proposal_latents[:, probs_index] = proposal_tokens.squeeze(1)
 
-            q_prop_x *= torch.gather(probs, 1, proposal_tokens) # bs x 1
-            q_x_prop *= torch.gather(probs, 1, current_x_i[:, idx].unsqueeze(1)) # bs x 1
+            if i > 0: # tries to gather probabilities for masked inputs on the first step
+                log_probs = F.log_softmax(block_probs[:,idx], dim=1)
+                q_prop_x += torch.gather(log_probs, 1, proposal_tokens) # bs x 1
+                q_x_prop += torch.gather(log_probs, 1, current_x_i[:, idx].unsqueeze(1)) # bs x 1
 
         energy_proposal = implicit_energy_fn(model, proposal_latents, mask_id, energy_type=energy_type) # bs x 1
 
-        acceptance_prob = (energy_proposal * q_x_prop) / (energy_prev * q_prop_x)
+        if i == 0: # always accept the first one
+            energy_prev = energy_proposal
+            latents = proposal_latents
+            continue
+
+        # check energy should definitely be log-ed. I have a feeling it shouldn't be but really not sure
+        acceptance_prob = torch.exp(energy_proposal + q_x_prop - energy_prev - q_prop_x)
+
+        # print(energy_proposal, q_x_prop, energy_prev, q_prop_x, acceptance_prob)
+
+        # + eps for stability. If exp(q_x_prop) is 0 then this division == 0 rather than 1
+        # acceptance_prob = (energy_proposal * (torch.exp(q_x_prop) + eps)) / (energy_prev * (torch.exp(q_prop_x) + eps)) 
         acceptance_prob = acceptance_prob.clamp(max=1)
         acceptance_mask = torch.rand_like(acceptance_prob) <= acceptance_prob # bs x 1
 
-        acceptance_mask_mean = acceptance_mask.float().mean()
-        acceptance_percentage += acceptance_mask_mean
+        acceptance_rate += acceptance_mask.float().mean()
+
+        all_acceptance_rates.append(acceptance_mask.float().mean().item())
 
         energy_prev[acceptance_mask] = energy_proposal[acceptance_mask]
         latents[acceptance_mask.squeeze(1)] = proposal_latents[acceptance_mask.squeeze(1)]
         
-    acceptance_percentage /= (latents.size(1) * n_epochs)
+    acceptance_rate /= mcmc_steps
 
-    return warm_start_latents, latents, acceptance_percentage
+    return latents, acceptance_rate, all_acceptance_rates
 
 @torch.no_grad()
 def annealed_block_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=50, energy_type='norm'):
@@ -274,8 +292,11 @@ def annealed_block_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=
         num_to_mask = data_dim - int((data_dim / mcmc_steps) * i)
         sparse_mask = torch.stack([torch.tensor(np.random.choice(np.arange(data_dim), size=num_to_mask, replace=False)) for _ in range(latents.size(0))], dim=0)
 
-        mask = torch.zeros_like(latents) == 0
-        mask.scatter_(1)
+        mask = torch.zeros_like(latents) != 0
+        mask.scatter_(1, sparse_mask, torch.zeros_like(latents) == 0)
+
+        proposed_latents = latents.clone()
+        proposed_latents[mask] - mask_id
 
 @torch.no_grad()
 def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
@@ -285,9 +306,9 @@ def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
         latents[:, i] = mask_id
         logits, _ = model(latents)
         if energy_type == 'norm':
-            probs = F.softmax(logits[:,i,:], dim=-1) # bs x codebook_size
+            probs = F.log_softmax(logits[:,i,:], dim=-1) # bs x codebook_size
 
-        energy_total -= torch.log(torch.gather(probs, 1, current_x_i.unsqueeze(1)))
+        energy_total += torch.gather(probs, 1, current_x_i.unsqueeze(1))
         latents[:, i] = current_x_i
         
     return energy_total # bs x 1

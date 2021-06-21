@@ -102,24 +102,22 @@ def main(H):
         if step % H.steps_per_display_samples == 0 and step > 0:
 
             log('Sampling latents...')
-            greedy_samples, samples, acceptance_rate = MH_sampling(transformer, H.codebook_size, data_dim, mcmc_steps=50)
-            log(f'Samples generated, acceptance rate: {acceptance_rate}%')
+            samples, acceptance_rate, all_acceptance_rates = MH_sampling(transformer, H.codebook_size, data_dim, mcmc_steps=100)
+            log(f'Samples generated, acceptance rate: {acceptance_rate*100}%')
 
+            # vis.line(all_acceptance_rates, win='acceptance_rates', opts=dict(title='Acceptance Rates'))
+            print(all_acceptance_rates)
 
             log('Generating images from samples latents...')
             with torch.no_grad():
                 q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
                 samples = ae.generator(q.cpu())
 
-            with torch.no_grad():
-                q = transformer.embed(latent_ids_to_onehot(greedy_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-                greedy_samples = ae.generator(q.cpu())
-
             vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
-            vis.images(greedy_samples[:64].clamp(0,1), win='greedy_samples', opts=dict(title='Greedy Samples'))
              
             if step % H.steps_per_save_samples == 0:
                 save_images(samples, 'samples', step, H.log_dir)
+
         if step % H.steps_per_bert_checkpoint == 0 and step > H.load_step:
             save_model(transformer, 'transformer', step, H.log_dir)
             save_model(optim, 'transformer_optim', step, H.log_dir)
