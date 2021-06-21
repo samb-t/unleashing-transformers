@@ -10,6 +10,8 @@ from utils import *
 def main(H):
     data_dim = np.prod(H.latent_shape)
 
+
+    # TODO: set up to generate latents on GPU
     ae = VQAutoEncoder(
         H.n_channels,
         H.nf,
@@ -20,11 +22,10 @@ def main(H):
         H.img_size, 
         H.attn_resolutions
     )
-    ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_test_{H.dataset}')
+    ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_{H.dataset}_{H.latent_shape[-1]}')
 
-    if os.path.exists(f'latents/{H.dataset}_latents_{H.ae_load_step}'):
-        latent_ids = torch.load(f'latents/{H.dataset}_latents_{H.ae_load_step}')
-        # latents = torch.load(f'latents/{dataset}_latents')
+    if os.path.exists(f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'):
+        latent_ids = torch.load(f'latents/{H.dataset}_{H.latent_shape[-1]}_latents')
     else:
         full_dataloader = get_data_loader(H.dataset, H.img_size, 4, drop_last=False, shuffle=False)
 
@@ -47,7 +48,8 @@ def main(H):
         H.codebook_size+1, 
         H.block_size, 
         H.latent_shape, 
-        ae.quantize.embedding, 
+        ae.quantize.embedding,
+        H.emb_dim, 
         n_layer=H.bert_n_layers, 
         n_head=H.bert_n_head, 
         n_embd=H.bert_n_emb
@@ -62,7 +64,9 @@ def main(H):
         start_step = H.load_step
 
     log(f'Transformer Parameters: {len(ptv(transformer.parameters()))}')
-
+    
+    nlls = np.array([])
+    nll_means = np.array([])
     for step in range(start_step, H.train_steps):
         step_time_start = time.time()
         latent_ids, target = next(latent_iterator)
@@ -80,7 +84,8 @@ def main(H):
             continue
 
         optim.step()
-
+        
+        nlls = np.append(nlls, nll.item())
         # TODO: Print accuracy
         accuracy = (logits.max(-1)[1][target > 0] == target[target > 0]).float().mean()
 
@@ -88,28 +93,32 @@ def main(H):
         step_time_taken = step_time_finish - step_time_start
 
         # display + save less frequently than ebm
-        if step % 1 == 0 and step > 0:
+        if step % H.steps_per_log == 0 and step > 0:
             log(f"Step: {step}, time: {step_time_taken:.3f}, nll={nll:.4f}, grad_norm={grad_norm:.4f}, accuracy={accuracy:.4f}")
+            nll_means = np.append(nll_means, nlls.mean())
+            vis.line(nll_means, list(range(start_step, step, H.steps_per_log)), win='nll', opts=dict(title='NLL'))
 
-        if step % H.steps_per_display_samples == 0:# and step > 0:
-            # samples = warm_start(transformer, H.codebook_size)
+        if step % H.steps_per_display_samples == 0 and step > 0:
 
-            # print("Here 1", latent_ids.max())
-            # samples = warm_start_from_real(unmasked_latents.cuda(), transformer, H.codebook_size)
+            log('Sampling latents...')
+            greedy_samples, samples, acceptance_rate = MH_sampling(transformer, H.codebook_size, data_dim)
+            log(f'Samples generated, accetpance rate: {acceptance_rate}%')
 
 
-
-            samples = MH_sampling(transformer, H.codebook_size)
-
-            # print(samples.max(), samples.min())
-            # print(samples)
-
-            q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, 16, 16).contiguous(), H))
+            log('Generating images from samples latents...')
             with torch.no_grad():
+                q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
                 samples = ae.generator(q.cpu())
 
-            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
+            with torch.no_grad():
+                q = transformer.embed(latent_ids_to_onehot(greedy_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                greedy_samples = ae.generator(q.cpu())
 
+            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
+            vis.images(greedy_samples[:64].clamp(0,1), win='greedy_samples', opts=dict(title='Greedy Samples'))
+             
+            if step % H.steps_per_save_samples == 0:
+                save_images(samples, 'samples', step, H.log_dir)
         if step % H.steps_per_bert_checkpoint == 0:
             save_model(transformer, 'transformer', step, H.log_dir)
             save_model(optim, 'transformer_optim', step, H.log_dir)

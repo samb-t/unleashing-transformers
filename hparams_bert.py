@@ -56,10 +56,10 @@ class Hparams(dict):
 
             # bert architcture defaults
             self.latent_shape = [1, 8, 8]
-            self.block_size = 256
-            self.bert_n_layers = 8
+            self.block_size = 512
+            self.bert_n_layers = 16
             self.bert_n_head = 8
-            self.bert_n_emb = 256
+            self.bert_n_emb = 512
 
             # bert training defaults
             self.bert_batch_size = 32
@@ -245,7 +245,7 @@ def get_hparams():
     ## bert
     parser.add_argument('--steps_per_display_samples', dest='steps_per_display_samples', type=int, default=50)
     parser.add_argument('--steps_per_save_samples', dest='steps_per_save_samples', type=int, default=100)
-    parser.add_argument('--steps_per_bert_checkpoint', dest='steps_per_ebm_checkpoint', type=int, default=1000)
+    parser.add_argument('--steps_per_bert_checkpoint', dest='steps_per_bert_checkpoint', type=int, default=1000)
 
     # vqgan architecture args
     parser.add_argument('--img_size', dest='img_size', type=int)

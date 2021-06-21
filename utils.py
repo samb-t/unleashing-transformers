@@ -84,12 +84,10 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=Tru
     return loader
 
 
-def save_images(images, vis_win, win_name, step, log_dir):
+def save_images(images, im_name, step, log_dir):
     log_dir = 'logs/' + log_dir + '/images'
     os.makedirs(log_dir, exist_ok=True)
-    images = torch.clamp(images, 0, 1)
-    vis_win.images(torch.clamp(images, 0, 1), nrow=int(np.sqrt(images.shape[0])), win=win_name, opts=dict(title=win_name))
-    torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{win_name}_{step}.png', 
+    torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{im_name}_{step}.png', 
             nrow=int(np.sqrt(images.shape[0])), padding=0)
 
 def save_latents(latents, dataset, size):

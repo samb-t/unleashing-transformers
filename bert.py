@@ -78,7 +78,7 @@ class Block(nn.Module):
 
 class GPT(nn.Module):
     """  the full GPT language model, with a context size of block_size """
-    def __init__(self, vocab_size, block_size, latent_size, embedding, 
+    def __init__(self, vocab_size, block_size, latent_size, embedding, latent_emb_dim,
                  n_layer=12, n_head=8, n_embd=256, embd_pdrop=0., 
                  resid_pdrop=0., attn_pdrop=0.):
         super().__init__()
@@ -103,6 +103,7 @@ class GPT(nn.Module):
         self.latent_size = latent_size
         self.embedding = embedding
         self.embedding.requires_grad = False
+        self.latent_emb_dim = latent_emb_dim
     
     def embed(self, z):
         z_flattened = z.view(-1, self.vocab_size-1) # B*H*W, codebook_size
@@ -110,7 +111,7 @@ class GPT(nn.Module):
             z.size(0), 
             self.latent_size[1],
             self.latent_size[2],
-            256
+            self.latent_emb_dim
         ).permute(0, 3, 1, 2).contiguous()
 
     def get_block_size(self):
@@ -181,13 +182,13 @@ class BERTDataset(torch.utils.data.Dataset):
         return latent, target
 
 @torch.no_grad()
-def warm_start_from_real(model, mask_id, batch_size=32, latents=None):
+def warm_start_from_real(model, mask_id, data_dim, batch_size=32, latents=None):
 
     if latents == None:
-        latents = torch.ones(batch_size, 16*16).long().cuda() * mask_id
+        latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
 
     model.eval()
-    for k in range(16*16): # greedy decode
+    for k in range(data_dim): # greedy decode
         latents[:,k] = mask_id
         logits, _ = model(latents)
 
@@ -202,10 +203,13 @@ def warm_start_from_real(model, mask_id, batch_size=32, latents=None):
 
 
 @torch.no_grad()
-def MH_sampling(model, mask_id, energy_type='norm'):
-    latents = warm_start_from_real(model, mask_id) # batch_size x latent_len
-    energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
+def MH_sampling(model, mask_id, data_dim, energy_type='norm'):
+    warm_start_latents = warm_start_from_real(model, mask_id, data_dim) # batch_size x latent_len
+    latents = warm_start_latents.clone()
 
+    energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
+    # TODO: force changes to occur - don't allow reproducing same token 
+    acceptance_percentage = 0
     for i in tqdm(range(latents.size(1))):
         current_x_i = latents[:, i].clone()
         proposal_latents = latents.clone()
@@ -224,10 +228,15 @@ def MH_sampling(model, mask_id, energy_type='norm'):
         acceptance_prob = acceptance_prob.clamp(max=1)
         acceptance_mask = torch.rand_like(acceptance_prob) <= acceptance_prob # bs x 1
 
+        acceptance_mask_mean = acceptance_mask.float().mean()
+        acceptance_percentage += acceptance_mask_mean
+
         energy_prev[acceptance_mask] = energy_proposal[acceptance_mask]
         latents[acceptance_mask.squeeze(1)] = proposal_latents[acceptance_mask.squeeze(1)]
     
-    return latents
+    acceptance_percentage /= latents.size(1)
+
+    return warm_start_latents, latents, acceptance_percentage
 
         
 
