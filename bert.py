@@ -181,28 +181,13 @@ class BERTDataset(torch.utils.data.Dataset):
         return latent, target
 
 @torch.no_grad()
-def warm_start(model, mask_id, batch_size=32):
-    latents = torch.ones(batch_size, 16*16).long().cuda() * mask_id
+def warm_start_from_real(model, mask_id, batch_size=32, latents=None):
+
+    if latents == None:
+        latents = torch.ones(batch_size, 16*16).long().cuda() * mask_id
 
     model.eval()
     for k in tqdm(range(16*16)): # greedy decode
-        logits, _ = model(latents)
-        logits[:,:,mask_id] = float('-inf') # mask sure not to pick mask
-        # val = logits[:,k,:].max(1)[1] 
-
-        probs = F.softmax(logits[:,k,:], dim=-1)
-        ix = torch.multinomial(probs, num_samples=1)
-        latents[:,k] = ix[:,0]
-
-    model.train()
-
-    return latents
-
-@torch.no_grad()
-def warm_start_from_real(latents, model, mask_id):
-    # model.eval()
-    for k in tqdm(range(16*16)): # greedy decode
-    # for k in [0]:
         latents[:,k] = mask_id
         logits, _ = model(latents)
 
@@ -211,6 +196,40 @@ def warm_start_from_real(latents, model, mask_id):
         # ix = logits[:,k,:].max(1)[1].unsqueeze(-1)
         latents[:,k] = ix[:,0]
 
-    # model.train()
+    model.train()
 
     return latents
+
+
+@torch.no_grad()
+def MH_sampling(model, mask_id, energy_type='norm'):
+    latents = warm_start_from_real(model, mask_id) # batch_size x latent_len
+    energy_prev = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type)
+
+    for i in range(latents.size(1)):
+
+        proposal_latents = latents.clone()
+        proposal_latents[:, i] = mask_id 
+        logits, _ = model(proposal_latents) # bs x latent_len x codebook_size
+        probs = F.softmax(logits[:,i,:], dim=-1) # bs x codebook_size
+        proposal_tokens = torch.multinomial(probs, num_samples=1) # bs x 1
+        proposal_latents[:, i] = proposal_tokens
+
+        energy_proposal = implicit_energy_fn(model, proposal_latents, mask_id, energy_type=energy_type)
+
+        
+
+def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
+    energy_total = 0
+    for i in range(latents.size(1)):
+        current_x_i = latents[:, i].clone()
+        latents[:, i] = mask_id
+        logits, _ = model(latents)
+        if energy_type == 'norm':
+            probs = F.softmax(logits[:,i,:], dim=-1) # bs x codebook_size
+
+        energy_total += torch.gather(probs, 1, current_x_i.unsqueeze(1))
+        latents[:, i] = current_x_i
+        
+    return energy_total
+        
