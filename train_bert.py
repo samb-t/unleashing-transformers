@@ -91,11 +91,15 @@ def main(H):
         if step % 1 == 0 and step > 0:
             log(f"Step: {step}, time: {step_time_taken:.3f}, nll={nll:.4f}, grad_norm={grad_norm:.4f}, accuracy={accuracy:.4f}")
 
-        if step % H.steps_per_display_samples == 0 and step > 0:
+        if step % H.steps_per_display_samples == 0:# and step > 0:
             # samples = warm_start(transformer, H.codebook_size)
 
             # print("Here 1", latent_ids.max())
-            samples = warm_start_from_real(unmasked_latents.cuda(), transformer, H.codebook_size)
+            # samples = warm_start_from_real(unmasked_latents.cuda(), transformer, H.codebook_size)
+
+
+
+            samples = MH_sampling(transformer, H.codebook_size)
 
             # print(samples.max(), samples.min())
             # print(samples)

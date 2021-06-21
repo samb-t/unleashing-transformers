@@ -26,13 +26,13 @@ class Hparams(dict):
 
             # bert architcture defaults
             self.latent_shape = [1, 8, 8]
-            self.block_size = 512,
-            self.bert_n_layers = 16,
-            self.bert_n_head = 8,
-            self.bert_n_emb = 512,
+            self.block_size = 512
+            self.bert_n_layers = 16
+            self.bert_n_head = 8
+            self.bert_n_emb = 512
 
             # bert training defaults
-            self.bert_batch_size = 128
+            self.bert_batch_size = 32
             self.bert_lr = 1e-4
             
         elif self.dataset == 'cifar10':
@@ -56,13 +56,13 @@ class Hparams(dict):
 
             # bert architcture defaults
             self.latent_shape = [1, 8, 8]
-            self.block_size = 512,
-            self.bert_n_layers = 16,
-            self.bert_n_head = 8,
-            self.bert_n_emb = 512,
+            self.block_size = 256
+            self.bert_n_layers = 8
+            self.bert_n_head = 8
+            self.bert_n_emb = 256
 
             # bert training defaults
-            self.bert_batch_size = 128
+            self.bert_batch_size = 32
             self.bert_lr = 1e-4
 
 
@@ -87,13 +87,13 @@ class Hparams(dict):
 
             # bert architcture defaults
             self.latent_shape = [1, 8, 8]
-            self.block_size = 512,
-            self.bert_n_layers = 16,
-            self.bert_n_head = 8,
-            self.bert_n_emb = 512,
+            self.block_size = 512
+            self.bert_n_layers = 16
+            self.bert_n_head = 8
+            self.bert_n_emb = 512
 
             # bert training defaults
-            self.bert_batch_size = 128
+            self.bert_batch_size = 32
             self.bert_lr = 1e-4
 
 
@@ -118,13 +118,43 @@ class Hparams(dict):
 
             # bert architcture defaults
             self.latent_shape = [1, 8, 8]
-            self.block_size = 512,
-            self.bert_n_layers = 16,
-            self.bert_n_head = 8,
-            self.bert_n_emb = 512,
+            self.block_size = 512
+            self.bert_n_layers = 16
+            self.bert_n_head = 8
+            self.bert_n_emb = 512
 
             # bert training defaults
-            self.bert_batch_size = 128
+            self.bert_batch_size = 32
+            self.bert_lr = 1e-4
+
+        elif self.dataset == 'churches':
+            # vqgan architecture defaults
+            self.img_size = 256
+            self.n_channels = 3
+            self.nf = 128
+            self.ndf = 64
+            self.ch_mult = [1, 1, 2, 2, 4]
+            self.attn_resolutions = [16]
+            self.res_blocks = 2
+            self.disc_layers = 3
+            self.codebook_size = 1024
+            self.emb_dim = 256
+
+            # vqgan training defaults
+            self.vqgan_batch_size = 3
+            self.perceptual_weight = 1.0
+            self.disc_start_step = 30001
+            self.vq_base_lr = 4.5e-6 
+
+            # bert architcture defaults
+            self.latent_shape = [1, 16, 16]
+            self.block_size = 256
+            self.bert_n_layers = 8
+            self.bert_n_head = 8
+            self.bert_n_emb = 256
+
+            # bert training defaults
+            self.bert_batch_size = 32
             self.bert_lr = 1e-4
 
         elif self.dataset == None:
