@@ -40,8 +40,32 @@ def main(H):
     unmasked_latents = latent_ids[:32].clone()
     
     latent_dataset = BERTDataset(latent_ids.reshape(latent_ids.size(0), -1), H.codebook_size, H.codebook_size)
-    latent_loader = torch.utils.data.DataLoader(latent_dataset, batch_size=H.bert_batch_size, shuffle=False)
+    latent_loader = torch.utils.data.DataLoader(latent_dataset, batch_size=H.bert_batch_size, shuffle=True, num_workers=4)
     latent_iterator = cycle(latent_loader)
+
+    init_dist_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_init_dist'
+    if os.path.exists(init_dist_filepath):
+        log(f'Loading init distribution from {init_dist_filepath}')
+        init_dist = torch.load(init_dist_filepath)
+        init_mean = init_dist.mean
+    else:  
+        # latents # B, H*W, codebook_size
+        eps = 1e-3 / H.codebook_size
+
+        batch_sum = torch.zeros(H.latent_shape[1]*H.latent_shape[2], H.codebook_size).cuda()
+        log('Generating init distribution:')
+        for batch in tqdm(latent_loader):
+            batch = batch.cuda()
+            latents = latent_ids_to_onehot(batch, H)
+            batch_sum += latents.sum(0)
+
+        init_mean = batch_sum / (len(latent_loader) * H.ebm_batch_size)
+
+        init_mean += eps # H*W, codebook_size
+        init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
+        init_dist = MyOneHotCategorical(init_mean.cpu())
+        
+        torch.save(init_dist, f'latents/{H.dataset}_init_dist')
 
     # Simple Transformer
     transformer = GPT(
@@ -93,16 +117,16 @@ def main(H):
         step_time_taken = step_time_finish - step_time_start
 
         # display + save less frequently than ebm
-        if step % H.steps_per_log == 0 and step > 0:
+        if step % H.steps_per_log == 0 and step > start_step:
             log(f"Step: {step}, time: {step_time_taken:.3f}, nll={nll:.4f}, grad_norm={grad_norm:.4f}, accuracy={accuracy:.4f}")
             nll_means = np.append(nll_means, nlls.mean())
             nlls = np.array([])
             vis.line(nll_means, list(range(start_step, step, H.steps_per_log)), win='nll', opts=dict(title='NLL'))
 
-        if step % H.steps_per_display_samples == 0 and step > 0:
+        if step % H.steps_per_display_samples == 0: #and step > start_step:
 
             log('Sampling latents...')
-            samples, acceptance_rate, all_acceptance_rates = MH_sampling(transformer, H.codebook_size, data_dim, mcmc_steps=100)
+            samples, acceptance_rate, all_acceptance_rates, first_samples, warmup_samples = MH_sampling(transformer, H.codebook_size, data_dim, init_dist, ae, vis, H, mcmc_steps=10000)
             log(f'Samples generated, acceptance rate: {acceptance_rate*100}%')
 
             # vis.line(all_acceptance_rates, win='acceptance_rates', opts=dict(title='Acceptance Rates'))
@@ -112,8 +136,14 @@ def main(H):
             with torch.no_grad():
                 q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
                 samples = ae.generator(q.cpu())
+                q_first = transformer.embed(latent_ids_to_onehot(first_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                samples_first = ae.generator(q_first.cpu())
+                q_warmup = transformer.embed(latent_ids_to_onehot(warmup_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                warmup_samples = ae.generator(q_warmup.cpu())
 
             vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
+            vis.images(samples_first[:64].clamp(0,1), win='samples_first', opts=dict(title='First Samples'))
+            vis.images(warmup_samples[:64].clamp(0,1), win='warmup_samples', opts=dict(title='Warmup Samples'))
              
             if step % H.steps_per_save_samples == 0:
                 save_images(samples, 'samples', step, H.log_dir)

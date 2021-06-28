@@ -119,7 +119,7 @@ class DiffSamplerMultiDim(nn.Module):
             reverse_delta = self.diff_fn(x_delta, model)
             reverse_logits = reverse_delta - 1e9 * x_delta
             cd_reverse = dists.OneHotCategorical(logits=reverse_logits.view(x_delta.size(0), -1))
-            reverse_changes = x_cur * changed_ind[:, :, None]
+            reverse_changes = x_cur * changed_ind[:, :, None] 
 
             lp_reverse = cd_reverse.log_prob(reverse_changes.view(x_delta.size(0), -1))
 
