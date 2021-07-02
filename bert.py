@@ -2,9 +2,7 @@ import math
 import random
 import time
 import numpy as np
-from numpy.core.shape_base import block
 import torch
-from torch import sparse
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -158,6 +156,8 @@ class GPT(nn.Module):
 
         return logits, loss
 
+
+# dataset that returns masked / swapped versions of original latents
 class BERTDataset(torch.utils.data.Dataset):
     def __init__(self, latent_ids, mask_id, num_ids):
         self.latent_ids = latent_ids
@@ -228,21 +228,34 @@ def warm_start_from_real(model, mask_id, data_dim, batch_size=32, latents=None):
 
     return latents
 
-def top_k_logits(self, logits, k):
+def top_k_logits( logits, k):
     v, ix = torch.topk(logits, k)
     out = logits.clone()
     out[out < v[..., [-1]]] = -float('Inf')
     return out
 
 
+def display_images_from_latents(model, ae, latents, vis, win_name, H):
+    with torch.no_grad():
+        q = model.embed(latent_ids_to_onehot(latents.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+        samples = ae.generator(q.cpu())
+
+        vis.images(samples[:64].clamp(0,1), win=win_name, opts=dict(title=win_name))
+
+    return samples
+
+# TODO: FIX - currently broken, produces far worse samples than greedy sampling which makes 0 sense
 @torch.no_grad()
 def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, mcmc_steps=50, energy_type='norm'):
+    # sample initial latents from init_dist as opposed to greedy sampling use in MH paper
     latents = init_dist.sample((batch_size,)).max(2)[1].cuda()
+    display_images_from_latents(model, ae, latents, vis, 'init_dist samples', H)
     # latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
     first_latents = latents.clone()
 
     latents = warm_start_from_real(model, mask_id, data_dim, latents=latents)
     warmup_latents = latents.clone()
+    display_images_from_latents(model, ae, warmup_latents, vis, 'greedy warmup', H)
 
     # energy_prev = torch.zeros(latents.size(0), 1)
     energy_prev, logits = implicit_energy_fn(model, latents, mask_id, energy_type=energy_type) # bs x 1
@@ -253,6 +266,8 @@ def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, 
     # TODO: force changes to occur - don't allow reproducing same token 
     acceptance_rate = 0
     all_acceptance_rates = []
+    epoch_energies = np.array([energy_prev.mean().item()])
+
     for i in tqdm(range(mcmc_steps)):
         # block_size = data_dim - int((data_dim / mcmc_steps) * i)
         # if i == 0:
@@ -262,7 +277,10 @@ def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, 
 
         # TODO: Try proposal based on energy_prev logits.
         # block_start_index = random.randint(0, latents.size(1)-block_size) 
+
+        # index loops around, equivalent to epochs
         block_start_index = i % (latents.size(1)-block_size+1)
+        
         current_x_i = latents[:, block_start_index : block_start_index + block_size].clone() # bs x block_size
         proposal_latents = latents.clone()
         proposal_latents[:, block_start_index : block_start_index + block_size] = mask_id 
@@ -316,23 +334,25 @@ def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, 
         # Could probably get better samples with energies (if we can get it working) though by running for longer
         # latents = warm_start_from_real(model, mask_id, data_dim, latents=latents)
 
-        if i % 50 == 0 and i > 0:
-            with torch.no_grad():
-                q = model.embed(latent_ids_to_onehot(latents.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-                samples = ae.generator(q.cpu())
 
-            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
+        if i % latents.size(1) == 0 and i > 0:
+            epoch_energies = np.append(epoch_energies, energy_prev.mean().item())
+            vis.line(epoch_energies, list(range(len(epoch_energies))), win='mh_energy', opts=dict(title='MH Energy per Epoch'))
+
+            samples = display_images_from_latents(model, ae, latents, vis, 'MH samples', H)
             save_images(samples, 'samples_mcmcstep', i, H.log_dir)
+
             print(all_acceptance_rates[-50:])
-            print("energy_prev", energy_prev_backup.squeeze())
-            print("energy_proposal", energy_proposal.squeeze())
-            print("q_x_prop", q_x_prop.squeeze())
-            print("q_prop_x", q_prop_x.squeeze())
+            # print("energy_prev", energy_prev_backup.squeeze())
+            # print("energy_proposal", energy_proposal.squeeze())
+            # print("q_x_prop", q_x_prop.squeeze())
+            # print("q_prop_x", q_prop_x.squeeze())
         
     acceptance_rate /= mcmc_steps
 
     return latents, acceptance_rate, all_acceptance_rates, first_latents, warmup_latents
 
+# not sure what this is
 @torch.no_grad()
 def annealed_block_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=50, energy_type='norm'):
     latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
@@ -347,6 +367,7 @@ def annealed_block_sampling(model, mask_id, data_dim, batch_size=32, mcmc_steps=
         proposed_latents = latents.clone()
         proposed_latents[mask] - mask_id
 
+
 @torch.no_grad()
 def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
     all_logits = []
@@ -359,13 +380,15 @@ def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
             probs = F.log_softmax(logits[:,i,:], dim=-1) # bs x codebook_size
         all_logits.append(probs)
 
-        energy_total += torch.gather(probs, 1, current_x_i.unsqueeze(1))
+        energy_total -= torch.gather(probs, 1, current_x_i.unsqueeze(1))
         latents[:, i] = current_x_i
         
     all_logits = torch.stack(all_logits, dim=1)
 
     return energy_total, all_logits # bs x 1
 
+
+# locally informed proposals - from GWG code
 def locally_informed_proposal(model, cur_latents, forward_logits, mask_id, H, block_size=1, energy_type='norm'):
     # TODO: Currently it's possible to sample the same the same movement more than once.
     #       So no guarantees that will be exactly block_size changes. Just <=.
@@ -409,6 +432,5 @@ def locally_informed_proposal(model, cur_latents, forward_logits, mask_id, H, bl
 # NOTE: q_x_prop should be more negative than q_prop_x as there should be a low chance of moving to the previous state
 
 # Okay these suggestions are rubbish. But why?
-
 
 # Something is very wrong. Perhaps energy calculation is wrong. Greedy samples are just better.

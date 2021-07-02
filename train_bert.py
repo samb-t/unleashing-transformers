@@ -7,7 +7,8 @@ from bert import *
 from energy import *
 from hparams_bert import get_hparams
 from utils import *
-def main(H):
+
+def main(H, vis):
     data_dim = np.prod(H.latent_shape)
 
 
@@ -42,6 +43,9 @@ def main(H):
     latent_dataset = BERTDataset(latent_ids.reshape(latent_ids.size(0), -1), H.codebook_size, H.codebook_size)
     latent_loader = torch.utils.data.DataLoader(latent_dataset, batch_size=H.bert_batch_size, shuffle=True, num_workers=4)
     latent_iterator = cycle(latent_loader)
+
+
+    # init_dist code taken from Discrete EBM / GWG code
 
     init_dist_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_init_dist'
     if os.path.exists(init_dist_filepath):
@@ -125,26 +129,53 @@ def main(H):
 
         if step % H.steps_per_display_samples == 0: #and step > start_step:
 
-            log('Sampling latents...')
-            samples, acceptance_rate, all_acceptance_rates, first_samples, warmup_samples = MH_sampling(transformer, H.codebook_size, data_dim, init_dist, ae, vis, H, mcmc_steps=10000)
-            log(f'Samples generated, acceptance rate: {acceptance_rate*100}%')
+            if not H.greedy_sample:
+                log('Sampling latents...')
+                samples, acceptance_rate, all_acceptance_rates, first_samples, warmup_samples = MH_sampling(
+                    transformer, 
+                    H.codebook_size, 
+                    data_dim, 
+                    init_dist, 
+                    ae, 
+                    vis, 
+                    H, 
+                    mcmc_steps=H.mcmc_steps
+                )
 
-            # vis.line(all_acceptance_rates, win='acceptance_rates', opts=dict(title='Acceptance Rates'))
-            print(all_acceptance_rates)
+                log(f'Samples generated, acceptance rate: {acceptance_rate*100}%')
 
-            log('Generating images from samples latents...')
-            with torch.no_grad():
-                q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-                samples = ae.generator(q.cpu())
-                q_first = transformer.embed(latent_ids_to_onehot(first_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-                samples_first = ae.generator(q_first.cpu())
-                q_warmup = transformer.embed(latent_ids_to_onehot(warmup_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-                warmup_samples = ae.generator(q_warmup.cpu())
+                # vis.line(all_acceptance_rates, win='acceptance_rates', opts=dict(title='Acceptance Rates'))
+                print(all_acceptance_rates)
 
-            vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
-            vis.images(samples_first[:64].clamp(0,1), win='samples_first', opts=dict(title='First Samples'))
-            vis.images(warmup_samples[:64].clamp(0,1), win='warmup_samples', opts=dict(title='Warmup Samples'))
+                log('Generating images from samples latents...')
+                with torch.no_grad():
+                    q = transformer.embed(latent_ids_to_onehot(samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                    samples = ae.generator(q.cpu())
+                    q_first = transformer.embed(latent_ids_to_onehot(first_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                    samples_first = ae.generator(q_first.cpu())
+                    q_warmup = transformer.embed(latent_ids_to_onehot(warmup_samples.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                    warmup_samples = ae.generator(q_warmup.cpu())
+
+                vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='Samples'))
+                vis.images(samples_first[:64].clamp(0,1), win='samples_first', opts=dict(title='First Samples'))
+                vis.images(warmup_samples[:64].clamp(0,1), win='warmup_samples', opts=dict(title='Warmup Samples'))
              
+            else:
+                log('Greedy sampling latents (no MH)')
+                latents = init_dist.sample((H.bert_batch_size,)).max(2)[1].cuda()
+                init_energy, _ = implicit_energy_fn(transformer, latents, H.codebook_size)
+                epoch_energies = np.array([init_energy.mean().item()])
+                for _ in tqdm(range(H.greedy_epochs)):
+                    latents = warm_start_from_real(transformer, H.codebook_size, data_dim, latents=latents)
+                    energy, _ = implicit_energy_fn(transformer, latents, H.codebook_size)
+                    epoch_energies = np.append(epoch_energies, energy.mean().item())
+                    q = transformer.embed(latent_ids_to_onehot(latents.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+                    samples = ae.generator(q.cpu())
+        
+                    vis.line(epoch_energies, list(range(len(epoch_energies))), win='greedy_energy', opts=dict(title='Greedy energy per epoch'))
+                    vis.images(samples[:64].clamp(0,1), win='g_samples', opts=dict(title='Greedy Samples'))
+
+
             if step % H.steps_per_save_samples == 0:
                 save_images(samples, 'samples', step, H.log_dir)
 
@@ -159,7 +190,7 @@ if __name__ == '__main__':
     if H.ae_load_step:
         config_log(H.log_dir)
         start_training_log(H.get_bert_param_dict())
-        main(H)
+        main(H, vis)
     else:
         print(f'Please select an autoencoder to load using the --ae_load_step flag')
 

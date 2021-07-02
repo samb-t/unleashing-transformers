@@ -194,7 +194,7 @@ def main(H):
                 vis.images(samples[:64].clamp(0,1), win='samples', opts=dict(title='samples'))
                 
                 if step % H.steps_per_save_samples == 0:
-                    save_images(samples[:64], vis, 'samples', step, H.log_dir)
+                    save_images(samples[:64], 'samples', step, H.log_dir)
             if step % H.steps_per_ebm_checkpoint == 0 and step > 0 and not (H.load_step == step):
                 save_model(energy, 'ebm', step, H.log_dir)
                 save_model(optim, 'ebm_optim', step, H.log_dir)

@@ -1,33 +1,22 @@
-# unet code adapted from DDPM repo
 import math
+
 import torch
-from torch import nn, einsum
 import torch.nn.functional as F
+import torch.nn as nn
+from einops import rearrange
 from inspect import isfunction
 
-from pathlib import Path
-import numpy as np
-from tqdm import tqdm
-from einops import rearrange
 
 
-# helpers functions
 
 def exists(x):
     return x is not None
+
 
 def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
-
-def num_to_groups(num, divisor):
-    groups = num // divisor
-    remainder = num % divisor
-    arr = [divisor] * groups
-    if remainder > 0:
-        arr.append(remainder)
-    return arr
 
 
 class Residual(nn.Module):
@@ -40,11 +29,14 @@ class Residual(nn.Module):
 
 
 class SinusoidalPosEmb(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, num_steps, rescale_steps=4000):
         super().__init__()
         self.dim = dim
+        self.num_steps = float(num_steps)
+        self.rescale_steps = float(rescale_steps)
 
     def forward(self, x):
+        x = x / self.num_steps * self.rescale_steps
         device = x.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
@@ -58,7 +50,6 @@ class Mish(nn.Module):
     def forward(self, x):
         return x * torch.tanh(F.softplus(x))
 
-
 class Upsample(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -67,7 +58,6 @@ class Upsample(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-
 class Downsample(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -75,7 +65,6 @@ class Downsample(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-
 
 class Rezero(nn.Module):
     def __init__(self, fn):
@@ -86,13 +75,15 @@ class Rezero(nn.Module):
     def forward(self, x):
         return self.fn(x) * self.g
 
+# building block modules
 
 class Block(nn.Module):
     def __init__(self, dim, dim_out, groups = 8):
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(dim, dim_out, 3, padding=1),
-            nn.GroupNorm(groups, dim_out)
+            nn.GroupNorm(groups, dim_out),
+            Mish()
         )
     def forward(self, x):
         return self.block(x)
@@ -100,7 +91,10 @@ class Block(nn.Module):
 class ResnetBlock(nn.Module):
     def __init__(self, dim, dim_out, *, time_emb_dim, groups = 8):
         super().__init__()
-        self.mlp = nn.Sequential(nn.Linear(time_emb_dim, dim_out))
+        self.mlp = nn.Sequential(
+            Mish(),
+            nn.Linear(time_emb_dim, dim_out)
+        )
 
         self.block1 = Block(dim, dim_out)
         self.block2 = Block(dim_out, dim_out)
@@ -121,7 +115,7 @@ class LinearAttention(nn.Module):
         self.to_out = nn.Conv2d(hidden_dim, dim, 1)
 
     def forward(self, x):
-        _, _, h, w = x.shape
+        b, c, h, w = x.shape
         qkv = self.to_qkv(x)
         q, k, v = rearrange(qkv, 'b (qkv heads c) h w -> qkv b heads c (h w)', heads = self.heads, qkv=3)
         k = k.softmax(dim=-1)
@@ -130,22 +124,26 @@ class LinearAttention(nn.Module):
         out = rearrange(out, 'b heads c (h w) -> b (heads c) h w', heads=self.heads, h=h, w=w)
         return self.to_out(out)
 
+# model
 
-class Unet(nn.Module):
-    def __init__(self, dim, out_dim = None, dim_mults=(1, 2, 4, 8), groups = 8):
+class SegmentationUnet(nn.Module):
+    def __init__(self, num_classes, dim, num_steps, dim_mults=(1, 2, 4, 8), groups = 8, dropout=0.):
         super().__init__()
-        dims = [3, *map(lambda m: dim * m, dim_mults)]
-
-        # contains the in and out dimensions of each layer of the UNet
+        dims = [dim, *map(lambda m: dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
-        self.time_pos_emb = SinusoidalPosEmb(dim)
+
+        self.embedding = nn.Embedding(num_classes, dim)
+        self.dim = dim
+        self.num_classes = num_classes
+
+        self.dropout = nn.Dropout(p=dropout)
+
+        self.time_pos_emb = SinusoidalPosEmb(dim, num_steps=num_steps)
         self.mlp = nn.Sequential(
             nn.Linear(dim, dim * 4),
             Mish(),
             nn.Linear(dim * 4, dim)
         )
-
-        # constructing the U-Net itself
 
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
@@ -176,14 +174,23 @@ class Unet(nn.Module):
                 Upsample(dim_in) if not is_last else nn.Identity()
             ]))
 
-        out_dim = default(out_dim, 3)
+        out_dim = num_classes
+        # out_dim = 1
         self.final_conv = nn.Sequential(
             Block(dim, dim),
             nn.Conv2d(dim, out_dim, 1)
         )
 
+    def forward(self, time, x):
+        x_shape = x.size()[1:]
+        if len(x.size()) == 3:
+            x = x.unsqueeze(1)
 
-    def forward(self, x, time):
+        B, C, H, W = x.size()
+        x = self.embedding(x)
+
+        x = x.permute(0, 1, 3, 2, 4)
+        x = x.reshape(B, C * self.dim, H, W)
         t = self.time_pos_emb(time)
         t = self.mlp(t)
 
@@ -191,6 +198,7 @@ class Unet(nn.Module):
 
         for resnet, resnet2, attn, downsample in self.downs:
             x = resnet(x, t)
+            x = self.dropout(x)
             x = resnet2(x, t)
             x = attn(x)
             h.append(x)
@@ -201,11 +209,11 @@ class Unet(nn.Module):
         x = self.mid_block2(x, t)
 
         for resnet, resnet2, attn, upsample in self.ups:
-            # passing original data back into upsampling layers
             x = torch.cat((x, h.pop()), dim=1)
             x = resnet(x, t)
             x = resnet2(x, t)
             x = attn(x)
             x = upsample(x)
 
-        return self.final_conv(x)
+        final = self.final_conv(x).view(B, self.num_classes, *x_shape)
+        return final

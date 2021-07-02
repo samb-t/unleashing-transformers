@@ -224,8 +224,17 @@ class Hparams(dict):
 
 
 def get_hparams():
-    parser = argparse.ArgumentParser(description='Arguments for training a VQGAN')
+    parser = argparse.ArgumentParser(description='Arguments for training a VQGAN + BERT sampler')
     
+
+    # test args - to be removed / tidied in future but currently used for testing
+    parser.add_argument('--greedy', dest='greedy_sample', const=True, action='store_const', default=False)
+    parser.add_argument('--mcmc_steps', dest='mcmc_steps', type=int, default=1600)
+    parser.add_argument('--greedy_epochs', dest='greedy_epochs', type=int, default=25)
+    parser.add_argument('--md_batch_size', dest='md_batch_size', type=int, default=32)
+    parser.add_argument('--steps_per_md_checkpoint', dest='steps_per_md_checkpoint', type=int, default=500)
+
+
     # required args
     parser.add_argument('-d', dest='dataset', type=str)
     parser.add_argument('--ae_load_step', dest='ae_load_step', type=int) # ebm only
@@ -280,7 +289,7 @@ def get_hparams():
 
     # bert training args
     parser.add_argument('--bert_batch_size', dest='ebm_batch_size', type=int)
-    parser.add_argument('--bert_lr', dest='ebm_lr', type=float)
+    parser.add_argument('--bert_lr', dest='bert_lr', type=float)
     parser.add_argument('--sample_block_size', dest='sample_block_size', type=int)
 
     args = parser.parse_args().__dict__
