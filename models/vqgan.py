@@ -1,4 +1,5 @@
 #%% imports
+import lpips
 from numpy.lib import emath
 import torch
 from torch.functional import norm
@@ -346,3 +347,46 @@ class Discriminator(nn.Module):
     
     def forward(self, x):
         return self.main(x)
+
+class VQGAN(nn.Module):
+    def __init__(self, ae, H):
+        super().__init__()
+        self.ae = ae.cuda()
+        self.disc = Discriminator(
+            H.n_channels,
+            H.ndf,
+            n_layers=H.disc_layers
+        ).cuda()
+        self.perceptual = lpips.LPIPS(net='vgg').cuda()
+        self.perceptual_weight = H.perceptual_weight
+        self.disc_start_step = H.disc_start_step
+
+    def train_iter(self, x, step):
+        stats = {}
+
+        x_hat, codebook_loss = self.ae(x)
+        stats['codebook_loss'] = codebook_loss.item()
+        
+        # get recon/perceptual loss
+        recon_loss = torch.abs(x.contiguous() - x_hat.contiguous()) # L1 loss
+        p_loss = self.perceptual(x.contiguous(), x_hat.contiguous())
+        nll_loss = recon_loss + self.perceptual_weight * p_loss
+        nll_loss = torch.mean(nll_loss)
+
+        # update generator
+        logits_fake = self.disc(x_hat.contiguous())
+        g_loss = -torch.mean(logits_fake)
+        last_layer = self.ae.generator.blocks[-1].weight
+        d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer)
+        d_weight *= adopt_weight(1, step, self.disc_start_step)
+        loss = nll_loss + d_weight * g_loss + codebook_loss
+
+        stats['loss'] = loss
+
+        if step > self.disc_start_step:
+            logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
+            logits_fake = self.disc(x_hat.contiguous().detach())
+            d_loss = hinge_d_loss(logits_real, logits_fake)
+            stats['d_loss'] = d_loss
+
+        return stats

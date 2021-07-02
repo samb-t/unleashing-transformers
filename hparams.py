@@ -31,7 +31,7 @@ class Hparams(dict):
             # ebm training defaults
             self.ebm_batch_size = 128
             self.buffer_size = 10000
-            self.sampling_steps = 50
+            self.mcmc_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
@@ -64,13 +64,23 @@ class Hparams(dict):
             # ebm training defaults
             self.ebm_batch_size = 128
             self.buffer_size = 10000
-            self.sampling_steps = 50
+            self.mcmc_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-5
             self.l2_coef = 0
             self.reinit_buffer_prob = 0.05
             self.grad_clip_threshold = 1000
 
+            # bert architcture defaults
+            self.block_size = 512
+            self.bert_n_layers = 16
+            self.bert_n_head = 8
+            self.bert_n_emb = 512
+
+            # bert training defaults
+            self.bert_batch_size = 32
+            self.bert_lr = 1e-4
+            self.sample_block_size = 1
 
         elif self.dataset == 'flowers':
             # vqgan architecture defaults
@@ -98,7 +108,7 @@ class Hparams(dict):
             # ebm training defaults
             self.ebm_batch_size = 128
             self.buffer_size = 10000
-            self.sampling_steps = 50
+            self.mcmc_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 1e-4
             self.l2_coef = 0
@@ -132,7 +142,7 @@ class Hparams(dict):
             # ebm training defaults
             self.ebm_batch_size = 32
             self.buffer_size = 10000
-            self.sampling_steps = 50
+            self.mcmc_steps = 50
             self.warmup_iters = 2000
             self.ebm_lr = 5e-6
             self.l2_coef = 0
@@ -178,7 +188,7 @@ class Hparams(dict):
             codebook_size = self.codebook_size,
             emb_dim = self.emb_dim,
             buffer_size = self.buffer_size,
-            sampling_steps = self.sampling_steps,
+            mcmc_steps = self.mcmc_steps,
             warmup_iters = self.warmup_iters,
             l2_coef = self.l2_coef,
             reinit_buffer_prob = self.reinit_buffer_prob,
@@ -202,8 +212,15 @@ class Hparams(dict):
 
 
 def get_hparams():
-    parser = argparse.ArgumentParser(description='Arguments for training a VQGAN')
+    parser = argparse.ArgumentParser(description='Arguments for training stuff :)')
     
+    # test args - to be removed / tidied in future but currently used for testing
+    parser.add_argument('--model', dest='model', type=str, default='vqgan')
+    parser.add_argument('--greedy', dest='greedy_sample', const=True, action='store_const', default=False)
+    parser.add_argument('--greedy_epochs', dest='greedy_epochs', type=int, default=25)
+    parser.add_argument('--md_batch_size', dest='md_batch_size', type=int, default=32)
+    parser.add_argument('--steps_per_md_checkpoint', dest='steps_per_md_checkpoint', type=int, default=500)
+    parser.add_argument('--steps_per_checkpoint', dest='steps_per_checkpoint', type=int, default=1000)
     # required args
     parser.add_argument('-d', dest='dataset', type=str)
     parser.add_argument('--ae_load_step', dest='ae_load_step', type=int) # ebm only
@@ -256,12 +273,24 @@ def get_hparams():
     # ebm training args
     parser.add_argument('--ebm_batch_size', dest='ebm_batch_size', type=int)
     parser.add_argument('--buffer_size', dest='buffer_size', type=int)
-    parser.add_argument('--sampling_steps', dest='sampling_steps', type=int)
+    parser.add_argument('--mcmc_steps', dest='mcmc_steps', type=int)
     parser.add_argument('--warmup_iters', dest='warmup_iters', type=int)
     parser.add_argument('--ebm_lr', dest='ebm_lr', type=float)
     parser.add_argument('--l2_coef', dest='l2_coef', type=float)
     parser.add_argument('--reinit_buffer_prob', dest='reinit_buffer_prob', type=float)
     parser.add_argument('--grad_clip_threshold', dest='grad_clip_threshold', type=int)
+
+    # bert architecture args
+    parser.add_argument('--block_size', dest='block_size', type=int)
+    parser.add_argument('--bert_n_layers', dest='bert_n_layers', type=int)
+    parser.add_argument('--bert_n_head', dest='bert_n_head', type=int)
+    parser.add_argument('--bert_n_emb', dest='bert_n_emb', type=int)
+
+    # bert training args
+    parser.add_argument('--bert_batch_size', dest='ebm_batch_size', type=int)
+    parser.add_argument('--bert_lr', dest='bert_lr', type=float)
+    parser.add_argument('--sample_block_size', dest='sample_block_size', type=int)
+
 
     args = parser.parse_args().__dict__
     dataset = args['dataset']
