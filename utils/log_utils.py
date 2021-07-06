@@ -17,7 +17,8 @@ def log(output):
 def log_stats(step, stats):
     log_str = f'Step: {step}  '
     for stat in stats:
-        log_str += f'{stat}: {stats[stat]:.4f}  '
+        if stat != 'images':
+            log_str += f'{stat}: {stats[stat]:.4f}  '
     log(log_str)
 
 
@@ -52,16 +53,25 @@ def load_buffer(name, log_dir):
     buffer = torch.load(os.path.join(log_dir, f'buffer_{name}.pt'))
     return buffer
 
+
+def display_images(vis, images, H, win_name=None):
+    if win_name == None:
+        win_name = f'{H.model}_images'
+    vis.images(torch.clamp(images, 0, 1), win=win_name, opts=dict(title=win_name))
+
+
 def save_images(images, im_name, step, log_dir):
     log_dir = 'logs/' + log_dir + '/images'
     os.makedirs(log_dir, exist_ok=True)
     torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{im_name}_{step}.png', 
             nrow=int(np.sqrt(images.shape[0])), padding=0)
 
+
 def save_latents(latents, dataset, size):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
     torch.save(latents, f'latents/{dataset}_{size}_latents')
+
 
 def save_latents(latents, dataset, size):
     save_dir = 'latents/'

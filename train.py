@@ -1,13 +1,12 @@
 from shutil import ExecError
-from models.vqgan import VQAutoEncoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models import EBM, VQGAN
+from models import VQAutoEncoder, VQGAN, EBM, BERT
 from hparams import get_hparams
 from utils import *
 
-def main(H):
+def main(H, vis):
 
     ae = VQAutoEncoder(
         H.n_channels,
@@ -24,47 +23,42 @@ def main(H):
     if H.model != 'vqgan':
         if not H.ae_load_step:
             raise KeyError('Please sepcificy an autoencoder to load using the --ae_load_step flag')
+        
         ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_{H.dataset}_{H.latent_shape[-1]}')
+        data_loader, data_iterator = get_latent_loaders(H, ae)
+        init_dist = get_init_dist(H, data_loader)
 
-        '''
-        TODO: 
-        - update hparam usage so that EBM comes with its own get_hparams() function that overwrites vqgan arguments
-            - perhaps using code from here: https://stackoverflow.com/questions/46310720/replacing-argument-in-argparse
-        - write load_ebm function in model_utils
-        - rearrange such that there is a final if statement to generate and set buffer
-            - only after model has been loaded
-        '''
         if H.model == 'ebm':
-            # TODO: refactor and simplify this, gets messy with optims / buffers etc.
-            data_loader, data_iterator = get_latent_loaders(H, ae)
-            init_dist = get_init_dist(H, data_loader)
-            model = EBM(H, ae.quantize.embedding.weight).cuda()
-            optim = torch.optim.Adam(model.parameters(), lr=H.lr)
-
             if H.load_step > 0:
                 buffer = load_buffer(H.load_step, H.log_dir)
-                model = load_model(model, 'ebm', H.load_step, H.log_dir)
-                if H.load_optim:
-                    optim = load_model(optim, 'ebm_optim', H.load_step, H.log_dir)
-                    for param_group in optim.param_groups:
-                        param_group['lr'] = H.ebm_lr
-                start_step = H.load_step
-            
             else:
                 buffer = []
                 for _ in range(int(H.buffer_size / 100)):
                     buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
                 buffer = torch.cat(buffer, dim=0)
-            model.set_buffer(buffer)
+            model = EBM(H, ae.quantize.embedding.weight, buffer).cuda()
 
+
+        elif H.model == 'bert':
+            # TODO: change this to pass in H instead of all the args
+            model = BERT(H, ae.quantize.embedding).cuda()
+
+        elif H.model == 'diffusion':
+            ...
+        
+        optim = torch.optim.Adam(model.parameters(), lr=H.lr)
+        if H.load_step > 0:
+            model = load_model(model, H.model, H.load_step, H.log_dir)
+            if H.load_optim:
+                optim = load_model(optim, f'{H.model}_optim', H.load_step, H.log_dir)
+                for param_group in optim.param_groups:
+                    param_group['lr'] = H.lr
+            
     else:
-        # TEMPORARY:
         data_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size))
-        ##
         model = VQGAN(ae, H).cuda()
         optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
         d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
-
 
         if H.load_step > 0:
             model.ae = load_model(model.ae, 'ae', H.load_step, H.log_dir)
@@ -74,17 +68,22 @@ def main(H):
                 d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.log_dir)
             start_step = H.load_step            
 
-    print('loaded models')
+    start_step = H.load_step
     for step in range(start_step, H.train_steps):
         if H.warmup_iters:
             if step < H.warmup_iters:
                 lr = H.lr * float(step) / H.warmup_iters
                 for param_group in optim.param_groups:
                     param_group['lr'] = lr
-    
-        x, *_ = next(data_iterator)
-        x = x.cuda()
-        stats = model.train_iter(x, step)
+
+        # TODO: replace this to make it same for all models
+
+        else:
+            x, *target = next(data_iterator)
+            x = x.cuda()
+            if target:
+                target = target[0].cuda()
+            stats = model.train_iter(x, target, step)
 
         optim.zero_grad()
         stats['loss'].backward()
@@ -97,9 +96,14 @@ def main(H):
 
         log_stats(step, stats)
 
+        if step % H.steps_per_display_output == 0 and step > 0:
+            display_images(vis, stats['images'], H)
+
+            if step % H.steps_per_save_output == 0:
+                save_images(stats['images'], 'samples', step, H.log_dir)
+
         # TODO: merge VQGAN and Sampler saving / loading 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
-
 
             if H.model == 'vqgan':
                 save_model(model.ae, 'ae', step, H.log_dir)
@@ -122,4 +126,4 @@ if __name__=='__main__':
         start_training_log(H.get_vqgan_param_dict())
     else:
         start_training_log(H)
-    main(H)
+    main(H, vis)

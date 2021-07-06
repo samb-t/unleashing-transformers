@@ -121,13 +121,13 @@ class ResNetEBM_cat(nn.Module):
 
 
 class EBM(Sampler):
-    def __init__(self, H, embedding_weight, mean=None):
+    def __init__(self, H, embedding_weight, buffer, mean=None):
         super().__init__(H, embedding_weight)
         self.batch_size = H.batch_size
         self.mcmc_steps = H.mcmc_steps
         self.grad_clip_threshold = H.grad_clip_threshold
         self.all_inds = list(range(H.buffer_size))
-        self.buffer = None
+        self.buffer = buffer
         self.mean = None if mean is None else nn.Parameter(mean, requires_grad=False)        
         
         self.net = ResNetEBM_cat(H.emb_dim, H.block_str)
@@ -145,10 +145,8 @@ class EBM(Sampler):
         logp = self.net(x).squeeze()
         return logp + bd
 
-    def set_buffer(self, buffer):
-        self.buffer = buffer
 
-    def train_iter(self, x, step):
+    def train_iter(self, x, *_, step):
         if self.buffer == None:
             raise ExecError('Please set a buffer for the EBM before training')
         stats = {}
@@ -176,6 +174,10 @@ class EBM(Sampler):
             self.grad_clip_threshold
         ).item()
 
+        # TODO: replace with actual sampler code
+        if step % self.steps_per_sample and step > 0:
+            stats['images'] = x_fake
+
         logp_real = self.forward(x).squeeze()
         logp_fake = self.forward(x_fake).squeeze()
         stats['loss'] = logp_fake.mean() - logp_real.mean()
@@ -187,8 +189,8 @@ class EBM(Sampler):
         return stats
 
 
-    def sample(self, n_samples):
-        return super().sample(n_samples)
+    def sample(self):
+        return super().sample()
 
     def class_conditional_train_iter(self, x, y):
         return super().class_conditional_train_iter(x, y)

@@ -4,7 +4,7 @@ import tqdm
 import os
 import visdom
 from .log_utils import log, save_latents
-from .model_utils import MyOneHotCategorical
+from .model_utils import MyOneHotCategorical, BERTDataset
 
 def cycle(iterable, encode_to_one_hot=False, H=None):
     while True:
@@ -14,7 +14,6 @@ def cycle(iterable, encode_to_one_hot=False, H=None):
                 yield [latent_ids_to_onehot(x, H.latent_shape, H.codebook_size)]
             else:
                 yield x
-
 
 
 def setup_visdom(H):
@@ -70,21 +69,7 @@ def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):
     return one_hot.reshape(one_hot.shape[0], -1, codebook_size)
 
 
-def get_latent_loaders(H, ae):
-    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
-    if os.path.exists(latents_filepath):
-        latent_ids = torch.load(latents_filepath)
-    else:
-        full_dataloader = get_data_loader(H.dataset, H.img_size, H.vqgan_bs, drop_last=False, shuffle=False)
-        ae = ae.cuda() # put ae on GPU for generating
-        latent_ids = generate_latent_ids(ae, full_dataloader, H)
-        ae = ae.cpu() # put back onto CPU to save memory during EBM training
-        save_latents(latent_ids, H.dataset, H.latent_shape[-1])
 
-    
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=False)
-    latent_iterator = cycle(latent_loader, encode_to_one_hot=True, H=H)
-    return latent_loader, latent_iterator
 
 
 def get_init_dist(H, latent_loader):
@@ -144,3 +129,31 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=Tru
         ]))
     loader = torch.utils.data.DataLoader(dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
     return loader
+
+
+# TODO: only use iterator or loader not both, need to rewrite code for init_dist generation
+def get_latent_loaders(H, ae):
+    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
+    if os.path.exists(latents_filepath):
+        latent_ids = torch.load(latents_filepath)
+    else:
+        full_dataloader = get_data_loader(H.dataset, H.img_size, H.vqgan_bs, drop_last=False, shuffle=False)
+        ae = ae.cuda() # put ae on GPU for generating
+        latent_ids = generate_latent_ids(ae, full_dataloader, H)
+        ae = ae.cpu() # put back onto CPU to save memory during EBM training
+        save_latents(latent_ids, H.dataset, H.latent_shape[-1])
+
+    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=False)
+    
+    # if using masked dataset (might need to add more conditionals here)
+    if H.model == 'bert':
+        masked_latent_ids = BERTDataset(latent_ids, H.codebook_size, H.codebook_size)
+        latent_iterator = cycle(torch.utils.data.DataLoader(
+            masked_latent_ids, 
+            batch_size=H.batch_size, 
+            shuffle=False
+        ))
+    else:
+        latent_iterator = cycle(latent_loader, encode_to_one_hot=True, H=H)
+    
+    return latent_loader, latent_iterator

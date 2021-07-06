@@ -328,14 +328,10 @@ def add_training_args(parser):
     parser.add_argument('--ncc', const=True, action='store_const', default=False)
     parser.add_argument('--steps_per_log', type=int, default=1)
     parser.add_argument('--steps_per_checkpoint', type=int, default=1000)
-
+    parser.add_argument('--steps_per_display_output', type=int, default=50)
+    parser.add_argument('--steps_per_save_output', type=int, default=100)
 
 def add_vqgan_args(parser):
-    ## logging
-    parser.add_argument('--steps_per_display_recons', type=int, default=5)
-    parser.add_argument('--steps_per_save_recons', type=int, default=1000)
-    parser.add_argument('--steps_per_vqgan_checkpoint', type=int, default=10000)
-
     ## training
     parser.add_argument('--vqgan_batch_size', type=int)
     parser.add_argument('--perceptual_weight', type=int)
@@ -356,12 +352,12 @@ def add_vqgan_args(parser):
     parser.add_argument('--latent_shape', nargs='+', type=int)
 
 
+# arguments for all sampler models
 def add_sampler_args(parser):
     parser.add_argument('--ae_load_step', type=int)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--lr', type=float)
-    parser.add_argument('--steps_per_display_samples', type=int, default=50)
-    parser.add_argument('--steps_per_save_samples', type=int, default=100)
+    parser.add_argument('--n_samples', type=int, default=16)
    
 
 def add_ebm_args(parser):
@@ -380,6 +376,9 @@ def add_ebm_args(parser):
 def add_bert_args(parser):
     # architecture args
     parser.add_argument('--block_size', type=int)
+    parser.add_argument('--embd_pdrop', type=float, default=0.)
+    parser.add_argument('--resid_pdrop', type=float, default=0.)    
+    parser.add_argument('--attn_pdrop', type=float, default=0.)
     parser.add_argument('--bert_n_layers', type=int)
     parser.add_argument('--bert_n_head', type=int)
     parser.add_argument('--bert_n_emb', type=int)
@@ -438,4 +437,6 @@ def get_hparams():
             H[arg] = args[arg]
 
     H.set_vqgan_lr()
+
+    assert H.steps_per_save_output % H.steps_per_display_output == 0
     return H

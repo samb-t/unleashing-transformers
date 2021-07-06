@@ -8,11 +8,14 @@ class Sampler(nn.Module):
         self.emb_dim = H.emb_dim
         self.codebook_size = H.codebook_size
         self.embedding_weight = embedding_weight
+        self.embedding_weight.requires_grad = False
+        self.n_samples = H.n_samples
+        self.steps_per_sample = H.steps_per_display_output
 
-    def train_iter(self, x, step):
+    def train_iter(self, x, x_target, step):
         raise NotImplementedError()
 
-    def sample(self, n_samples):
+    def sample(self):
         raise NotImplementedError()
 
     def class_conditional_train_iter(self, x, y):
