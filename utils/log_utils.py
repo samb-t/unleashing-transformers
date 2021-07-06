@@ -22,8 +22,7 @@ def log_stats(step, stats):
 
 
 def start_training_log(hparams):
-    log('----------------')
-    log('Starting training using following hparams:')
+    log(f"Using following hparams:")
     for param in hparams:
         log(f'> {param}: {hparams[param]}')
 

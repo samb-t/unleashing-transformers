@@ -10,7 +10,6 @@ def cycle(iterable, encode_to_one_hot=False, H=None):
     while True:
         for x in iterable:
             # if processing latents, encode to one hots and wrap in list (now works with vqgan data)
-            # kind of a hacky fix, will hopefully think of something cleaner.
             if encode_to_one_hot:
                 yield [latent_ids_to_onehot(x, H.latent_shape, H.codebook_size)]
             else:
@@ -105,7 +104,7 @@ def get_init_dist(H, latent_loader):
             latents = latent_ids_to_onehot(batch, H)
             batch_sum += latents.sum(0)
 
-        init_mean = batch_sum / (len(latent_loader) * H.ebm_batch_size)
+        init_mean = batch_sum / (len(latent_loader) * H.batch_size)
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps

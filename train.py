@@ -36,12 +36,10 @@ def main(H):
         '''
         if H.model == 'ebm':
             # TODO: refactor and simplify this, gets messy with optims / buffers etc.
-            H.batch_size = H.ebm_batch_size
-            lr = H.ebm_lr
             data_loader, data_iterator = get_latent_loaders(H, ae)
             init_dist = get_init_dist(H, data_loader)
             model = EBM(H, ae.quantize.embedding.weight).cuda()
-            optim = torch.optim.Adam(model.parameters(), lr=lr)
+            optim = torch.optim.Adam(model.parameters(), lr=H.lr)
 
             if H.load_step > 0:
                 buffer = load_buffer(H.load_step, H.log_dir)
@@ -61,13 +59,11 @@ def main(H):
 
     else:
         # TEMPORARY:
-        H.batch_size = H.vqgan_batch_size
         data_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size))
         ##
-        lr = H.vqgan_lr
         model = VQGAN(ae, H).cuda()
-        optim = torch.optim.Adam(model.ae.parameters(), lr=lr)
-        d_optim = torch.optim.Adam(model.disc.parameters(), lr=lr)
+        optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
+        d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
 
 
         if H.load_step > 0:
@@ -80,10 +76,11 @@ def main(H):
 
     print('loaded models')
     for step in range(start_step, H.train_steps):
-        if step < H.warmup_iters:
-            lr = lr * float(step) / H.warmup_iters
-            for param_group in optim.param_groups:
-                param_group['lr'] = lr
+        if H.warmup_iters:
+            if step < H.warmup_iters:
+                lr = H.lr * float(step) / H.warmup_iters
+                for param_group in optim.param_groups:
+                    param_group['lr'] = lr
     
         x, *_ = next(data_iterator)
         x = x.cuda()
@@ -97,8 +94,6 @@ def main(H):
             d_optim.zero_grad()
             stats['d_loss'].backward()
             d_optim.step()
-
-        # TODO: write logging function
 
         log_stats(step, stats)
 
@@ -121,5 +116,10 @@ if __name__=='__main__':
     H = get_hparams()
     vis = setup_visdom(H)
     config_log(H.log_dir)
-    start_training_log(H.get_ebm_param_dict())
+    log('---------------------------------')
+    log(f'Setting up training for {H.model}')   
+    if H.model =='vqgan':
+        start_training_log(H.get_vqgan_param_dict())
+    else:
+        start_training_log(H)
     main(H)

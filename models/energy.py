@@ -123,7 +123,7 @@ class ResNetEBM_cat(nn.Module):
 class EBM(Sampler):
     def __init__(self, H, embedding_weight, mean=None):
         super().__init__(H, embedding_weight)
-        self.batch_size = H.ebm_batch_size
+        self.batch_size = H.batch_size
         self.mcmc_steps = H.mcmc_steps
         self.grad_clip_threshold = H.grad_clip_threshold
         self.all_inds = list(range(H.buffer_size))
