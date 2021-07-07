@@ -176,7 +176,7 @@ class EBM(Sampler):
 
         # TODO: replace with actual sampler code
         if step % self.steps_per_sample and step > 0:
-            stats['images'] = x_fake
+            stats['sampled_latents'] = x_fake
 
         logp_real = self.forward(x).squeeze()
         logp_fake = self.forward(x_fake).squeeze()

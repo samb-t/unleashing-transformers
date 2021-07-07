@@ -154,6 +154,6 @@ def get_latent_loaders(H, ae):
             shuffle=False
         ))
     else:
-        latent_iterator = cycle(latent_loader, encode_to_one_hot=True, H=H)
+        latent_iterator = cycle(latent_loader, encode_to_one_hot=(H.model=='ebm'), H=H)
     
     return latent_loader, latent_iterator

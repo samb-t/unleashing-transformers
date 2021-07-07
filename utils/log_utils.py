@@ -17,7 +17,7 @@ def log(output):
 def log_stats(step, stats):
     log_str = f'Step: {step}  '
     for stat in stats:
-        if stat != 'images':
+        if 'images' not in stat and 'latents' not in stat:
             log_str += f'{stat}: {stats[stat]:.4f}  '
     log(log_str)
 

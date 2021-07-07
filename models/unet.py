@@ -78,26 +78,27 @@ class Rezero(nn.Module):
 # building block modules
 
 class Block(nn.Module):
-    def __init__(self, dim, dim_out, groups = 8):
+    def __init__(self, dim, dim_out, groups):
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(dim, dim_out, 3, padding=1),
             nn.GroupNorm(groups, dim_out),
             Mish()
         )
+
     def forward(self, x):
         return self.block(x)
 
 class ResnetBlock(nn.Module):
-    def __init__(self, dim, dim_out, *, time_emb_dim, groups = 8):
+    def __init__(self, dim, dim_out, *, time_emb_dim, groups):
         super().__init__()
         self.mlp = nn.Sequential(
             Mish(),
             nn.Linear(time_emb_dim, dim_out)
         )
 
-        self.block1 = Block(dim, dim_out)
-        self.block2 = Block(dim_out, dim_out)
+        self.block1 = Block(dim, dim_out, groups=groups)
+        self.block2 = Block(dim_out, dim_out, groups=groups)
         self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
     def forward(self, x, time_emb):
@@ -127,22 +128,24 @@ class LinearAttention(nn.Module):
 # model
 
 class SegmentationUnet(nn.Module):
-    def __init__(self, num_classes, dim, num_steps, dim_mults=(1, 2, 4, 8), groups = 8, dropout=0.):
+    def __init__(self, H):
         super().__init__()
-        dims = [dim, *map(lambda m: dim * m, dim_mults)]
+        self.dim = H.unet_dim
+        self.num_classes = H.codebook_size
+        self.embedding = nn.Embedding(self.num_classes, self.dim)
+        self.dim_mults = tuple(H.unet_dim_mults)
+        self.groups = H.groups
+        dims = [self.dim, *map(lambda m: self.dim * m, self.dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
-        self.embedding = nn.Embedding(num_classes, dim)
-        self.dim = dim
-        self.num_classes = num_classes
 
-        self.dropout = nn.Dropout(p=dropout)
+        self.dropout = nn.Dropout(p=H.dropout)
 
-        self.time_pos_emb = SinusoidalPosEmb(dim, num_steps=num_steps)
+        self.time_pos_emb = SinusoidalPosEmb(self.dim, num_steps=H.diffusion_steps)
         self.mlp = nn.Sequential(
-            nn.Linear(dim, dim * 4),
+            nn.Linear(self.dim, self.dim * 4),
             Mish(),
-            nn.Linear(dim * 4, dim)
+            nn.Linear(self.dim * 4, self.dim)
         )
 
         self.downs = nn.ModuleList([])
@@ -153,32 +156,32 @@ class SegmentationUnet(nn.Module):
             is_last = ind >= (num_resolutions - 1)
 
             self.downs.append(nn.ModuleList([
-                ResnetBlock(dim_in, dim_out, time_emb_dim = dim),
-                ResnetBlock(dim_out, dim_out, time_emb_dim = dim),
+                ResnetBlock(dim_in, dim_out, time_emb_dim = self.dim, groups=self.groups),
+                ResnetBlock(dim_out, dim_out, time_emb_dim = self.dim, groups=self.groups),
                 Residual(Rezero(LinearAttention(dim_out))),
                 Downsample(dim_out) if not is_last else nn.Identity()
             ]))
 
         mid_dim = dims[-1]
-        self.mid_block1 = ResnetBlock(mid_dim, mid_dim, time_emb_dim = dim)
+        self.mid_block1 = ResnetBlock(mid_dim, mid_dim, time_emb_dim = self.dim, groups=self.groups)
         self.mid_attn = Residual(Rezero(LinearAttention(mid_dim)))
-        self.mid_block2 = ResnetBlock(mid_dim, mid_dim, time_emb_dim = dim)
+        self.mid_block2 = ResnetBlock(mid_dim, mid_dim, time_emb_dim = self.dim, groups=self.groups)
 
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
             is_last = ind >= (num_resolutions - 1)
 
             self.ups.append(nn.ModuleList([
-                ResnetBlock(dim_out * 2, dim_in, time_emb_dim = dim),
-                ResnetBlock(dim_in, dim_in, time_emb_dim = dim),
+                ResnetBlock(dim_out * 2, dim_in, time_emb_dim = self.dim, groups=self.groups),
+                ResnetBlock(dim_in, dim_in, time_emb_dim = self.dim, groups=self.groups),
                 Residual(Rezero(LinearAttention(dim_in))),
                 Upsample(dim_in) if not is_last else nn.Identity()
             ]))
 
-        out_dim = num_classes
+        out_dim = self.num_classes
         # out_dim = 1
         self.final_conv = nn.Sequential(
-            Block(dim, dim),
-            nn.Conv2d(dim, out_dim, 1)
+            Block(self.dim, self.dim, groups=self.groups),
+            nn.Conv2d(self.dim, out_dim, 1)
         )
 
     def forward(self, time, x):

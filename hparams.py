@@ -296,8 +296,13 @@ class HparamsMultinomialDiffusion(Hparams):
             ...
 
         elif self.dataset == 'cifar10':
+            self.batch_size = 128
+            self.lr = 1e-3
             self.diffusion_steps = 1000
-
+            self.warmup_iters = 2500 # approx 5 epochs with bs = 128
+            self.unet_dim = 32
+            self.unet_dim_mults = [1,2,4,8]
+            
         elif self.dataset == 'flowers':
             ...
 
@@ -392,11 +397,15 @@ def add_bert_args(parser):
 def add_diffusion_args(parser):
     # architecture args
     parser.add_argument('--diffusion_net', type=str, default='unet')
-    
+    parser.add_argument('--unet_dim', type=int)
+    parser.add_argument('--unet_dim_mults', nargs='+', type=int)
+    parser.add_argument('--dropout', type=float, default=0.)
+    parser.add_argument('--groups', type=int, default=8)
+
     # training args
     parser.add_argument('--diffusion_loss', type=str, default='vb_stochastic')
     parser.add_argument('--diffusion_steps', type=int)
-
+    parser.add_argument('--parametrization', type=str, default='x0')
 
 def get_hparams():
     parser = argparse.ArgumentParser(description='Arguments for training stuff :)')

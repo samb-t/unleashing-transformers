@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import math
+from .sampler import Sampler
 from inspect import isfunction
 
 
@@ -92,28 +94,25 @@ def cosine_beta_schedule(timesteps, s = 0.008):
     return alphas
 
 
-class MultinomialDiffusion(torch.nn.Module):
-    def __init__(self, num_classes, shape, denoise_fn, embedding, latent_size, latent_emb_dim, timesteps=1000,
-                 loss_type='vb_stochastic', parametrization='x0'):
-        super(MultinomialDiffusion, self).__init__()
-        assert loss_type in ('vb_stochastic', 'vb_all')
-        assert parametrization in ('x0', 'direct')
+class MultinomialDiffusion(Sampler):
+    def __init__(self, H, embedding_weight, denoise_fn):
+        super().__init__(H, embedding_weight=embedding_weight)
+        assert H.diffusion_loss in ('vb_stochastic', 'vb_all')
+        assert H.parametrization in ('x0', 'direct')
 
-        if loss_type == 'vb_all':
+        if H.diffusion_loss == 'vb_all':
             print('Computing the loss using the bound on _all_ timesteps.'
                   ' This is expensive both in terms of memory and computation.')
 
-        self.num_classes = num_classes
+        self.num_classes = H.codebook_size
+        self.latent_emb_dim = H.emb_dim
+        self.loss_type = H.diffusion_loss
+        self.shape = tuple(H.latent_shape)
+        self.num_timesteps = H.diffusion_steps
+        self.parametrization = H.parametrization
         self._denoise_fn = denoise_fn
-        self.embedding = embedding
-        self.latent_size = latent_size
-        self.latent_emb_dim = latent_emb_dim
-        self.loss_type = loss_type
-        self.shape = shape
-        self.num_timesteps = timesteps
-        self.parametrization = parametrization
 
-        alphas = cosine_beta_schedule(timesteps)
+        alphas = cosine_beta_schedule(self.num_timesteps)
 
         alphas = torch.tensor(alphas.astype('float64'))
         log_alpha = np.log(alphas)
@@ -132,17 +131,8 @@ class MultinomialDiffusion(torch.nn.Module):
         self.register_buffer('log_cumprod_alpha', log_cumprod_alpha.float())
         self.register_buffer('log_1_min_cumprod_alpha', log_1_min_cumprod_alpha.float())
 
-        self.register_buffer('Lt_history', torch.zeros(timesteps))
-        self.register_buffer('Lt_count', torch.zeros(timesteps))
-    
-    def embed(self, z):
-        z_flattened = z.view(-1, self.num_classes) # B*H*W, codebook_size
-        return torch.matmul(z_flattened, self.embedding.weight).view(
-            z.size(0), 
-            self.latent_size[1],
-            self.latent_size[2],
-            self.latent_emb_dim
-        ).permute(0, 3, 1, 2).contiguous()
+        self.register_buffer('Lt_history', torch.zeros(self.num_timesteps))
+        self.register_buffer('Lt_count', torch.zeros(self.num_timesteps))
 
     def multinomial_kl(self, log_prob1, log_prob2):
         kl = (log_prob1.exp() * (log_prob1 - log_prob2)).sum(dim=1)
@@ -401,8 +391,8 @@ class MultinomialDiffusion(torch.nn.Module):
 
             return -loss
 
-    def sample(self, num_samples):
-        b = num_samples
+    def sample(self):
+        b = self.n_samples
         device = self.log_alpha.device
         uniform_logits = torch.zeros((b, self.num_classes) + self.shape, device=device)
         log_z = self.log_sample_categorical(uniform_logits)
@@ -414,8 +404,8 @@ class MultinomialDiffusion(torch.nn.Module):
         print()
         return log_onehot_to_index(log_z)
 
-    def sample_chain(self, num_samples):
-        b = num_samples
+    def sample_chain(self):
+        b = self.n_samples
         device = self.log_alpha.device
         uniform_logits = torch.zeros(
             (b, self.num_classes) + self.shape, device=device)
@@ -431,3 +421,12 @@ class MultinomialDiffusion(torch.nn.Module):
             zs[i] = log_onehot_to_index(log_z)
         print()
         return zs
+
+    def train_iter(self, x, target, step):
+        stats = {}
+        x = x.reshape(-1, self.latent_shape[-2], self.latent_shape[-1]).cuda()
+        loss = - self.log_prob(x).sum() / (math.log(2) * x.shape.numel())
+        stats['loss'] = loss
+        if step % self.steps_per_sample == 0 and step > 0:
+            stats['sampled_latents'] = self.sample().reshape(self.n_samples, 1, -1)
+        return stats
