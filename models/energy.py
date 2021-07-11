@@ -121,7 +121,7 @@ class ResNetEBM_cat(nn.Module):
 
 
 class EBM(Sampler):
-    def __init__(self, H, embedding_weight, buffer, mean=None):
+    def __init__(self, H, embedding_weight, buffer=None, mean=None):
         super().__init__(H, embedding_weight)
         self.batch_size = H.batch_size
         self.mcmc_steps = H.mcmc_steps
@@ -146,7 +146,7 @@ class EBM(Sampler):
         return logp + bd
 
 
-    def train_iter(self, x, *_, step):
+    def train_iter(self, x, _, step):
         if self.buffer == None:
             raise ExecError('Please set a buffer for the EBM before training')
         stats = {}
@@ -174,9 +174,9 @@ class EBM(Sampler):
             self.grad_clip_threshold
         ).item()
 
-        # TODO: replace with actual sampler code
-        if step % self.steps_per_sample and step > 0:
-            stats['sampled_latents'] = x_fake
+        # TODO: replace with actual sampler code (maybe? could really slow down training)
+        if step % self.steps_per_sample == 0 and step > 0:
+            stats['sampled_latents'] = x_fake.max(2)[1].detach()
 
         logp_real = self.forward(x).squeeze()
         logp_fake = self.forward(x_fake).squeeze()

@@ -7,8 +7,6 @@ from einops import rearrange
 from inspect import isfunction
 
 
-
-
 def exists(x):
     return x is not None
 

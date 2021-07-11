@@ -1,8 +1,8 @@
 import torch
 import torchvision
-import tqdm
 import os
 import visdom
+from tqdm import tqdm
 from .log_utils import log, save_latents
 from .model_utils import MyOneHotCategorical, BERTDataset
 
@@ -48,7 +48,6 @@ def generate_latent_ids(H, ae, dataloader):
         latent_ids.append(min_encoding_indices.reshape(x.shape[0], -1).cpu().contiguous())
 
     latent_ids_out = torch.cat(latent_ids, dim=0)
-    print(f'IDs out: {latent_ids_out.shape}')
 
     return latent_ids_out
 
@@ -69,15 +68,11 @@ def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):
     return one_hot.reshape(one_hot.shape[0], -1, codebook_size)
 
 
-
-
-
-def get_init_dist(H, latent_loader):
+def get_init_dist(H, latent_loader, cuda=False):
     init_dist_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_init_dist'
     if os.path.exists(init_dist_filepath):
         log(f'Loading init distribution from {init_dist_filepath}')
         init_dist = torch.load(init_dist_filepath)
-        init_mean = init_dist.mean
     else:  
         # latents # B, H*W, codebook_size
         eps = 1e-3 / H.codebook_size
@@ -86,16 +81,19 @@ def get_init_dist(H, latent_loader):
         log('Generating init distribution:')
         for batch in tqdm(latent_loader):
             batch = batch.cuda()
-            latents = latent_ids_to_onehot(batch, H)
+            latents = latent_ids_to_onehot(batch, H.latent_shape, H.codebook_size)
             batch_sum += latents.sum(0)
 
         init_mean = batch_sum / (len(latent_loader) * H.batch_size)
 
         init_mean += eps # H*W, codebook_size
         init_mean = init_mean / init_mean.sum(-1)[:, None] # renormalize pdfs after adding eps
-        init_dist = MyOneHotCategorical(init_mean.cpu())
+        if cuda:
+            init_dist = MyOneHotCategorical(init_mean.cuda())
+        else:
+            init_dist = MyOneHotCategorical(init_mean.cpu())
         
-        torch.save(init_dist, f'latents/{H.dataset}_init_dist')
+        torch.save(init_dist, f'latents/{H.dataset}_{H.latent_shape[-1]}_init_dist')
 
     return init_dist
 
@@ -137,9 +135,9 @@ def get_latent_loaders(H, ae):
     if os.path.exists(latents_filepath):
         latent_ids = torch.load(latents_filepath)
     else:
-        full_dataloader = get_data_loader(H.dataset, H.img_size, H.vqgan_bs, drop_last=False, shuffle=False)
+        full_dataloader = get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size, drop_last=False, shuffle=False)
         ae = ae.cuda() # put ae on GPU for generating
-        latent_ids = generate_latent_ids(ae, full_dataloader, H)
+        latent_ids = generate_latent_ids(H, ae, full_dataloader)
         ae = ae.cpu() # put back onto CPU to save memory during EBM training
         save_latents(latent_ids, H.dataset, H.latent_shape[-1])
 

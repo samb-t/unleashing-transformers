@@ -4,10 +4,10 @@ import numpy as np
 import logging
 import os
 
-def config_log(log_dir):
+def config_log(log_dir, filename='log.txt'):
     log_dir = 'logs/' + log_dir
     os.makedirs(log_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(log_dir, f'log.txt'), level=logging.INFO)
+    logging.basicConfig(filename=os.path.join(log_dir, filename), level=logging.INFO)
 
 
 def log(output):
@@ -17,7 +17,7 @@ def log(output):
 def log_stats(step, stats):
     log_str = f'Step: {step}  '
     for stat in stats:
-        if 'images' not in stat and 'latents' not in stat:
+        if 'recons' not in stat and 'latents' not in stat:
             log_str += f'{stat}: {stats[stat]:.4f}  '
     log(log_str)
 
@@ -57,7 +57,7 @@ def load_buffer(name, log_dir):
 def display_images(vis, images, H, win_name=None):
     if win_name == None:
         win_name = f'{H.model}_images'
-    vis.images(torch.clamp(images, 0, 1), win=win_name, opts=dict(title=win_name))
+    vis.images(torch.clamp(images, 0, 1), nrow=int(np.sqrt(images.shape[0])), win=win_name, opts=dict(title=win_name))
 
 
 def save_images(images, im_name, step, log_dir):

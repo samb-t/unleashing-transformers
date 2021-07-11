@@ -254,6 +254,7 @@ class MultinomialDiffusion(Sampler):
         return img
 
     def log_sample_categorical(self, logits):
+        # gumbel-max trick used here, explained in this video: https://www.youtube.com/watch?v=JFgXEbgcT7g
         uniform = torch.rand_like(logits)
         gumbel_noise = -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
         sample = (gumbel_noise + logits).argmax(dim=1)
@@ -350,7 +351,10 @@ class MultinomialDiffusion(Sampler):
             log_x_start = index_to_log_onehot(x_start, self.num_classes)
 
             kl = self.compute_Lt(
-                log_x_start, self.q_sample(log_x_start=log_x_start, t=t), t)
+                log_x_start, 
+                self.q_sample(log_x_start=log_x_start, t=t),
+                t
+            )
 
             Lt2 = kl.pow(2)
             Lt2_prev = self.Lt_history.gather(dim=0, index=t)
@@ -401,7 +405,6 @@ class MultinomialDiffusion(Sampler):
 
             t = torch.full((b,), i, device=device, dtype=torch.long)
             log_z = self.p_sample(log_z, t)
-        print()
         return log_onehot_to_index(log_z)
 
     def sample_chain(self):
@@ -419,7 +422,6 @@ class MultinomialDiffusion(Sampler):
             log_z = self.p_sample(log_z, t)
 
             zs[i] = log_onehot_to_index(log_z)
-        print()
         return zs
 
     def train_iter(self, x, target, step):

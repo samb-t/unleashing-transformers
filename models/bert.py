@@ -319,7 +319,7 @@ def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, 
                 model, ae, latents, vis, 'MH samples', H)
             save_images(samples, 'samples_mcmcstep', i, H.log_dir)
 
-            print(all_acceptance_rates[-50:])
+            # print(all_acceptance_rates[-50:])
             # print("energy_prev", energy_prev_backup.squeeze())
             # print("energy_proposal", energy_proposal.squeeze())
             # print("q_x_prop", q_x_prop.squeeze())

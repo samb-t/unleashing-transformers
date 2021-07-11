@@ -361,7 +361,7 @@ class VQGAN(nn.Module):
         self.perceptual_weight = H.perceptual_weight
         self.disc_start_step = H.disc_start_step
 
-    def train_iter(self, x, *_, step):
+    def train_iter(self, x, _, step):
         stats = {}
 
         x_hat, codebook_loss = self.ae(x)
@@ -382,7 +382,7 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
-        stats['images'] = x_hat
+        stats['recons'] = x_hat
 
         if step > self.disc_start_step:
             logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
