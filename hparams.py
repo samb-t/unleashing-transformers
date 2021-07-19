@@ -417,7 +417,6 @@ def get_hparams():
     add_bert_args(parser)
     add_diffusion_args(parser)
 
-
     # parse arguments and load defaults
 
     args = parser.parse_args()

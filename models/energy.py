@@ -140,7 +140,7 @@ class EBM(Sampler):
         else:
             base_dist = MyOneHotCategorical(self.mean)
             bd = base_dist.log_prob(x).sum(-1)
-        
+    
         x = self.embed(x)
         logp = self.net(x).squeeze()
         return logp + bd
