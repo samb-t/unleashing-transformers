@@ -129,48 +129,9 @@ class HparamsVQGAN(Hparams):
         else:
             raise KeyError(f'Defaults not defined for VQGAN model on dataset: {self.dataset}')
 
-        def get_vqgan_param_dict(self):
-            return dict(
-                img_size=self.img_size,
-                n_channels=self.n_channels,
-                nf=self.nf,
-                ndf=self.ndf,
-                ch_mult=self.ch_mult,
-                attn_resolutions=self.attn_resolutions,
-                res_blocks=self.res_blocks,
-                disc_layers=self.disc_layers,
-                codebook_size=self.codebook_size,
-                emb_dim=self.emb_dim,
-                latent_shape=self.latent_shape,
-                vqgan_batch_size=self.vqgan_batch_size, 
-                perceptual_weight=self.perceptual_weight, 
-                disc_start_step=self.disc_start_step,
-                vq_base_lr=self.vq_base_lr 
-            )
-
 
     def set_vqgan_lr(self):
         self.vqgan_lr = self.vqgan_batch_size * self.vq_base_lr
-
-    def get_vqgan_param_dict(self):
-        return dict(
-            dataset = self.dataset,
-            batch_size = self.vqgan_batch_size,
-            lr = self.vqgan_lr,
-            img_size = self.img_size,
-            n_channels = self.n_channels,
-            nf=self.nf,
-            ndf=self.ndf,
-            ch_mult=self.ch_mult,
-            attn_resolutions=self.attn_resolutions,
-            res_blocks=self.res_blocks,
-            disc_layers=self.disc_layers,
-            codebook_size = self.codebook_size,
-            emb_dim = self.emb_dim,
-            latent_shape = self.latent_shape,
-            perceptual_weight=self.perceptual_weight,
-            disc_start_step=self.disc_start_step
-        )
 
 
 class HparamsEBM(Hparams):
@@ -331,18 +292,13 @@ def add_training_args(parser):
 def add_ais_args(parser):
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--ae_load_dir', type=str, required=True)
+    parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--ebm_load_dir', type=str, required=True)
+    parser.add_argument('--ebm_load_step', typ=int, required=True)
     parser.add_argument('--n_samples', type=int, default=64)
     parser.add_argument('--ais_iters', type=int, default=300000)
     parser.add_argument('--steps_per_iter', type=int, default=1)
-    ''' hparams to add:
-    - ae_load_dir
-    - load_dir
-    - n_samples
-    - AIS_iters
-    - steps_per_iter
 
-    '''
 
 def add_logging_args(parser):
     # logging args

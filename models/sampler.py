@@ -24,7 +24,6 @@ class Sampler(nn.Module):
     def class_conditional_sample(n_samples, y):
         raise NotImplementedError()
 
-    @torch.no_grad
     def embed(self, z):
         z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
         return torch.matmul(z_flattened, self.embedding_weight).view(

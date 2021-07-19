@@ -73,10 +73,15 @@ def main(H, vis):
             images = ae.generator(q)
             display_images(vis, images, H, 'AIS_Samples')
 
+            if itr % H.steps_per_save_output == 0:
+                log(f'Saving samples at AIS step {itr}')
+                save_images(images, 'ais_samples', itr, H.log_dir)
+
 
 if __name__=='__main__':
-    H = get_ais_params()
+    H = get_ais_hparams()
     vis = setup_visdom(H)
     config_log(H.log_dir, filename='sampling_log.txt')
     start_training_log(H)
+    log('---------------------------------')
     main(H, vis)

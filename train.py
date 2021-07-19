@@ -159,8 +159,5 @@ if __name__=='__main__':
     config_log(H.log_dir)
     log('---------------------------------')
     log(f'Setting up training for {H.model}')   
-    if H.model =='vqgan':
-        start_training_log(H.get_vqgan_param_dict())
-    else:
-        start_training_log(H)
+    start_training_log(H)
     main(H, vis)
