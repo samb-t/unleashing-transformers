@@ -320,13 +320,31 @@ class HparamsMultinomialDiffusion(Hparams):
 
 def add_training_args(parser):
     parser.add_argument('--model', type=str, default='vqgan')
-    parser.add_argument('--dataset', type=str)
+    parser.add_argument('--dataset', type=str, required=True)
 
     # training loop control args
     parser.add_argument('--train_steps', type=int, default=1000000)
     parser.add_argument('--load_step', type=int, default=0)
     parser.add_argument('--load_optim', const=True, action='store_const', default=False)
 
+# add_training_args should not be called if this is called
+def add_ais_args(parser):
+    parser.add_argument('--dataset', type=str, required=True)
+    parser.add_argument('--ae_load_dir', type=str, required=True)
+    parser.add_argument('--ebm_load_dir', type=str, required=True)
+    parser.add_argument('--n_samples', type=int, default=64)
+    parser.add_argument('--ais_iters', type=int, default=300000)
+    parser.add_argument('--steps_per_iter', type=int, default=1)
+    ''' hparams to add:
+    - ae_load_dir
+    - load_dir
+    - n_samples
+    - AIS_iters
+    - steps_per_iter
+
+    '''
+
+def add_logging_args(parser):
     # logging args
     parser.add_argument('--log_dir', type=str, default='test')
     parser.add_argument('--visdom_port', type=int, default=8097)
@@ -335,6 +353,7 @@ def add_training_args(parser):
     parser.add_argument('--steps_per_checkpoint', type=int, default=1000)
     parser.add_argument('--steps_per_display_output', type=int, default=50)
     parser.add_argument('--steps_per_save_output', type=int, default=100)
+
 
 def add_vqgan_args(parser):
     ## training
@@ -407,10 +426,12 @@ def add_diffusion_args(parser):
     parser.add_argument('--diffusion_steps', type=int)
     parser.add_argument('--parametrization', type=str, default='x0')
 
-def get_hparams():
+
+def get_training_hparams():
     parser = argparse.ArgumentParser(description='Arguments for training stuff :)')
 
     add_training_args(parser)
+    add_logging_args(parser)
     add_vqgan_args(parser)
     add_sampler_args(parser)
     add_ebm_args(parser)
@@ -439,6 +460,7 @@ def get_hparams():
     if sampler_H != None:
         H.update(sampler_H)
 
+    # replace defaults with user-specified arguments
     args = args.__dict__
     for arg in args:
         if args[arg] != None:
@@ -446,15 +468,24 @@ def get_hparams():
 
     H.set_vqgan_lr()
 
-    assert H.steps_per_save_output % H.steps_per_display_output == 0
     return H
 
 
-    ''' hparams to add:
-    - ae_load_dir
-    - load_dir
-    - n_samples
-    - AIS_iters
-    - steps_per_iter
+def get_ais_hparams():
+    parser = argparse.ArgumentParser(description='AIS Sampling for Discrete EBM Models')
+    add_logging_args(parser)
+    add_ais_args(parser)
+    add_vqgan_args(parser)
+    add_ebm_args(parser)
+    args = parser.parse_args()
+    
+    # set up H and load defaults
+    H = HparamsVQGAN(args.dataset)
+    sampler_H = HparamsEBM(args.dataset)
+    H = H.update(sampler_H)
+    args = args.__dict__
+    for arg in args:
+        if args[arg] != None:
+            H[arg] = args[arg]
 
-    '''
+    return H

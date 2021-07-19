@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet
-from hparams import get_hparams
+from hparams import get_training_hparams
 from utils import *
 
 def main(H, vis):
@@ -154,7 +154,7 @@ def main(H, vis):
 
 
 if __name__=='__main__':
-    H = get_hparams()
+    H = get_training_hparams()
     vis = setup_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')

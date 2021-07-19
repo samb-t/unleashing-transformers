@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 from models import EBM, VQAutoEncoder
 from utils import *
+from hparams import get_ais_hparams
 
 class AISModel(nn.Module):
     def __init__(self, model, init_dist):
@@ -32,12 +33,12 @@ def set_up_AIS(H):
         H.attn_resolutions
     ).cuda()
 
-    ae = load_model(ae, 'ae', H.ae_load_step, f'H.ae_load_dir')
+    ae = load_model(ae, 'ae', H.ae_load_step, H.ae_load_dir)
     embedding_weight = ae.quantize.embedding.weight
     data_loader, _ = get_latent_loaders(H, ae)
     init_dist = get_init_dist(H, data_loader)
     ebm = EBM(H, embedding_weight).cuda()
-    ebm = load_model(ebm, 'ebm', H.load_step, H.load_dir)
+    ebm = load_model(ebm, 'ebm', H.load_step, H.ebm_load_dir)
 
     model = AISModel(ebm, init_dist)
     model = model.cuda()
