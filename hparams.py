@@ -448,3 +448,13 @@ def get_hparams():
 
     assert H.steps_per_save_output % H.steps_per_display_output == 0
     return H
+
+
+    ''' hparams to add:
+    - ae_load_dir
+    - load_dir
+    - n_samples
+    - AIS_iters
+    - steps_per_iter
+
+    '''

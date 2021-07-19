@@ -1,3 +1,6 @@
+# annealed importance sampling for GWG EBM model, modified from:
+# https://github.com/wgrathwohl/GWG_release/blob/main/ais.py
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -8,7 +11,7 @@ from utils import *
 class AISModel(nn.Module):
     def __init__(self, model, init_dist):
         super().__init__()
-        self.model = model
+        self.ebm = model
         self.init_dist = init_dist
 
     def forward(self, x, beta):
@@ -17,7 +20,7 @@ class AISModel(nn.Module):
         return logpx * beta + logpi * (1. - beta)
 
 
-def main(H, vis):
+def set_up_AIS(H):
     ae = VQAutoEncoder(
         H.n_channels,
         H.nf,
@@ -29,22 +32,50 @@ def main(H, vis):
         H.attn_resolutions
     ).cuda()
 
-    ae = load_model(ae, 'ae', H.ae_load_step, f'vqgan_{H.dataset}_{H.latent_shape[-1]}')
+    ae = load_model(ae, 'ae', H.ae_load_step, f'H.ae_load_dir')
     embedding_weight = ae.quantize.embedding.weight
-    data_loader, data_iterator = get_latent_loaders(H, ae)
+    data_loader, _ = get_latent_loaders(H, ae)
     init_dist = get_init_dist(H, data_loader)
+    ebm = EBM(H, embedding_weight).cuda()
+    ebm = load_model(ebm, 'ebm', H.load_step, H.load_dir)
 
-    model = EBM(H, embedding_weight).cuda()
+    model = AISModel(ebm, init_dist)
+    model = model.cuda()
 
-    '''
-    - [ ] load model and set up models
-        - [x] AE
-        - [ ] EBM
-        - [ ] AISModel
-    - [ ] run sampling on latents
-    - [ ] convert latents from one hots to IDs
-    - [ ] embed latents
-    - [ ] pass through autoencoder to generate samples
-    '''
+    return ae, model, init_dist
+
+
+def main(H, vis):
+    ae, model, init_dist = set_up_AIS(H)
+    betas = np.linspace(0., 1., H.ais_iters)
+    samples = init_dist.sample((H.n_samples,))
+    log_w = torch.zeros((H.n_samples,)).cuda()
+
+    for itr, beta_k in tqdm(enumerate(betas)):
+        if itr == 0:
+            continue
+
+        beta_km1 = betas[itr - 1]
+
+        # update importance weights
+        with torch.no_grad():
+            log_w = log_w + model(samples, beta_k) - model(samples, beta_km1)
+
+        model_k = lambda x: model(x, beta=beta_k)
+
+        for _ in range(H.steps_per_AIS_iter):
+            samples = model.ebm.gibbs_sampler.step(samples.detach(), model_k).detach()
+
+        if itr % H.steps_per_display_output == 0:
+            latent_ids = samples.max(2)[1].detach()
+            q = model.ebm.embed(latent_ids)
+            images = ae.generator(q)
+            display_images(vis, images, H, 'AIS_Samples')
+
 
 if __name__=='__main__':
+    H = get_ais_params()
+    vis = setup_visdom(H)
+    config_log(H.log_dir, filename='sampling_log.txt')
+    start_training_log(H)
+    main(H, vis)
