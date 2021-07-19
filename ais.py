@@ -16,7 +16,7 @@ class AISModel(nn.Module):
         self.init_dist = init_dist
 
     def forward(self, x, beta):
-        logpx = self.model(x).squeeze()
+        logpx = self.ebm(x).squeeze()
         logpi = self.init_dist.log_prob(x).sum(-1)
         return logpx * beta + logpi * (1. - beta)
 
@@ -38,7 +38,7 @@ def set_up_AIS(H):
     data_loader, _ = get_latent_loaders(H, ae)
     init_dist = get_init_dist(H, data_loader)
     ebm = EBM(H, embedding_weight).cuda()
-    ebm = load_model(ebm, 'ebm', H.load_step, H.ebm_load_dir)
+    ebm = load_model(ebm, 'ebm', H.ebm_load_step, H.ebm_load_dir)
 
     model = AISModel(ebm, init_dist)
     model = model.cuda()
@@ -64,12 +64,11 @@ def main(H, vis):
 
         model_k = lambda x: model(x, beta=beta_k)
 
-        for _ in range(H.steps_per_AIS_iter):
+        for _ in range(H.steps_per_iter):
             samples = model.ebm.gibbs_sampler.step(samples.detach(), model_k).detach()
 
         if itr % H.steps_per_display_output == 0:
-            latent_ids = samples.max(2)[1].detach()
-            q = model.ebm.embed(latent_ids)
+            q = model.ebm.embed(samples)
             images = ae.generator(q)
             display_images(vis, images, H, 'AIS_Samples')
 
@@ -82,6 +81,6 @@ if __name__=='__main__':
     H = get_ais_hparams()
     vis = setup_visdom(H)
     config_log(H.log_dir, filename='sampling_log.txt')
-    start_training_log(H)
     log('---------------------------------')
+    start_training_log(H)
     main(H, vis)

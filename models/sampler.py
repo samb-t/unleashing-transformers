@@ -25,10 +25,13 @@ class Sampler(nn.Module):
         raise NotImplementedError()
 
     def embed(self, z):
-        z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
-        return torch.matmul(z_flattened, self.embedding_weight).view(
-            z.size(0), 
-            self.latent_shape[1],
-            self.latent_shape[2],
-            self.emb_dim
-        ).permute(0, 3, 1, 2).contiguous()
+        with torch.no_grad():
+            z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
+            embedded = torch.matmul(z_flattened, self.embedding_weight).view(
+                z.size(0), 
+                self.latent_shape[1],
+                self.latent_shape[2],
+                self.emb_dim
+            ).permute(0, 3, 1, 2).contiguous()
+
+        return embedded

@@ -294,7 +294,7 @@ def add_ais_args(parser):
     parser.add_argument('--ae_load_dir', type=str, required=True)
     parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--ebm_load_dir', type=str, required=True)
-    parser.add_argument('--ebm_load_step', typ=int, required=True)
+    parser.add_argument('--ebm_load_step', type=int, required=True)
     parser.add_argument('--n_samples', type=int, default=64)
     parser.add_argument('--ais_iters', type=int, default=300000)
     parser.add_argument('--steps_per_iter', type=int, default=1)
@@ -436,12 +436,16 @@ def get_ais_hparams():
     args = parser.parse_args()
     
     # set up H and load defaults
-    H = HparamsVQGAN(args.dataset)
-    sampler_H = HparamsEBM(args.dataset)
-    H = H.update(sampler_H)
+    dataset = args.dataset
+    H = HparamsVQGAN(dataset)
+    sampler_H = HparamsEBM(dataset)
+    H.update(sampler_H)
+
     args = args.__dict__
     for arg in args:
-        if args[arg] != None:
-            H[arg] = args[arg]
-
+        try:
+            if args[arg] != None:
+                H[arg] = args[arg]
+        except TypeError:
+            raise(TypeError(f'TypeError with arg {arg}'))
     return H
