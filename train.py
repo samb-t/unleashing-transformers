@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import copy
 from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet
 from hparams import get_training_hparams
 from utils import *
 
+#TODO: break main() into more seperate functions to improve readability
+#TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
 def main(H, vis):
 
     ae = VQAutoEncoder(
@@ -40,19 +43,22 @@ def main(H, vis):
                 for _ in range(int(H.buffer_size / 100)):
                     buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
                 buffer = torch.cat(buffer, dim=0)
-            model = EBM(H, embedding_weight, buffer).cuda()
+            model = EBM(H, embedding_weight, buffer)
 
         elif H.model == 'bert':
-            model = BERT(H, embedding_weight).cuda()
+            model = BERT(H, embedding_weight)
 
         elif H.model == 'diffusion':
             if H.diffusion_net == 'unet':
                 denoise_fn = SegmentationUnet(H)
 
             # create multinomial diffusion model
-            model = MultinomialDiffusion(H, embedding_weight, denoise_fn).cuda()
+            model = MultinomialDiffusion(H, embedding_weight, denoise_fn)
         
         optim = torch.optim.Adam(model.parameters(), lr=H.lr)
+        if H.ema:
+            ema = EMA(H.ema_beta)
+            ema_model = copy.deepcopy(model)
         if H.load_step > 0:
             model = load_model(model, H.model, H.load_step, H.log_dir)
             if H.load_optim:
@@ -62,23 +68,33 @@ def main(H, vis):
             
     else:
         data_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size))
-        model = VQGAN(ae, H).cuda()
+        model = VQGAN(ae, H)
         optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
         d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
+
+        if H.ema:
+            ema = EMA(H.ema_beta)
+            ema_model = copy.deepcopy(model)
 
         if H.load_step > 0:
             model.ae = load_model(model.ae, 'ae', H.load_step, H.log_dir)
             model.disc = load_model(model.disc, 'discriminator', H.load_step, H.log_dir)
+            if H.ema:
+                ema_model.ae = load_model(ema_model.ae, 'ae_ema', H.load_step, H.log_dir)
+                ema_model.disc = load_model(ema_model.disc, 'ae_disc', H.load_step, H.log_dir)
             if H.load_optim:
                 optim = load_model(optim, f'ae_optim', H.load_step, H.log_dir)
                 d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.log_dir)
             start_step = H.load_step            
 
+
     start_step = H.load_step
     losses = np.array([])
     mean_losses = np.array([])
+
+    # move model to GPU after setting up EMA to avoid putting both on the GPU
+    model = model.cuda()
     for step in range(start_step, H.train_steps):
-        # TODO: put in seperate function
         if H.warmup_iters:
             if step < H.warmup_iters:
                 lr = H.lr * float(step) / H.warmup_iters
@@ -116,27 +132,37 @@ def main(H, vis):
             log_stats(step, stats)
 
         if step % H.steps_per_display_output == 0 and step > 0:
-
-            if 'sampled_latents' in stats:
-                latents = latent_ids_to_onehot(
-                    stats['sampled_latents'],
-                    H.latent_shape, 
-                    H.codebook_size
-                )
-                q = model.embed(latents)
-                with torch.no_grad():
-                    images = ae.generator(q)
-
-            elif 'recons' in stats:
-                images = stats['recons']
-            else:
-                raise KeyError('No outputs detected in stats dict')
             
-            display_images(vis, images, H)
+            with torch.no_grad():
+                if H.model == 'vqgan':
+                    x, *target = next(data_iterator)
+                    x = x.cuda()
+                    if H.ema:
+                        images, _ = ema_model.ae(x)
+                    else:
+                        images, _ = model.ae(x)
 
-            # TODO: pass in appropriate save name        
-            if step % H.steps_per_save_output == 0:
-                save_images(images, 'samples', step, H.log_dir)
+                    display_images(vis, x, H, win_name='Original Images')
+                    output_win_name = 'recons'
+
+                else:
+                    # sample OHE of latents
+                    if H.ema:
+                        latents = ema_model.sample()
+                    else:
+                        latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
+                    q = model.embed(latents)
+                    images = ae.generator(q)
+                    output_win_name = 'samples'
+                    
+                display_images(vis, images, H, win_name=output_win_name)
+
+                # TODO: pass in appropriate save name        
+                if step % H.steps_per_save_output == 0:
+                    save_images(images, output_win_name, step, H.log_dir)
+
+        if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
+            ema.update_model_average(ema_model, model)
 
         # TODO: merge VQGAN and Sampler saving / loading (maybe)
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
@@ -146,9 +172,16 @@ def main(H, vis):
                 save_model(model.disc, 'discriminator', step, H.log_dir)
                 save_model(optim, 'ae_optim', step, H.log_dir)
                 save_model(d_optim, 'disc_optim', step, H.log_dir)
+
+                if H.ema:
+                    save_model(ema_model.ae, 'ae_ema', step, H.log_dir)
+                    save_model(ema_model.disc, 'discriminator_ema', step, H.log_dir)
+
             else:
                 save_model(model, H.model, step, H.log_dir)
                 save_model(optim, f'{H.model}_optim', step, H.log_dir)
+                if H.ema:
+                    save_model(ema_model, f'{H.model}_ema', step, H.log_dir)
                 if H.model == 'ebm':
                     save_buffer(buffer, step, H.log_dir)
 

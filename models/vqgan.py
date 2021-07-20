@@ -377,7 +377,6 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
-        stats['recons'] = x_hat
 
         if step > self.disc_start_step:
             logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated

@@ -279,6 +279,9 @@ class HparamsMultinomialDiffusion(Hparams):
 def add_training_args(parser):
     parser.add_argument('--model', type=str, default='vqgan')
     parser.add_argument('--dataset', type=str, required=True)
+    parser.add_argument('--ema', const=True, action='store_const', default=False)
+    parser.add_argument('--ema_beta', type=float, default=0.995)
+    parser.add_argument('--steps_per_update_ema', type=int, default=10)
 
     # training loop control args
     parser.add_argument('--train_steps', type=int, default=1000000)

@@ -163,6 +163,7 @@ class BERT(Sampler):
             return self.sample()
 
         return stats
+
     def sample(self):
         return super().sample
 
