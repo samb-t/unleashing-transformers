@@ -1,7 +1,4 @@
 import argparse
-from numpy import add
-
-from torch.utils.data import dataset
 
 class Hparams(dict):
     def __init__(self, dataset):
