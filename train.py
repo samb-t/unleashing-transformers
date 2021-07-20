@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import copy
-from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet
+from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, vqgan
 from hparams import get_training_hparams
 from utils import *
 
 
-def get_vqgan(H):
-    return VQAutoEncoder(
+def get_autoencoder(H):
+    ae = VQAutoEncoder(
         H.n_channels,
         H.nf,
         H.res_blocks, 
@@ -18,14 +18,15 @@ def get_vqgan(H):
         H.ch_mult, 
         H.img_size, 
         H.attn_resolutions
-    ).cuda()
+    )
+    return ae
 
 
 def get_sampler(H, ae, data_loader):
-
-    ae = load_model(ae, 'ae', H.ae_load_step, H.ae_load_dir)
+    # have to load in whole vqgan to retrieve ae values, garbage collector should disposed of unused params
+    vqgan = VQGAN(ae, H)
+    ae = load_model(vqgan, 'vqgan', H.ae_load_step, H.ae_load_dir).ae
     embedding_weight = ae.quantize.embedding.weight
-    
 
     if H.model != 'diffusion':
         init_dist = get_init_dist(H, data_loader)
@@ -47,7 +48,6 @@ def get_sampler(H, ae, data_loader):
     elif H.model == 'diffusion':
         if H.diffusion_net == 'unet':
             denoise_fn = SegmentationUnet(H)
-
         # create multinomial diffusion model
         model = MultinomialDiffusion(H, embedding_weight, denoise_fn)
 
@@ -67,7 +67,7 @@ def display_output(H, vis, data_iterator, ae, model):
         if H.model == 'vqgan':
             x, *_ = next(data_iterator)
             x = x.cuda()
-            images, _ = model.ae(x)
+            images, *_ = model.ae(x)
 
             display_images(vis, x, H, win_name='Original Images')
             output_win_name = 'recons'
@@ -86,12 +86,13 @@ def display_output(H, vis, data_iterator, ae, model):
 #TODO: break main() into more seperate functions to improve readability
 #TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
 def main(H, vis):
-    ae = get_vqgan(H)
+    ae = get_autoencoder(H)
     
     # load vqgan (training stage 1)
     if H.model == 'vqgan':
+        latent_ids = []
         data_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size))
-        model = VQGAN(ae, H)
+        model = VQGAN(ae, H).cuda()
         optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
         d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
     
@@ -106,15 +107,15 @@ def main(H, vis):
         ema_model = copy.deepcopy(model)
 
     if H.load_step > 0:
-        model = load_model(model, H.model, H.load_step, H.log_dir)
+        model = load_model(model, H.model, H.load_step, H.load_dir).cuda()
         if H.ema:
             ema_model = load_model(ema_model, f'{H.model}_ema', H.load_step, H.load_dir)
         if H.load_optim:
             if H.model == 'vqgan':
-                optim = load_model(optim, f'ae_optim', H.load_step, H.log_dir)
-                d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.log_dir)
+                optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
+                d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.load_dir)
             else:
-                optim = load_model(optim, f'{H.model}_optim', H.load_step, H.log_dir)
+                optim = load_model(optim, f'{H.model}_optim', H.load_step, H.load_dir)
                 # only used when changing learning rates when reloading from checkpoint
                 for param_group in optim.param_groups:
                     param_group['lr'] = H.lr         
@@ -123,8 +124,8 @@ def main(H, vis):
     losses = np.array([])
     mean_losses = np.array([])
 
-    # move model to GPU after setting up EMA to avoid putting both on the GPU
-    model = model.cuda()
+    # move model to GPU after setting up EMA to avoid putting both on the GPU (don't think this works)
+    # model = model.cuda()
     for step in range(start_step, H.train_steps):
         if H.warmup_iters:
             optim_warmup(H, step, optim)
@@ -141,10 +142,17 @@ def main(H, vis):
         optim.step()
         losses = np.append(losses, stats['loss'].item())
 
-        if H.model == 'vqgan' and step > H.disc_start_step:
-            d_optim.zero_grad()
-            stats['d_loss'].backward()
-            d_optim.step()
+        if H.model == 'vqgan':
+            if step > H.disc_start_step:
+                d_optim.zero_grad()
+                stats['d_loss'].backward()
+                d_optim.step()
+
+            latent_ids.append(stats['latent_ids'].cpu().contiguous())
+            if step % 25 == 0: # TODO; change to once per epoch
+                latent_ids = torch.cat(latent_ids, dim=0)
+                log(f'Codebook size: {H.codebook_size}   Unique Codes: {len(torch.unique(latent_ids))}')
+                latent_ids = []
 
         if step % H.steps_per_log == 0:
             mean_loss = np.mean(losses)

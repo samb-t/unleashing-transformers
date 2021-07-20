@@ -306,9 +306,9 @@ class VQAutoEncoder(nn.Module):
 
     def forward(self, x):
         x = self.encoder(x)
-        quant, codebook_loss, _ = self.quantize(x)
+        quant, codebook_loss, other = self.quantize(x)
         x = self.generator(quant)
-        return x, codebook_loss
+        return x, codebook_loss, other[2] # other[2] corresponds to min_encoding_indices (unqueezed)
 
 # patch based discriminator
 class Discriminator(nn.Module):
@@ -343,23 +343,24 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.main(x)
 
+
 class VQGAN(nn.Module):
     def __init__(self, ae, H):
         super().__init__()
-        self.ae = ae.cuda()
+        self.ae = ae
         self.disc = Discriminator(
             H.n_channels,
             H.ndf,
             n_layers=H.disc_layers
-        ).cuda()
-        self.perceptual = lpips.LPIPS(net='vgg').cuda()
+        )
+        self.perceptual = lpips.LPIPS(net='vgg')
         self.perceptual_weight = H.perceptual_weight
         self.disc_start_step = H.disc_start_step
 
     def train_iter(self, x, _, step):
         stats = {}
 
-        x_hat, codebook_loss = self.ae(x)
+        x_hat, codebook_loss, min_encoding_indices = self.ae(x)
         stats['codebook_loss'] = codebook_loss.item()
         
         # get recon/perceptual loss
@@ -377,6 +378,7 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
+        stats['latent_ids'] = min_encoding_indices.squeeze(1).reshape(x.shape[0], -1)
 
         if step > self.disc_start_step:
             logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
