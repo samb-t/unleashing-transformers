@@ -333,8 +333,8 @@ def add_vqgan_args(parser):
 
 # arguments for all sampler models
 def add_sampler_args(parser):
-    parser.add_argument('--ae_load_step', type=int, required=True)
-    parser.add_argument('--ae_load_dir', type=str, required=True)
+    parser.add_argument('--ae_load_step', type=int)
+    parser.add_argument('--ae_load_dir', type=str)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--n_samples', type=int, default=16)

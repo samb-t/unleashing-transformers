@@ -62,30 +62,26 @@ def optim_warmup(H, step, optim):
 
 
 @torch.no_grad()
-def disaplay_output(H, vis, data_iterator, ae, model, ema_model=None):            
+def display_output(H, vis, data_iterator, ae, model):            
     with torch.no_grad():
         if H.model == 'vqgan':
             x, *_ = next(data_iterator)
             x = x.cuda()
-            if H.ema:
-                images, _ = ema_model.ae(x)
-            else:
-                images, _ = model.ae(x)
+            images, _ = model.ae(x)
 
             display_images(vis, x, H, win_name='Original Images')
             output_win_name = 'recons'
 
         else:
-            # sample OHE of latents
-            if H.ema:
-                latents = ema_model.sample()
-            else:
-                latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
+
+            latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
             q = model.embed(latents)
             images = ae.generator(q)
             output_win_name = 'samples'
             
         display_images(vis, images, H, win_name=output_win_name)
+
+    return images, output_win_name
 
 #TODO: break main() into more seperate functions to improve readability
 #TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
@@ -119,9 +115,9 @@ def main(H, vis):
                 d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.log_dir)
             else:
                 optim = load_model(optim, f'{H.model}_optim', H.load_step, H.log_dir)
-
-            for param_group in optim.param_groups:
-                param_group['lr'] = H.lr         
+                # only used when changing learning rates when reloading from checkpoint
+                for param_group in optim.param_groups:
+                    param_group['lr'] = H.lr         
 
     start_step = H.load_step # defaults to 0 if not specified
     losses = np.array([])
@@ -168,7 +164,7 @@ def main(H, vis):
             ema.update_model_average(ema_model, model)
 
         if step % H.steps_per_display_output == 0 and step > 0:
-            images, output_win_name = disaplay_output(H, vis, data_iterator, ae, model, ema_model if ema_model else None)
+            images, output_win_name = display_output(H, vis, data_iterator, ae, ema_model if H.ema else model)
             if step % H.steps_per_save_output == 0:
                         save_images(images, output_win_name, step, H.log_dir)
 
