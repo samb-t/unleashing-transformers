@@ -146,11 +146,11 @@ class EBM(Sampler):
         return logp + bd
 
 
-    def train_iter(self, x, _, step):
+    # single training step of the EBM
+    def train_iter(self, x, *_):
         if self.buffer == None:
             raise ExecError('Please set a buffer for the EBM before training')
         stats = {}
-        # single training step of the EBM
         
         buffer_inds = sorted(np.random.choice(self.all_inds, self.batch_size, replace=False))
         x_buffer_ids = self.buffer[buffer_inds]

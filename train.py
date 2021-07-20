@@ -105,6 +105,7 @@ def main(H, vis):
         x = x.cuda()
         if target:
             target = target[0].cuda()
+        
         stats = model.train_iter(x, target, step)
 
         optim.zero_grad()
