@@ -10,7 +10,6 @@ class Sampler(nn.Module):
         self.embedding_weight = embedding_weight
         self.embedding_weight.requires_grad = False
         self.n_samples = H.n_samples
-        self.steps_per_sample = H.steps_per_display_output
 
     def train_iter(self, x, x_target, step):
         raise NotImplementedError()

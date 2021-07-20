@@ -174,23 +174,22 @@ class EBM(Sampler):
             self.grad_clip_threshold
         ).item()
 
-        # TODO: replace with actual sampler code (maybe? could really slow down training)
-        if step % self.steps_per_sample == 0 and step > 0:
-            stats['sampled_latents'] = x_fake.max(2)[1].detach()
-
         logp_real = self.forward(x).squeeze()
         logp_fake = self.forward(x_fake).squeeze()
         stats['loss'] = logp_fake.mean() - logp_real.mean()
-
 
         # update buffer
         self.buffer[buffer_inds] = x_fake.max(2)[1].detach().cpu() 
         
         return stats
 
-
+    # simply samples from the buffer, AIS sampling during training would be absurd
     def sample(self):
-        return super().sample()
+        buffer_inds = sorted(np.random.choice(self.all_inds, self.n_samples, replace=False))
+        x_buffer_ids = self.buffer[buffer_inds]
+        x_buffer_ids = x_buffer_ids.cuda()
+        x_fake = latent_ids_to_onehot(x_buffer_ids, self.latent_shape, self.codebook_size)
+        return x_fake
 
     def class_conditional_train_iter(self, x, y):
         return super().class_conditional_train_iter(x, y)

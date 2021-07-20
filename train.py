@@ -131,6 +131,10 @@ def main(H, vis):
             )
             log_stats(step, stats)
 
+        if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
+            log(f'Updating ema for step {step}')
+            ema.update_model_average(ema_model, model)
+
         if step % H.steps_per_display_output == 0 and step > 0:
             
             with torch.no_grad():
@@ -161,8 +165,7 @@ def main(H, vis):
                 if step % H.steps_per_save_output == 0:
                     save_images(images, output_win_name, step, H.log_dir)
 
-        if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
-            ema.update_model_average(ema_model, model)
+
 
         # TODO: merge VQGAN and Sampler saving / loading (maybe)
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
