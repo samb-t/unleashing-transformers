@@ -286,16 +286,15 @@ def add_training_args(parser):
     # training loop control args
     parser.add_argument('--train_steps', type=int, default=1000000)
     parser.add_argument('--load_step', type=int, default=0)
+    parser.add_argument('--load_dir', type=str, default='test')
     parser.add_argument('--load_optim', const=True, action='store_const', default=False)
 
 # add_training_args should not be called if this is called
 def add_ais_args(parser):
     parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--ae_load_dir', type=str, required=True)
     parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--ebm_load_dir', type=str, required=True)
     parser.add_argument('--ebm_load_step', type=int, required=True)
-    parser.add_argument('--n_samples', type=int, default=64)
     parser.add_argument('--ais_iters', type=int, default=300000)
     parser.add_argument('--steps_per_iter', type=int, default=1)
 
@@ -334,7 +333,8 @@ def add_vqgan_args(parser):
 
 # arguments for all sampler models
 def add_sampler_args(parser):
-    parser.add_argument('--ae_load_step', type=int)
+    parser.add_argument('--ae_load_step', type=int, required=True)
+    parser.add_argument('--ae_load_dir', type=str, required=True)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--n_samples', type=int, default=16)
@@ -430,6 +430,7 @@ def get_training_hparams():
 def get_ais_hparams():
     parser = argparse.ArgumentParser(description='AIS Sampling for Discrete EBM Models')
     add_logging_args(parser)
+    add_sampler_args(parser)
     add_ais_args(parser)
     add_vqgan_args(parser)
     add_ebm_args(parser)

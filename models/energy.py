@@ -1,5 +1,4 @@
 #%% imports
-from shutil import ExecError
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -119,7 +118,6 @@ class ResNetEBM_cat(nn.Module):
         out = out.view(out.size(0), out.size(1), -1).mean(-1)
         return self.energy_linear(out).squeeze()
 
-
 class EBM(Sampler):
     def __init__(self, H, embedding_weight, buffer=None, mean=None):
         super().__init__(H, embedding_weight)
@@ -145,11 +143,10 @@ class EBM(Sampler):
         logp = self.net(x).squeeze()
         return logp + bd
 
-
     # single training step of the EBM
     def train_iter(self, x, *_):
         if self.buffer == None:
-            raise ExecError('Please set a buffer for the EBM before training')
+            raise ValueError('Please set a buffer for the EBM before training')
         stats = {}
         
         buffer_inds = sorted(np.random.choice(self.all_inds, self.batch_size, replace=False))
