@@ -4,6 +4,7 @@ import numpy as np
 import logging
 import os
 
+
 def config_log(log_dir, filename='log.txt'):
     log_dir = 'logs/' + log_dir
     os.makedirs(log_dir, exist_ok=True)
@@ -13,6 +14,7 @@ def config_log(log_dir, filename='log.txt'):
 def log(output):
     print(output)
     logging.info(output)
+
 
 def log_stats(step, stats):
     log_str = f'Step: {step}  '
