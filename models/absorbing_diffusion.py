@@ -47,19 +47,12 @@ class AbsorbingDiffusion(Sampler):
     def q_sample(self, x_0, t):
         # randomly set token to mask with probability t/T
         x_t, x_0_ignore = x_0.clone(), x_0.clone()
-        # print('x_t:' + str(x_t.shape))
-        # print('t: ' + str(t.float().shape))
-
-        # removing .unsqueeze(-1) fixes the error thrown here
-        mask = torch.rand_like(x_t.float()) < (t.float() / self.num_timesteps)
-        # print('mask:' + str(mask.shape))
-        # print(self.mask_id)
+        mask = torch.rand_like(x_t.float()) < (t.float().unsqueeze(-1) / self.num_timesteps)
         x_t[mask] = self.mask_id
         x_0_ignore[torch.bitwise_not(mask)] = -1
         return x_t, x_0_ignore
     
     def _train_loss(self, x_0):
-
         b, device = x_0.size(0), x_0.device
 
         t, pt = self.sample_time(b, device, 'importance')

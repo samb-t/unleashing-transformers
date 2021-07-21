@@ -89,7 +89,7 @@ def main(H, vis):
     # load sampler (training stage 2)
     else:
         data_loader, data_iterator = get_latent_loaders(H, ae)
-        model = get_sampler(H, ae, data_loader)        
+        model = get_sampler(H, ae, data_loader).cuda()
         optim = torch.optim.Adam(model.parameters(), lr=H.lr)
 
     if H.ema:
@@ -114,8 +114,6 @@ def main(H, vis):
     losses = np.array([])
     mean_losses = np.array([])
 
-    # move model to GPU after setting up EMA to avoid putting both on the GPU (don't think this works)
-    # model = model.cuda()
     for step in range(start_step, H.train_steps):
         if H.warmup_iters:
             optim_warmup(H, step, optim)

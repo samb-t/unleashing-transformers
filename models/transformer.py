@@ -123,9 +123,7 @@ class Transformer(nn.Module):
         # each position maps to a (learnable) vector
         
         position_embeddings = self.pos_emb[:, :t, :]
-        
-        print(str(token_embeddings.shape), str(position_embeddings.shape))
-        
+                
         x = token_embeddings + position_embeddings
         # x = torch.cat((x, time_embeddings), dim=-1)
         x = self.drop(x)

@@ -169,7 +169,7 @@ def get_latent_loaders(H, ae):
     latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=False)
     
     # if using masked dataset (might need to add more conditionals here)
-    if H.model == 'bert':
+    if H.model == 'bert' or 'absorbing':
         masked_latent_ids = BERTDataset(latent_ids, H.codebook_size, H.codebook_size)
         latent_iterator = cycle(torch.utils.data.DataLoader(
             masked_latent_ids, 
