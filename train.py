@@ -1,3 +1,4 @@
+from numpy.lib.function_base import append
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,7 +18,8 @@ def get_autoencoder(H):
         H.emb_dim,
         H.ch_mult, 
         H.img_size, 
-        H.attn_resolutions
+        H.attn_resolutions,
+        diversity_weight=H.diversity_weight
     )
     return ae
 
@@ -123,6 +125,7 @@ def main(H, vis):
     start_step = H.load_step # defaults to 0 if not specified
     losses = np.array([])
     mean_losses = np.array([])
+    unique_codes_arr = np.array([])
 
     # move model to GPU after setting up EMA to avoid putting both on the GPU (don't think this works)
     # model = model.cuda()
@@ -149,9 +152,12 @@ def main(H, vis):
                 d_optim.step()
 
             latent_ids.append(stats['latent_ids'].cpu().contiguous())
-            if step % 25 == 0: # TODO; change to once per epoch
+            if step % 100 == 0: # TODO; change to once per epoch
                 latent_ids = torch.cat(latent_ids, dim=0)
-                log(f'Codebook size: {H.codebook_size}   Unique Codes: {len(torch.unique(latent_ids))}')
+                unique_codes = len(torch.unique(latent_ids))
+                unique_codes_arr = np,append(unique_codes_arr, unique_codes)
+                log(f'Codebook size: {H.codebook_size}   Unique Codes: {unique_codes}')
+                # vis.line(unique_codes_arr, list(range(start_step, step+1, 100)), win='unique_codes', opts=dict(title='Diversity'))
                 latent_ids = []
 
         if step % H.steps_per_log == 0:

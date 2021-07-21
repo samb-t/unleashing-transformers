@@ -113,7 +113,7 @@ class HparamsVQGAN(Hparams):
             self.disc_layers = 3
             self.codebook_size = 1024
             self.emb_dim = 256
-            self.latent_shape = [1, 8, 8]
+            self.latent_shape = [1, 16, 16] # think this is wrong
 
             # vqgan training defaults
             self.vqgan_batch_size = 3
@@ -316,6 +316,7 @@ def add_vqgan_args(parser):
     parser.add_argument('--perceptual_weight', type=int)
     parser.add_argument('--disc_start_step', type=int)
     parser.add_argument('--vq_base_lr', type=float)
+    parser.add_argument('--diversity_weight', type=float, default=0.)
 
     ## architecture
     parser.add_argument('--img_size', type=int)

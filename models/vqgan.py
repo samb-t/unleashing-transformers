@@ -48,12 +48,12 @@ def weights_init(m):
 #%% Define VQVAE classes
 # From taming transformers
 class VectorQuantizer(nn.Module):
-    def __init__(self, codebook_size, emb_dim, beta):
+    def __init__(self, codebook_size, emb_dim, beta, diversity_weight):
         super(VectorQuantizer, self).__init__()
         self.codebook_size = codebook_size # number of embeddings
         self.emb_dim = emb_dim # dimension of embedding
         self.beta = beta # commitment cost used in loss term, beta * ||z_e(x)-sg[e]||^2
-
+        self.diversity_weight = diversity_weight
         self.embedding = nn.Embedding(self.codebook_size, self.emb_dim)
         self.embedding.weight.data.uniform_(-1.0 / self.codebook_size, 1.0 / self.codebook_size)
 
@@ -66,6 +66,8 @@ class VectorQuantizer(nn.Module):
         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (self.embedding.weight**2).sum(1) - \
             2 * torch.matmul(z_flattened, self.embedding.weight.t())
 
+        mean_distance = torch.mean(d)
+
         # find closest encodings
         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
         min_encodings = torch.zeros(min_encoding_indices.shape[0], self.codebook_size).to(z)
@@ -74,7 +76,9 @@ class VectorQuantizer(nn.Module):
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
         # compute loss for embedding
-        loss = torch.mean((z_q.detach()-z)**2) + self.beta * torch.mean((z_q - z.detach()) ** 2)
+        loss = torch.mean((z_q.detach()-z)**2) + self.beta * torch.mean((z_q - z.detach()) ** 2) + \
+            self.diversity_weight * mean_distance
+        
         # preserve gradients
         z_q = z + (z_q - z).detach()
 
@@ -84,7 +88,12 @@ class VectorQuantizer(nn.Module):
         # reshape back to match original input shape
         z_q = z_q.permute(0, 3, 1, 2).contiguous()
 
-        return z_q, loss, (perplexity, min_encodings, min_encoding_indices)
+        return z_q, loss, {
+            'perplexity': perplexity,
+            'min_encodings': min_encodings,
+            'min_encoding_indices': min_encoding_indices,
+            'mean_distance': mean_distance
+            }
 
     def get_codebook_entry(self, indices, shape):
         min_encodings = torch.zeros(indices.shape[0], self.codebook_size).to(indices)
@@ -298,17 +307,17 @@ class Generator(nn.Module):
 
 
 class VQAutoEncoder(nn.Module):
-    def __init__(self, in_channels, nf, n_blocks, codebook_size, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25):
+    def __init__(self, in_channels, nf, n_blocks, codebook_size, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25, diversity_weight=0.):
         super().__init__()
         self.encoder = Encoder(in_channels, nf, embed_dim, ch_mults, n_blocks, resolution, attn_resolutions)
-        self.quantize = VectorQuantizer(codebook_size, embed_dim, beta)
+        self.quantize = VectorQuantizer(codebook_size, embed_dim, beta, diversity_weight)
         self.generator = Generator(embed_dim, nf, in_channels, ch_mults, n_blocks, resolution, attn_resolutions)
 
     def forward(self, x):
         x = self.encoder(x)
-        quant, codebook_loss, other = self.quantize(x)
+        quant, codebook_loss, quant_stats = self.quantize(x)
         x = self.generator(quant)
-        return x, codebook_loss, other[2] # other[2] corresponds to min_encoding_indices (unqueezed)
+        return x, codebook_loss, quant_stats # other[2] corresponds to min_encoding_indices (unqueezed)
 
 # patch based discriminator
 class Discriminator(nn.Module):
@@ -360,7 +369,7 @@ class VQGAN(nn.Module):
     def train_iter(self, x, _, step):
         stats = {}
 
-        x_hat, codebook_loss, min_encoding_indices = self.ae(x)
+        x_hat, codebook_loss, quant_stats = self.ae(x)
         stats['codebook_loss'] = codebook_loss.item()
         
         # get recon/perceptual loss
@@ -378,8 +387,8 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
-        stats['latent_ids'] = min_encoding_indices.squeeze(1).reshape(x.shape[0], -1)
-
+        stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
+        stats['mean_code_distance'] = quant_stats['mean_distance'].item()
         if step > self.disc_start_step:
             logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
             logits_fake = self.disc(x_hat.contiguous().detach())
