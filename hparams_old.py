@@ -33,7 +33,7 @@ class HparamsVQGAN(Hparams):
             self.codebook_size = 10
             self.emb_dim = 64
             self.latent_shape = [1, 8, 8]
-            self.quantizer = 'nearest'
+
 
             # vqgan training defaults
             self.vqgan_batch_size = 128
@@ -54,7 +54,6 @@ class HparamsVQGAN(Hparams):
             self.codebook_size = 128
             self.emb_dim = 256
             self.latent_shape = [1, 8, 8]
-            self.quantizer = 'nearest'
 
             # vqgan training defaults
             self.vqgan_batch_size = 128
@@ -75,7 +74,6 @@ class HparamsVQGAN(Hparams):
             self.codebook_size = 128
             self.emb_dim = 256
             self.latent_shape = [1, 8, 8]
-            self.quantizer = 'nearest'
 
             # vqgan training defaults
             self.vqgan_batch_size = 128
@@ -96,11 +94,6 @@ class HparamsVQGAN(Hparams):
             self.codebook_size = 1024
             self.emb_dim = 256
             self.latent_shape = [1, 16, 16]
-            self.quantizer = 'nearest'
-
-            # gumbel softmax defaults
-            self.gumbel_straight_through = False
-            self.gumbel_kl_weight = 1e-8 
 
             # vqgan training defaults
             self.vqgan_batch_size = 3
@@ -121,7 +114,6 @@ class HparamsVQGAN(Hparams):
             self.codebook_size = 1024
             self.emb_dim = 256
             self.latent_shape = [1, 16, 16] # think this is wrong
-            self.quantizer = 'nearest'
 
             # vqgan training defaults
             self.vqgan_batch_size = 3
@@ -284,48 +276,6 @@ class HparamsMultinomialDiffusion(Hparams):
             raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
 
 
-class HparamsAbsorbing(Hparams):
-        def __init__(self, dataset):
-            super().__init__(dataset)
-            if self.dataset == 'mnist':
-                # architcture defaults
-                self.block_size = 128
-                self.bert_n_layers = 4
-                self.bert_n_head = 8
-                self.bert_n_emb = 128
-
-                # training param defaults
-                self.batch_size = 128
-                self.lr = 1e-4
-                self.diffusion_steps = 1000
-
-            elif self.dataset == 'cifar10':
-                ...
-                
-            elif self.dataset == 'flowers':
-                ...
-
-            elif self.dataset == 'churches':
-                # architcture defaults
-                self.block_size = 256
-                self.bert_n_layers = 8
-                self.bert_n_head = 8
-                self.bert_n_emb = 256
-
-                # training param defaults
-                self.batch_size = 32
-                self.lr = 1e-4
-                self.diffusion_steps = 1000
-
-            elif self.dataset == 'celeba' or self.dataset == 'ffhq':
-                ...    
-
-            elif self.dataset == None:
-                raise KeyError('Please specify a dataset using the -d flag')
-            else:
-                raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
-
-
 def add_training_args(parser):
     parser.add_argument('--model', type=str, default='vqgan')
     parser.add_argument('--dataset', type=str, required=True)
@@ -379,14 +329,7 @@ def add_vqgan_args(parser):
     parser.add_argument('--codebook_size', type=int)
     parser.add_argument('--emb_dim', type=int)
     parser.add_argument('--latent_shape', nargs='+', type=int)
-    parser.add_argument('--quantizer', type=str)
 
-    ## nearest quantizer 
-    parser.add_argument('--beta', type=float, default=0.25)
-
-    ## gumbel quantizer
-    parser.add_argument('--gumbel_straight_through', const=True, action='store_const', default=False)
-    parser.add_argument('--gumbel_kl_weight', type=float, default=5e-4)
 
 # arguments for all sampler models
 def add_sampler_args(parser):
@@ -468,8 +411,6 @@ def get_training_hparams():
         sampler_H = HparamsBERT(dataset)
     elif model == 'diffusion':
         sampler_H = HparamsMultinomialDiffusion(dataset)
-    elif model == 'absorbing':
-        sampler_H = HparamsAbsorbing(dataset)
     
     # add sampler
     if sampler_H != None:

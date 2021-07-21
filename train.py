@@ -1,27 +1,11 @@
-from numpy.lib.function_base import append
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import copy
-from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, vqgan
+from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, AbsorbingDiffusion, Transformer
 from hparams import get_training_hparams
 from utils import *
-
-
-def get_autoencoder(H):
-    ae = VQAutoEncoder(
-        H.n_channels,
-        H.nf,
-        H.res_blocks, 
-        H.codebook_size, 
-        H.emb_dim,
-        H.ch_mult, 
-        H.img_size, 
-        H.attn_resolutions,
-        diversity_weight=H.diversity_weight
-    )
-    return ae
 
 
 def get_sampler(H, ae, data_loader):
@@ -52,6 +36,10 @@ def get_sampler(H, ae, data_loader):
             denoise_fn = SegmentationUnet(H)
         # create multinomial diffusion model
         model = MultinomialDiffusion(H, embedding_weight, denoise_fn)
+
+    elif H.model == 'absorbing':
+        denoise_fn = Transformer(H).cuda()
+        model = AbsorbingDiffusion(H, denoise_fn, H.codebook_size, embedding_weight)
 
     return model
 
@@ -88,7 +76,7 @@ def display_output(H, vis, data_iterator, ae, model):
 #TODO: break main() into more seperate functions to improve readability
 #TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
 def main(H, vis):
-    ae = get_autoencoder(H)
+    ae = VQAutoEncoder(H)
     
     # load vqgan (training stage 1)
     if H.model == 'vqgan':
@@ -125,7 +113,6 @@ def main(H, vis):
     start_step = H.load_step # defaults to 0 if not specified
     losses = np.array([])
     mean_losses = np.array([])
-    unique_codes_arr = np.array([])
 
     # move model to GPU after setting up EMA to avoid putting both on the GPU (don't think this works)
     # model = model.cuda()
@@ -154,10 +141,8 @@ def main(H, vis):
             latent_ids.append(stats['latent_ids'].cpu().contiguous())
             if step % 100 == 0: # TODO; change to once per epoch
                 latent_ids = torch.cat(latent_ids, dim=0)
-                unique_codes = len(torch.unique(latent_ids))
-                unique_codes_arr = np,append(unique_codes_arr, unique_codes)
-                log(f'Codebook size: {H.codebook_size}   Unique Codes: {unique_codes}')
-                # vis.line(unique_codes_arr, list(range(start_step, step+1, 100)), win='unique_codes', opts=dict(title='Diversity'))
+                unique_codes_count = len(torch.unique(latent_ids))
+                log(f'Codebook size: {H.codebook_size}   Unique Codes: {unique_codes_count}')
                 latent_ids = []
 
         if step % H.steps_per_log == 0:

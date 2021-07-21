@@ -1,6 +1,8 @@
 import torch
 import torchvision
 import os
+from torchvision import transforms
+from torchvision.transforms.transforms import CenterCrop
 import visdom
 from tqdm import tqdm
 from .log_utils import log, save_latents
@@ -127,6 +129,12 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=Tru
         ]))
     elif dataset_name == 'flowers':
         dataset = torchvision.datasets.ImageFolder('~/Repos/_datasets/flowers', transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.ToTensor()
+        ]))
+    elif dataset_name == 'churches':
+        dataset = torchvision.datasets.LSUN('../Repos/_datasets/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()

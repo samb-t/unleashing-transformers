@@ -55,7 +55,7 @@ class VectorQuantizer(nn.Module):
         self.beta = beta # commitment cost used in loss term, beta * ||z_e(x)-sg[e]||^2
         self.embedding = nn.Embedding(self.codebook_size, self.emb_dim)
         self.embedding.weight.data.uniform_(-1.0 / self.codebook_size, 1.0 / self.codebook_size)
-
+    
     def forward(self, z):
         # reshape z -> (batch, height, width, channel) and flatten
         z = z.permute(0, 2, 3, 1).contiguous()
@@ -75,7 +75,8 @@ class VectorQuantizer(nn.Module):
         # get quantized latent vectors
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
         # compute loss for embedding
-        loss = torch.mean((z_q.detach()-z)**2) + self.beta * torch.mean((z_q - z.detach()) ** 2)        
+        loss = torch.mean((z_q.detach()-z)**2) + self.beta * torch.mean((z_q - z.detach()) ** 2)
+        
         # preserve gradients
         z_q = z + (z_q - z).detach()
 
@@ -103,56 +104,6 @@ class VectorQuantizer(nn.Module):
 
         return z_q
 
-class GumbelQuantizer(nn.Module):
-    def __init__(self, codebook_size, emb_dim, num_hiddens, straight_through=False, kl_weight=5e-4, temp_init=1.0):
-        super().__init__()
-        self.codebook_size = codebook_size # number of embeddings
-        self.emb_dim = emb_dim # dimension of embedding
-        self.straight_through = straight_through
-        self.temperature = temp_init
-        self.kl_weight = kl_weight
-        self.proj = nn.Conv2d(num_hiddens, codebook_size, 1) # projects last encoder layer to quantized logits
-        self.embed = nn.Embedding(codebook_size, emb_dim)
-
-    def forward(self, z):
-        if torch.isnan(z).any():
-            print("Wow, found nan in z")
-
-        hard = self.straight_through if self.training else True
-        
-        logits = self.proj(z)
-
-        if torch.isnan(logits).any():
-            print("Wow, found nan in logits")
-        
-        soft_one_hot = F.gumbel_softmax(logits, tau=self.temperature, dim=1, hard=hard)
-        
-        if torch.isnan(soft_one_hot).any():
-            print("Wow, found nan in soft_one_hot")
-        
-        z_q = torch.einsum('b n h w, n d -> b d h w', soft_one_hot, self.embed.weight)
-        
-        if torch.isnan(z_q).any():
-            print("Wow, found nan in z_q")
-
-        # + kl divergence to the prior loss
-        # if strong makes it samplable. 
-        # Still using it but very small to act as regularisation, preventing codebook collapse
-        qy = F.softmax(logits, dim=1)
-        
-        if torch.isnan(qy).any():
-            print("Wow, found nan in qy")
-        
-        diff = self.kl_weight * torch.sum(qy * torch.log(qy * self.codebook_size + 1e-10), dim=1).mean()
-        
-        if torch.isnan(diff).any():
-            print("Wow, found nan in diff")
-
-        min_encoding_indices = soft_one_hot.argmax(dim=1)
-
-        return z_q, diff, {
-            'min_encoding_indices': min_encoding_indices
-            }
 
 class Downsample(nn.Module):
     def __init__(self, in_channels):
@@ -259,16 +210,17 @@ class AttnBlock(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, in_channels, nf, out_channels, ch_mult, num_res_blocks, resolution, attn_resolutions):
+    def __init__(self, in_channels, nf, out_channels, ch_mults, num_res_blocks, resolution, attn_resolutions):
         super().__init__()
         self.nf = nf
-        self.num_resolutions = len(ch_mult)
+        self.num_resolutions = len(ch_mults)
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
         self.attn_resolutions = attn_resolutions 
+
         
         curr_res = self.resolution
-        in_ch_mult = (1,)+tuple(ch_mult)
+        in_ch_mults = (1,)+tuple(ch_mults)
         
         blocks = []
         # initial convultion
@@ -276,8 +228,8 @@ class Encoder(nn.Module):
         
         # residual and downsampling blocks, with attention on smaller res (16x16)
         for i in range(self.num_resolutions):
-            block_in_ch = nf * in_ch_mult[i]
-            block_out_ch = nf * ch_mult[i]
+            block_in_ch = nf * in_ch_mults[i]
+            block_out_ch = nf * ch_mults[i]
             for _ in range(self.num_res_blocks):
                 blocks.append(ResBlock(block_in_ch, block_out_ch))
                 block_in_ch = block_out_ch
@@ -307,15 +259,15 @@ class Encoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, nf, out_channels, ch_mult, num_res_blocks, resolution, attn_resolutions):
+    def __init__(self, in_channels, nf, out_channels, ch_mults, num_res_blocks, resolution, attn_resolutions):
         super().__init__()
         self.nf = nf
-        self.num_resolutions = len(ch_mult)
+        self.num_resolutions = len(ch_mults)
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
         self.attn_resolutions = attn_resolutions 
 
-        block_in_ch = nf * ch_mult[-1]
+        block_in_ch = nf * ch_mults[-1]
         curr_res = self.resolution // 2 ** (self.num_resolutions-1)
 
         blocks = []
@@ -328,7 +280,7 @@ class Generator(nn.Module):
         blocks.append(ResBlock(block_in_ch, block_in_ch))
 
         for i in reversed(range(self.num_resolutions)):
-            block_out_ch = nf * ch_mult[i]
+            block_out_ch = nf * ch_mults[i]
 
             for _ in range(self.num_res_blocks):
                 blocks.append(ResBlock(block_in_ch, block_out_ch))
@@ -353,35 +305,17 @@ class Generator(nn.Module):
 
 
 class VQAutoEncoder(nn.Module):
-    def __init__(self, H):
+    def __init__(self, in_channels, nf, n_blocks, codebook_size, embed_dim, ch_mults, resolution, attn_resolutions, beta=0.25):
         super().__init__()
-        assert H.quantizer in ['nearest', 'gumbel']
-        self.in_channels = H.n_channels
-        self.nf = H.nf
-        self.n_blocks = H.res_blocks
-        self.codebook_size = H.codebook_size
-        self.embed_dim = H.emb_dim
-        self.ch_mult = H.ch_mult
-        self.resolution = H.img_size
-        self.attn_resolutions = H.attn_resolutions
-        self.quantizer = H.quantizer
-        self.beta = H.beta
-        self.gumbel_num_hiddens = H.emb_dim # TODO: may change to use higher hidden dims
-        self.straight_through = H.gumbel_straight_through
-        self.kl_weight = H.gumbel_kl_weight
-
-        self.encoder = Encoder(self.in_channels, self.nf, self.embed_dim, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
-        if self.quantizer == 'nearest':
-            self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
-        elif self.quantizer == 'gumbel':
-            self.quantize = GumbelQuantizer(self.codebook_size, self.embed_dim, self.gumbel_num_hiddens, self.straight_through, self.kl_weight)
-        self.generator = Generator(self.embed_dim, self.nf, self.in_channels, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
+        self.encoder = Encoder(in_channels, nf, embed_dim, ch_mults, n_blocks, resolution, attn_resolutions)
+        self.quantize = VectorQuantizer(codebook_size, embed_dim, beta)
+        self.generator = Generator(embed_dim, nf, in_channels, ch_mults, n_blocks, resolution, attn_resolutions)
 
     def forward(self, x):
         x = self.encoder(x)
         quant, codebook_loss, quant_stats = self.quantize(x)
         x = self.generator(quant)
-        return x, codebook_loss, quant_stats
+        return x, codebook_loss, quant_stats # other[2] corresponds to min_encoding_indices (unqueezed)
 
 # patch based discriminator
 class Discriminator(nn.Module):
@@ -433,12 +367,6 @@ class VQGAN(nn.Module):
     def train_iter(self, x, _, step):
         stats = {}
 
-        # TODO: change this to use H.quantize
-        # update gumbel softmax temperature based on step. Anneal from 1 to 1/16 over 150000 steps
-        if isinstance(self.ae.quantize, GumbelQuantizer):
-            self.ae.quantize.temperature = max(1/16, ((-1/160000) * step) + 1)
-            stats['gumbel_temp'] = self.ae.quantize.temperature
-
         x_hat, codebook_loss, quant_stats = self.ae(x)
         stats['codebook_loss'] = codebook_loss.item()
         
@@ -447,7 +375,6 @@ class VQGAN(nn.Module):
         p_loss = self.perceptual(x.contiguous(), x_hat.contiguous())
         nll_loss = recon_loss + self.perceptual_weight * p_loss
         nll_loss = torch.mean(nll_loss)
-        stats['nll_loss'] = nll_loss
 
         # update generator
         logits_fake = self.disc(x_hat.contiguous())
@@ -459,8 +386,7 @@ class VQGAN(nn.Module):
 
         stats['loss'] = loss
         stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
-        if 'mean_distance' in stats:
-            stats['mean_code_distance'] = quant_stats['mean_distance'].item()
+        stats['mean_code_distance'] = quant_stats['mean_distance'].item()
         if step > self.disc_start_step:
             logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
             logits_fake = self.disc(x_hat.contiguous().detach())

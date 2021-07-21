@@ -4,16 +4,7 @@ from hparams import get_training_hparams
 from utils import *
 
 def main(H):
-    ae = VQAutoEncoder(
-        H.n_channels,
-        H.nf,
-        H.res_blocks, 
-        H.codebook_size, 
-        H.emb_dim,
-        H.ch_mult, 
-        H.img_size, 
-        H.attn_resolutions
-    )
+    ae = VQAutoEncoder(H)
     vqgan = VQGAN(ae, H)
     vqgan.ae = load_model(vqgan.ae, 'ae', H.load_step, H.load_dir)
     vqgan.disc = load_model(vqgan.disc, 'discriminator', H.load_step, H.load_dir)
