@@ -20,6 +20,15 @@ class Hparams(dict):
 class HparamsVQGAN(Hparams):
     def __init__(self, dataset):
         super().__init__(dataset)
+
+        self.beta = 0.25 # beta for controlling codebook loss weighting
+
+        # gumbel softmax defaults
+        self.gumbel_straight_through = False
+        self.gumbel_kl_weight = 1e-8 
+        
+        self.vq_base_lr = 4.5e-6
+        
         if self.dataset == 'mnist':
             # vqgan architecture defaults
             self.img_size = 32
@@ -39,7 +48,6 @@ class HparamsVQGAN(Hparams):
             self.vqgan_batch_size = 128
             self.perceptual_weight = 0.0
             self.disc_start_step = 2001
-            self.vq_base_lr = 4.5e-6
 
         elif self.dataset == 'cifar10':
             # vqgan architecture defaults
@@ -59,8 +67,8 @@ class HparamsVQGAN(Hparams):
             # vqgan training defaults
             self.vqgan_batch_size = 128
             self.perceptual_weight = 1.0
-            self.disc_start_step = 10001
-            self.vq_base_lr = 4.5e-6
+            self.disc_start_step = 30001
+            
 
         elif self.dataset == 'flowers':
             # vqgan architecture defaults
@@ -81,7 +89,6 @@ class HparamsVQGAN(Hparams):
             self.vqgan_batch_size = 128
             self.perceptual_weight = 1.0
             self.disc_start_step = 10001
-            self.vq_base_lr = 4.5e-6
 
         elif self.dataset == 'churches':
             # vqgan architecture defaults
@@ -98,15 +105,10 @@ class HparamsVQGAN(Hparams):
             self.latent_shape = [1, 16, 16]
             self.quantizer = 'nearest'
 
-            # gumbel softmax defaults
-            self.gumbel_straight_through = False
-            self.gumbel_kl_weight = 1e-8 
-
             # vqgan training defaults
             self.vqgan_batch_size = 3
             self.perceptual_weight = 1.0
             self.disc_start_step = 30001
-            self.vq_base_lr = 4.5e-6 
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
             # vqgan architecture defaults
@@ -285,45 +287,45 @@ class HparamsMultinomialDiffusion(Hparams):
 
 
 class HparamsAbsorbing(Hparams):
-        def __init__(self, dataset):
-            super().__init__(dataset)
-            if self.dataset == 'mnist':
-                # architcture defaults
-                self.block_size = 128
-                self.bert_n_layers = 4
-                self.bert_n_head = 8
-                self.bert_n_emb = 128
+    def __init__(self, dataset):
+        super().__init__(dataset)
+        if self.dataset == 'mnist':
+            # architcture defaults
+            self.block_size = 128
+            self.bert_n_layers = 4
+            self.bert_n_head = 8
+            self.bert_n_emb = 128
 
-                # training param defaults
-                self.batch_size = 128
-                self.lr = 1e-4
-                self.diffusion_steps = 1000
+            # training param defaults
+            self.batch_size = 128
+            self.lr = 1e-4
+            self.diffusion_steps = 1000
 
-            elif self.dataset == 'cifar10':
-                ...
-                
-            elif self.dataset == 'flowers':
-                ...
+        elif self.dataset == 'cifar10':
+            ...
+            
+        elif self.dataset == 'flowers':
+            ...
 
-            elif self.dataset == 'churches':
-                # architcture defaults
-                self.block_size = 256
-                self.bert_n_layers = 8
-                self.bert_n_head = 8
-                self.bert_n_emb = 256
+        elif self.dataset == 'churches':
+            # architcture defaults
+            self.block_size = 256
+            self.bert_n_layers = 8
+            self.bert_n_head = 8
+            self.bert_n_emb = 256
 
-                # training param defaults
-                self.batch_size = 32
-                self.lr = 1e-4
-                self.diffusion_steps = 1000
+            # training param defaults
+            self.batch_size = 32
+            self.lr = 1e-4
+            self.diffusion_steps = 1000
 
-            elif self.dataset == 'celeba' or self.dataset == 'ffhq':
-                ...    
+        elif self.dataset == 'celeba' or self.dataset == 'ffhq':
+            ...    
 
-            elif self.dataset == None:
-                raise KeyError('Please specify a dataset using the -d flag')
-            else:
-                raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
+        elif self.dataset == None:
+            raise KeyError('Please specify a dataset using the -d flag')
+        else:
+            raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
 
 
 def add_training_args(parser):
@@ -382,11 +384,12 @@ def add_vqgan_args(parser):
     parser.add_argument('--quantizer', type=str)
 
     ## nearest quantizer 
-    parser.add_argument('--beta', type=float, default=0.25)
-
+    parser.add_argument('--beta', type=float)
+    parser.add_argument('--code_recycling', const=True, action='store_const', default=False)
+    
     ## gumbel quantizer
     parser.add_argument('--gumbel_straight_through', const=True, action='store_const', default=False)
-    parser.add_argument('--gumbel_kl_weight', type=float, default=5e-4)
+    parser.add_argument('--gumbel_kl_weight', type=float)
 
 # arguments for all sampler models
 def add_sampler_args(parser):
@@ -394,7 +397,7 @@ def add_sampler_args(parser):
     parser.add_argument('--ae_load_dir', type=str)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--lr', type=float)
-    parser.add_argument('--n_samples', type=int, default=16)
+    parser.add_argument('--n_samples', type=int)
    
 
 def add_ebm_args(parser):
@@ -479,8 +482,7 @@ def get_training_hparams():
     args = args.__dict__
     for arg in args:
         if args[arg] != None:
-            H[arg] = args[arg]
-
+            H[arg] = args[arg] # this is broken, any defaults set in parser override defaults in Hparams classes
     H.set_vqgan_lr()
 
     return H

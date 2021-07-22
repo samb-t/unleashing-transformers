@@ -81,7 +81,9 @@ def main(H, vis):
     # load vqgan (training stage 1)
     if H.model == 'vqgan':
         latent_ids = []
-        data_iterator = cycle(get_data_loader(H.dataset, H.img_size, H.vqgan_batch_size))
+        H.batch_size = H.vqgan_batch_size
+        data_loader = get_data_loader(H.dataset, H.img_size, H.batch_size)
+        data_iterator = cycle(data_loader)
         model = VQGAN(ae, H).cuda()
         optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
         d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
@@ -99,7 +101,11 @@ def main(H, vis):
     if H.load_step > 0:
         model = load_model(model, H.model, H.load_step, H.load_dir).cuda()
         if H.ema:
-            ema_model = load_model(ema_model, f'{H.model}_ema', H.load_step, H.load_dir)
+            # if EMA has not been generated previously, recopy newly loaded model
+            try:
+                ema_model = load_model(ema_model, f'{H.model}_ema', H.load_step, H.load_dir)
+            except:
+                ema_model = copy.deepcopy(model)
         if H.load_optim:
             if H.model == 'vqgan':
                 optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
@@ -113,6 +119,8 @@ def main(H, vis):
     start_step = H.load_step # defaults to 0 if not specified
     losses = np.array([])
     mean_losses = np.array([])
+    steps_per_epoch = len(data_loader)
+    print('Epoch length:', steps_per_epoch)
 
     for step in range(start_step, H.train_steps):
         if H.warmup_iters:
@@ -137,10 +145,16 @@ def main(H, vis):
                 d_optim.step()
 
             latent_ids.append(stats['latent_ids'].cpu().contiguous())
-            if step % 100 == 0: # TODO; change to once per epoch
+            if step % steps_per_epoch == 0 and step > 0: 
                 latent_ids = torch.cat(latent_ids, dim=0)
-                unique_codes_count = len(torch.unique(latent_ids))
-                log(f'Codebook size: {H.codebook_size}   Unique Codes: {unique_codes_count}')
+                unique_code_ids = torch.unique(latent_ids).to(dtype=torch.int64)
+                log(f'Codebook size: {H.codebook_size}   Unique Codes Used in Epoch: {len(unique_code_ids)}')
+                
+                # codebook recycling
+                if H.quantizer == 'nearest' and H.code_recycling:
+                    unused_code_ids = torch.tensor([code_id for code_id in range(H.codebook_size) if code_id not in unique_code_ids]).int()
+                    model.ae.quantize.recycle_unused_codes(unique_code_ids, unused_code_ids)
+                
                 latent_ids = []
 
         if step % H.steps_per_log == 0:
@@ -154,7 +168,7 @@ def main(H, vis):
                 win='loss',
                 opts=dict(title='Loss')
             )
-            log_stats(step, stats)
+            log_stats(step, stats)            
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
             # log(f'Updating ema for step {step}')

@@ -3,6 +3,7 @@ import lpips
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 from utils import *
 
 #%% helper functions
@@ -103,6 +104,21 @@ class VectorQuantizer(nn.Module):
 
         return z_q
 
+    def recycle_unused_codes(self, unique_code_ids, unused_code_ids):
+        print(f'Recycling {len(unused_code_ids)} codes')
+        codebook_clone = self.embedding.weight.detach().clone()
+        # print('Codebook before recycling: ', self.embedding.weight)
+        unique_code_ids = unique_code_ids.cuda()
+        unused_code_ids =  unused_code_ids.cuda()
+        
+        unique_codes = torch.index_select(codebook_clone, 0, unique_code_ids)
+        
+        for code_id in unused_code_ids:
+            rand_index = random.randint(0, len(unique_codes)-1)
+            codebook_clone[code_id] = unique_codes[rand_index] + 0.001 * torch.rand_like(codebook_clone[0])
+
+        self.embedding.weight = torch.nn.Parameter(codebook_clone)
+        # print('After recycling: ', self.embedding.weight)
 class GumbelQuantizer(nn.Module):
     def __init__(self, codebook_size, emb_dim, num_hiddens, straight_through=False, kl_weight=5e-4, temp_init=1.0):
         super().__init__()
@@ -364,16 +380,16 @@ class VQAutoEncoder(nn.Module):
         self.ch_mult = H.ch_mult
         self.resolution = H.img_size
         self.attn_resolutions = H.attn_resolutions
-        self.quantizer = H.quantizer
+        self.quantizer_type = H.quantizer
         self.beta = H.beta
         self.gumbel_num_hiddens = H.emb_dim # TODO: may change to use higher hidden dims
         self.straight_through = H.gumbel_straight_through
         self.kl_weight = H.gumbel_kl_weight
 
         self.encoder = Encoder(self.in_channels, self.nf, self.embed_dim, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
-        if self.quantizer == 'nearest':
+        if self.quantizer_type== 'nearest':
             self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
-        elif self.quantizer == 'gumbel':
+        elif self.quantizer_type == 'gumbel':
             self.quantize = GumbelQuantizer(self.codebook_size, self.embed_dim, self.gumbel_num_hiddens, self.straight_through, self.kl_weight)
         self.generator = Generator(self.embed_dim, self.nf, self.in_channels, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
 
