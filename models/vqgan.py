@@ -456,7 +456,6 @@ class VQGAN(nn.Module):
             stats['gumbel_temp'] = self.ae.quantize.temperature
 
         x_hat, codebook_loss, quant_stats = self.ae(x)
-        stats['codebook_loss'] = codebook_loss.item()
         
         # get recon/perceptual loss
         recon_loss = torch.abs(x.contiguous() - x_hat.contiguous()) # L1 loss
@@ -474,7 +473,11 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
+        stats['g_loss'] = g_loss.item()
+        stats['d_weight'] = d_weight
+        stats['codebook_loss'] = codebook_loss.item()
         stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
+        
         if 'mean_distance' in stats:
             stats['mean_code_distance'] = quant_stats['mean_distance'].item()
         if step > self.disc_start_step:
