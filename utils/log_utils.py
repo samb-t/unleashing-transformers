@@ -62,11 +62,15 @@ def display_images(vis, images, H, win_name=None):
     vis.images(torch.clamp(images, 0, 1), nrow=int(np.sqrt(images.shape[0])), win=win_name, opts=dict(title=win_name))
 
 
-def save_images(images, im_name, step, log_dir):
+def save_images(images, im_name, step, log_dir, save_indivudally=False):
     log_dir = 'logs/' + log_dir + '/images'
     os.makedirs(log_dir, exist_ok=True)
-    torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{im_name}_{step}.png', 
-            nrow=int(np.sqrt(images.shape[0])), padding=0)
+    if save_indivudally:
+        for idx in range(len(images)):
+            torchvision.utils.save_image(torch.clamp(images[idx], 0, 1), f'{log_dir}/{im_name}_{step}_{idx}.png')
+    else:
+        torchvision.utils.save_image(torch.clamp(images, 0, 1), f'{log_dir}/{im_name}_{step}.png', 
+                nrow=int(np.sqrt(images.shape[0])), padding=0)
 
 
 def save_latents(latents, dataset, size):

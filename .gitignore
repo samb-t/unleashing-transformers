@@ -3,5 +3,6 @@
 __pycache__/
 logs/
 latents/
+*images/
 .vscode/settings.json
 _cache_ReposdatasetsLSUNchurchoutdoortrainlmdb

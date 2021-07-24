@@ -115,9 +115,9 @@ class VectorQuantizer(nn.Module):
         
         for code_id in unused_code_ids:
             rand_index = random.randint(0, len(unique_codes)-1)
-            codebook_clone[code_id] = unique_codes[rand_index] + 0.001 * torch.rand_like(codebook_clone[0])
+            codebook_clone[code_id] = unique_codes[rand_index] # + 0.001 * torch.rand_like(codebook_clone[0])
 
-        self.embedding.weight = torch.nn.Parameter(codebook_clone)
+        self.embedding.weight = torch.nn.Parameter(codebook_clone.detach().clone())
         # print('After recycling: ', self.embedding.weight)
 class GumbelQuantizer(nn.Module):
     def __init__(self, codebook_size, emb_dim, num_hiddens, straight_through=False, kl_weight=5e-4, temp_init=1.0):
@@ -462,7 +462,6 @@ class VQGAN(nn.Module):
         p_loss = self.perceptual(x.contiguous(), x_hat.contiguous())
         nll_loss = recon_loss + self.perceptual_weight * p_loss
         nll_loss = torch.mean(nll_loss)
-        stats['nll_loss'] = nll_loss
 
         # update generator
         logits_fake = self.disc(x_hat.contiguous())
@@ -473,6 +472,9 @@ class VQGAN(nn.Module):
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
         stats['loss'] = loss
+        stats['l1'] = recon_loss.mean().item()
+        stats['perceptual'] = p_loss.mean().item()
+        stats['nll_loss'] = nll_loss.item()
         stats['g_loss'] = g_loss.item()
         stats['d_weight'] = d_weight
         stats['codebook_loss'] = codebook_loss.item()

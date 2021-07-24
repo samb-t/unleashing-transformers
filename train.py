@@ -177,7 +177,7 @@ def main(H, vis):
         if step % H.steps_per_display_output == 0 and step > 0:
             images, output_win_name = display_output(H, vis, data_iterator, ae, ema_model if H.ema else model)
             if step % H.steps_per_save_output == 0:
-                        save_images(images, output_win_name, step, H.log_dir)
+                save_images(images, output_win_name, step, H.log_dir, H.save_individuallyH)
 
         # TODO: merge VQGAN and Sampler saving / loading (maybe)
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
