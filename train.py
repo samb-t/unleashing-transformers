@@ -6,6 +6,7 @@ import copy
 from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, AbsorbingDiffusion, Transformer
 from hparams import get_training_hparams
 from utils import *
+import torch_fidelity
 
 
 def get_sampler(H, ae, data_loader):
@@ -73,16 +74,37 @@ def display_output(H, vis, data_iterator, ae, model):
 
     return images, output_win_name
 
+@torch.no_grad()
+def collect_recons(H, model, data_iterator):
+    recons = []
+    for x, *_ in data_iterator:
+        x = x.cuda()
+        x_hat, *_ = model.ae(x)
+        recons.append(x_hat.detach().cpu())
+    return torch.cat(recons, dim=0)
+
+
+class TensorDataset(torch.utils.data.Dataset):
+    def __init__(self, tensor):
+        self.tensor = tensor
+    
+    def __getitem__(self, index):
+        return self.tensor[index]
+    
+    def __len__(self):
+        return self.tensor.size(0)
+
 #TODO: break main() into more seperate functions to improve readability
 #TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
 def main(H, vis):
-    ae = VQAutoEncoder(H)
+    ae = VQAutoEncoder(H) # TODO: we only actually need the decoder for latent recons, may as well remove half the params!
     
     # load vqgan (training stage 1)
     if H.model == 'vqgan':
         latent_ids = []
         H.batch_size = H.vqgan_batch_size
-        data_loader = get_data_loader(H.dataset, H.img_size, H.batch_size)
+        data_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, shuffle=True)
+        test_data_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
         data_iterator = cycle(data_loader)
         model = VQGAN(ae, H).cuda()
         optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
@@ -120,6 +142,7 @@ def main(H, vis):
     losses = np.array([])
     mean_losses = np.array([])
     steps_per_epoch = len(data_loader)
+    fids = []
     print('Epoch length:', steps_per_epoch)
 
     for step in range(start_step, H.train_steps):
@@ -144,7 +167,22 @@ def main(H, vis):
                 stats['d_loss'].backward()
                 d_optim.step()
 
+            # collect stats
             latent_ids.append(stats['latent_ids'].cpu().contiguous())
+
+            # FIDs - don't do it every epoch
+            if (step % H.steps_per_fid_calc == 0 or step == start_step) and step > 0:
+                if H.dataset == 'cifar10':
+                    recons_epoch = collect_recons(H, ema_model if H.ema else model, test_data_loader)
+                    recons_epoch = (recons_epoch * 255).clamp(0, 255).to(torch.uint8)
+                    recons_epoch = TensorDataset(recons_epoch)
+                    # TODO: just use test_data_loader instead, probably have to has to uint8 though
+                    metrics_dict = torch_fidelity.calculate_metrics(input1=recons_epoch, input2='cifar10-train', 
+                        cuda=True, fid=True, verbose=False)
+                    fids.append(metrics_dict["frechet_inception_distance"])
+                    log(f'FID: {metrics_dict["frechet_inception_distance"]}')
+                    vis.line(fids, win='FID',opts=dict(title='FID'))
+
             if step % steps_per_epoch == 0 and step > 0: 
                 latent_ids = torch.cat(latent_ids, dim=0)
                 unique_code_ids = torch.unique(latent_ids).to(dtype=torch.int64)
@@ -202,3 +240,4 @@ if __name__=='__main__':
     log(f'Setting up training for {H.model}')   
     start_training_log(H)
     main(H, vis)
+

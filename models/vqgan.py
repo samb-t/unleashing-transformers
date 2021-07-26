@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 from utils import *
+from .diffaug import DiffAugment
 
 #%% helper functions
 def normalize(in_channels):
@@ -445,6 +446,8 @@ class VQGAN(nn.Module):
         self.perceptual = lpips.LPIPS(net='vgg')
         self.perceptual_weight = H.perceptual_weight
         self.disc_start_step = H.disc_start_step
+        self.diff_aug = H.diff_aug
+        self.policy = 'color,translation'
 
     def train_iter(self, x, _, step):
         stats = {}
@@ -464,8 +467,12 @@ class VQGAN(nn.Module):
         nll_loss = torch.mean(nll_loss)
         stats['nll_loss'] = nll_loss
 
+        # augment for input to discriminator
+        if self.diff_aug:
+            x_hat = DiffAugment(x_hat, policy=self.policy)
+
         # update generator
-        logits_fake = self.disc(x_hat.contiguous())
+        logits_fake = self.disc(x_hat)
         g_loss = -torch.mean(logits_fake)
         last_layer = self.ae.generator.blocks[-1].weight
         d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer)
@@ -481,8 +488,11 @@ class VQGAN(nn.Module):
         if 'mean_distance' in stats:
             stats['mean_code_distance'] = quant_stats['mean_distance'].item()
         if step > self.disc_start_step:
-            logits_real = self.disc(x.contiguous().detach()) # detach so that generator isn't also updated
-            logits_fake = self.disc(x_hat.contiguous().detach())
+            if self.diff_aug:
+                logits_real = self.disc(DiffAugment(x.contiguous().detach(), policy=self.policy)) 
+            else:
+                logits_real = self.disc(x.contiguous().detach())
+            logits_fake = self.disc(x_hat.contiguous().detach()) # detach so that generator isn't also updated
             d_loss = hinge_d_loss(logits_real, logits_fake)
             stats['d_loss'] = d_loss
 

@@ -19,7 +19,7 @@ def log(output):
 def log_stats(step, stats):
     log_str = f'Step: {step}  '
     for stat in stats:
-        if 'latent_ids' not in stat:
+        if 'latent_ids' not in stat and 'x_hat' not in stat and 'x_aug' not in stat and 'x_hat_aug' not in stat:
             log_str += f'{stat}: {stats[stat]:.4f}  '
     log(log_str)
 

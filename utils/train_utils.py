@@ -116,7 +116,7 @@ def get_init_dist(H, latent_loader, cuda=False):
 
     return init_dist
 
-def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=True, drop_last=True, download=False, shuffle=False):
+def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=True, drop_last=True, download=False, shuffle=True):
     if dataset_name == 'mnist':
         dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=train, download=download, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -166,10 +166,10 @@ def get_latent_loaders(H, ae):
         ae = ae.cpu() # put back onto CPU to save memory during EBM training
         save_latents(latent_ids, H.dataset, H.latent_shape[-1])
 
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=False)
+    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=True)
     
     # if using masked dataset (might need to add more conditionals here)
-    if H.model == 'bert' or 'absorbing':
+    if H.model == 'bert': 
         masked_latent_ids = BERTDataset(latent_ids, H.codebook_size, H.codebook_size)
         latent_iterator = cycle(torch.utils.data.DataLoader(
             masked_latent_ids, 

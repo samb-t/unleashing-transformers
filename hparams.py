@@ -26,6 +26,9 @@ class HparamsVQGAN(Hparams):
         # gumbel softmax defaults
         self.gumbel_straight_through = False
         self.gumbel_kl_weight = 1e-8 
+
+        # diffaug defaults
+        self.diff_aug = False
         
         self.vq_base_lr = 4.5e-6
         
@@ -390,6 +393,10 @@ def add_vqgan_args(parser):
     ## gumbel quantizer
     parser.add_argument('--gumbel_straight_through', const=True, action='store_const', default=False)
     parser.add_argument('--gumbel_kl_weight', type=float)
+
+    ## diffaug
+    parser.add_argument('--diff_aug', const=True, action='store_const', default=False)
+    parser.add_argument('--steps_per_fid_calc', type=int, default=10000)
 
 # arguments for all sampler models
 def add_sampler_args(parser):
