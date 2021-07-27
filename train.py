@@ -9,11 +9,13 @@ from utils import *
 import torch_fidelity
 import deepspeed
 
+torch.backends.cudnn.benchmark = True
+
 
 def get_sampler(H, ae, data_loader):
     # have to load in whole vqgan to retrieve ae values, garbage collector should disposed of unused params
     vqgan = VQGAN(ae, H)
-    ae = load_model(vqgan, 'vqgan', H.ae_load_step, H.ae_load_dir).ae
+    ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
     embedding_weight = ae.quantize.embedding.weight
 
     if H.model != 'diffusion':
@@ -66,7 +68,7 @@ def display_output(H, x, vis, data_iterator, ae, model):
 
             latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
             q = model.embed(latents)
-            images = ae.generator(q)
+            images = ae.generator(q.cpu())
             output_win_name = 'samples'
             
         display_images(vis, images, H, win_name=output_win_name)
@@ -138,14 +140,19 @@ def main(H, vis):
         if H.warmup_iters:
             optim_warmup(H, step, optim)
 
-        x, *target = next(data_iterator)
+        batch = next(data_iterator)
+        if isinstance(batch, tuple):
+            x, *target = batch
+        else:
+            x, target = batch, None
         x = x.cuda()
-        if target:
+        if target is not None:
             target = target[0].cuda()
         
         if H.deepspeed:
             optim.zero_grad()
-            x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
+            if H.model == 'vqgan':
+                x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
             stats = model.train_iter(x, target, step)
             model_engine.backward(stats['loss'])
             model_engine.step()
@@ -158,6 +165,9 @@ def main(H, vis):
             scaler.update()
         else:
             stats = model.train_iter(x, target, step)
+            if torch.isnan(stats['loss']).any():
+                print(f'Skipping step {step} with NaN loss')
+                continue
             optim.zero_grad()
             stats['loss'].backward()
             optim.step()

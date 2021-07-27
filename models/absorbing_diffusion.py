@@ -4,6 +4,7 @@ import torch.distributions as dists
 import numpy as np
 import math
 from .sampler import Sampler
+from utils import latent_ids_to_onehot
 
 
 class AbsorbingDiffusion(Sampler):
@@ -16,6 +17,7 @@ class AbsorbingDiffusion(Sampler):
         self.num_timesteps = H.diffusion_steps
         self.mask_id = mask_id
         self._denoise_fn = denoise_fn
+        self.n_samples = H.batch_size
 
         self.aux_weight = aux_weight
         self.register_buffer('Lt_history', torch.zeros(self.num_timesteps+1))
@@ -93,6 +95,7 @@ class AbsorbingDiffusion(Sampler):
             x_0_hat = x_0_dist.sample().long()
             x_0[x_t == self.mask_id] = x_0_hat[x_t == self.mask_id]
             # print("x0 at", t, x_0, x_0.shape)
+        x_0 = latent_ids_to_onehot(x_0, self.shape, self.num_classes)
         return x_0
 
     def train_iter(self, x, *_):

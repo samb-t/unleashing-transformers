@@ -306,7 +306,16 @@ class HparamsAbsorbing(Hparams):
             self.diffusion_steps = 1000
 
         elif self.dataset == 'cifar10':
-            ...
+            # architcture defaults
+            self.block_size = 256
+            self.bert_n_layers = 24
+            self.bert_n_head = 16
+            self.bert_n_emb = 256
+
+            # training param defaults
+            self.batch_size = 32
+            self.lr = 1e-4
+            self.diffusion_steps = 1000
             
         elif self.dataset == 'flowers':
             ...
