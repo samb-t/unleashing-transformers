@@ -4,11 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
-from utils import *
-from torch.nn.utils import parameters_to_vector as ptv
-from vqgan import VQAutoEncoder, ResBlock, VectorQuantizer, Encoder, Generator
-from tqdm import tqdm
-
+from .sampler import Sampler
+from utils import latent_ids_to_onehot, MyOneHotCategorical
 
 #%% helper functions
 def approx_difference_function_multi_dim(x, model):
@@ -19,70 +16,13 @@ def approx_difference_function_multi_dim(x, model):
     return gx - gx_cur
 
 
-# old function - not currently used but keeping for testing purposes
-# def get_latents(ae, dataloader):
-#     latents = []
-#     for x, _ in tqdm(dataloader):
-#         x = x.cuda()
-#         z = ae.encoder(x) # B, emb_dim, H, W
-
-#         z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, emb_dim
-#         z_flattened = z.view(-1, H.emb_dim) # B*H*W, emb_dim
-
-#         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
-#         d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
-#             2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
-#         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-#         # print(min_encoding_indices.shape)
-#         min_encodings = torch.zeros(min_encoding_indices.shape[0], ae.quantize.codebook_size).to(z)
-#         min_encodings.scatter_(1, min_encoding_indices, 1)
-
-#         one_hot = min_encodings.view(z.size(0), H.latent_shape[1], H.latent_shape[2], H.codebook_size)
-
-#         latents.append(one_hot.reshape(one_hot.size(0), -1, H.codebook_size).cpu().contiguous())
-    
-#     return torch.cat(latents, dim=0)
-
-
-def generate_latent_ids(ae, dataloader, H):
-    latent_ids = []
-    for x, _ in tqdm(dataloader):
-        x = x.cuda()
-        z = ae.encoder(x) # B, emb_dim, H, W
-
-        z = z.permute(0, 2, 3, 1).contiguous() # B, H, W, emb_dim
-        z_flattened = z.view(-1, H.emb_dim) # B*H*W, emb_dim
-
-        # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
-        d = (z_flattened ** 2).sum(dim=1, keepdim=True) + (ae.quantize.embedding.weight**2).sum(1) - \
-            2 * torch.matmul(z_flattened, ae.quantize.embedding.weight.t())
-        min_encoding_indices = torch.argmin(d, dim=1)
-
-        # this all works ^
-
-        latent_ids.append(min_encoding_indices.reshape(x.shape[0], -1).cpu().contiguous())
-
-    latent_ids_out = torch.cat(latent_ids, dim=0)
-    print(f'IDs out: {latent_ids_out.shape}')
-
-    return latent_ids_out
-
-
-def latent_ids_to_onehot(latent_ids, H):
-    min_encoding_indices = latent_ids.view(-1).unsqueeze(1)
-    encodings = torch.zeros(min_encoding_indices.shape[0], H.codebook_size).to(latent_ids.device)
-    encodings.scatter_(1, min_encoding_indices, 1)
-    one_hot = encodings.view(latent_ids.shape[0], H.latent_shape[1], H.latent_shape[2], H.codebook_size)
-
-    return one_hot.reshape(one_hot.shape[0], -1, H.codebook_size)
-
 #%% define EBM classes
 # TODO: Try multiple flips per step
 # Gibbs-With-Gradients for categorical data
 class DiffSamplerMultiDim(nn.Module):
-    def __init__(self, dim, n_steps=1, approx=True, temp=2.):
+    def __init__(self, latent_shape, n_steps=1, approx=True, temp=2.):
         super().__init__()
-        self.dim = dim
+        self.dim = np.prod(latent_shape)
         self.n_steps = n_steps
         self._ar = 0.
         self._mt = 0.
@@ -119,7 +59,7 @@ class DiffSamplerMultiDim(nn.Module):
             reverse_delta = self.diff_fn(x_delta, model)
             reverse_logits = reverse_delta - 1e9 * x_delta
             cd_reverse = dists.OneHotCategorical(logits=reverse_logits.view(x_delta.size(0), -1))
-            reverse_changes = x_cur * changed_ind[:, :, None]
+            reverse_changes = x_cur * changed_ind[:, :, None] 
 
             lp_reverse = cd_reverse.log_prob(reverse_changes.view(x_delta.size(0), -1))
 
@@ -136,6 +76,7 @@ class DiffSamplerMultiDim(nn.Module):
 
         self._hops = (x != x_cur).float().sum(-1).sum(-1).mean().item()
         return x_cur
+
 
 class ResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, downsample=False):
@@ -177,40 +118,18 @@ class ResNetEBM_cat(nn.Module):
         out = out.view(out.size(0), out.size(1), -1).mean(-1)
         return self.energy_linear(out).squeeze()
 
-
-class MyOneHotCategorical:
-    def __init__(self, mean):
-        self.mean = mean
-        self.dist = torch.distributions.OneHotCategorical(probs=self.mean)
-
-    def sample(self, x):
-        return self.dist.sample(x)
-
-    def log_prob(self, x):
-        logits = self.dist.logits
-        lp = torch.log_softmax(logits, -1)
-        return (x * lp[None]).sum(-1)
-
-
-class EBM(nn.Module):
-    def __init__(self, net, embedding, codebook_size, emb_dim, latent_shape, mean=None):
-        super().__init__()
-        self.net = net
-        self.embedding = embedding
-        self.embedding.requires_grad = False
-        self.mean = None if mean is None else nn.Parameter(mean, requires_grad=False)
-        self.codebook_size = codebook_size
-        self.emb_dim = emb_dim
-        self.latent_shape = latent_shape
-
-    def embed(self, z):
-        z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
-        return torch.matmul(z_flattened, self.embedding.weight).view(
-            z.size(0), 
-            self.latent_shape[1],
-            self.latent_shape[2],
-            self.emb_dim
-        ).permute(0, 3, 1, 2).contiguous()
+class EBM(Sampler):
+    def __init__(self, H, embedding_weight, buffer=None, mean=None):
+        super().__init__(H, embedding_weight)
+        self.batch_size = H.batch_size
+        self.mcmc_steps = H.mcmc_steps
+        self.grad_clip_threshold = H.grad_clip_threshold
+        self.all_inds = list(range(H.buffer_size))
+        self.buffer = buffer
+        self.mean = None if mean is None else nn.Parameter(mean, requires_grad=False)        
+        
+        self.net = ResNetEBM_cat(H.emb_dim, H.block_str)
+        self.gibbs_sampler = DiffSamplerMultiDim(self.latent_shape)
 
     def forward(self, x):
         # x: B, H*W, codebook_size
@@ -219,7 +138,58 @@ class EBM(nn.Module):
         else:
             base_dist = MyOneHotCategorical(self.mean)
             bd = base_dist.log_prob(x).sum(-1)
-        
+    
         x = self.embed(x)
         logp = self.net(x).squeeze()
         return logp + bd
+
+    # single training step of the EBM
+    def train_iter(self, x, *_):
+        if self.buffer == None:
+            raise ValueError('Please set a buffer for the EBM before training')
+        stats = {}
+        
+        buffer_inds = sorted(np.random.choice(self.all_inds, self.batch_size, replace=False))
+        x_buffer_ids = self.buffer[buffer_inds]
+        x_buffer_ids = x_buffer_ids.cuda()
+        x_fake = latent_ids_to_onehot(x_buffer_ids, self.latent_shape, self.codebook_size)
+        
+        hops = []  # keep track of how much the sampler moves particles around
+        for _ in range(self.mcmc_steps):
+            # try:
+            x_fake_new = self.gibbs_sampler.step(x_fake.detach(), self).detach()
+            h = (x_fake_new != x_fake).float().view(x_fake_new.size(0), -1).sum(-1).mean().item()
+            hops.append(h)
+            x_fake = x_fake_new
+            # except ValueError as e:
+            #     log(f'Error at step {step}, sampling step {k}: {e}')
+            #     log(f'Skipping sampling step and hoping it still works')
+
+        stats['hops'] = (np.mean(hops))
+        stats['grad_norm'] = torch.nn.utils.clip_grad_norm_(
+            self.parameters(),
+            self.grad_clip_threshold
+        ).item()
+
+        logp_real = self.forward(x).squeeze()
+        logp_fake = self.forward(x_fake).squeeze()
+        stats['loss'] = logp_fake.mean() - logp_real.mean()
+
+        # update buffer
+        self.buffer[buffer_inds] = x_fake.max(2)[1].detach().cpu() 
+        
+        return stats
+
+    # simply samples from the buffer, AIS sampling during training would be absurd
+    def sample(self):
+        buffer_inds = sorted(np.random.choice(self.all_inds, self.n_samples, replace=False))
+        x_buffer_ids = self.buffer[buffer_inds]
+        x_buffer_ids = x_buffer_ids.cuda()
+        x_fake = latent_ids_to_onehot(x_buffer_ids, self.latent_shape, self.codebook_size)
+        return x_fake
+
+    def class_conditional_train_iter(self, x, y):
+        return super().class_conditional_train_iter(x, y)
+
+    def class_conditional_sample(n_samples, y):
+        return super().class_conditional_sample(y)
