@@ -12,17 +12,16 @@ import deepspeed
 def normalize(in_channels):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
-
+@torch.jit.script
 def swish(x):
     return x*torch.sigmoid(x)
-
 
 def adopt_weight(weight, global_step, threshold=0, value=0.):
     if global_step < threshold:
         weight = value
     return weight
 
-
+@torch.jit.script
 def hinge_d_loss(logits_real, logits_fake):
     loss_real = torch.mean(F.relu(1. - logits_real))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
@@ -450,7 +449,7 @@ class VQGAN(nn.Module):
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
 
-        if H.deepspeed:
+        if H.deepspeed and H.model == 'vqgan':
             self.ae_engine, self.optim, _, _ = deepspeed.initialize(args=H, model=self.ae, model_parameters=self.ae.parameters())
             self.d_engine, self.d_optim, _, _ =  deepspeed.initialize(args=H, model=self.disc, model_parameters=self.disc.parameters())
             self.perceptual_engine, _, _, _ = deepspeed.initialize(args=H, model=self.perceptual, model_parameters=self.perceptual.parameters()) # try to make 16-bit. Try init_inference
