@@ -1,4 +1,5 @@
 import argparse
+import deepspeed
 
 class Hparams(dict):
     def __init__(self, dataset):
@@ -337,6 +338,7 @@ def add_training_args(parser):
     parser.add_argument('--ema', const=True, action='store_const', default=False)
     parser.add_argument('--ema_beta', type=float, default=0.995)
     parser.add_argument('--steps_per_update_ema', type=int, default=10)
+    parser.add_argument('--amp', const=True, action='store_const', default=False)
 
     # training loop control args
     parser.add_argument('--train_steps', type=int, default=1000000)
@@ -461,6 +463,8 @@ def get_training_hparams():
     add_ebm_args(parser)
     add_bert_args(parser)
     add_diffusion_args(parser)
+    parser = deepspeed.add_config_arguments(parser)
+    parser.add_argument('--local_rank', type=int, default=0)
 
     # parse arguments and load defaults
 

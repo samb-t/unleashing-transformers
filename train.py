@@ -7,6 +7,7 @@ from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, Segmen
 from hparams import get_training_hparams
 from utils import *
 import torch_fidelity
+import deepspeed
 
 
 def get_sampler(H, ae, data_loader):
@@ -53,11 +54,9 @@ def optim_warmup(H, step, optim):
 
 
 @torch.no_grad()
-def display_output(H, vis, data_iterator, ae, model):            
+def display_output(H, x, vis, data_iterator, ae, model):            
     with torch.no_grad():
         if H.model == 'vqgan':
-            x, *_ = next(data_iterator)
-            x = x.cuda()
             images, *_ = model.ae(x)
 
             display_images(vis, x, H, win_name='Original Images')
@@ -74,26 +73,6 @@ def display_output(H, vis, data_iterator, ae, model):
 
     return images, output_win_name
 
-@torch.no_grad()
-def collect_recons(H, model, data_iterator):
-    recons = []
-    for x, *_ in data_iterator:
-        x = x.cuda()
-        x_hat, *_ = model.ae(x)
-        recons.append(x_hat.detach().cpu())
-    return torch.cat(recons, dim=0)
-
-
-class TensorDataset(torch.utils.data.Dataset):
-    def __init__(self, tensor):
-        self.tensor = tensor
-    
-    def __getitem__(self, index):
-        return self.tensor[index]
-    
-    def __len__(self):
-        return self.tensor.size(0)
-
 #TODO: break main() into more seperate functions to improve readability
 #TODO: combine all model saving and loading (i.e. saving ae and disc as one object), maybe look at using checkpointing instead of saving and loading seperate components
 def main(H, vis):
@@ -107,14 +86,21 @@ def main(H, vis):
         test_data_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
         data_iterator = cycle(data_loader)
         model = VQGAN(ae, H).cuda()
-        optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
-        d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
+        if H.deepspeed:
+            model_engine, d_engine = model.ae_engine, model.d_engine
+            optim, d_optim = model.optim, model.d_optim
+        else:
+            optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
+            d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
     
     # load sampler (training stage 2)
     else:
         data_loader, data_iterator = get_latent_loaders(H, ae)
         model = get_sampler(H, ae, data_loader).cuda()
-        optim = torch.optim.Adam(model.parameters(), lr=H.lr)
+        if H.deepspeed:
+            model_engine, optim, _, _ = deepspeed.initialize(args=H, model=model, model_parameters=model.parameters())
+        else:
+            optim = torch.optim.Adam(model.parameters(), lr=H.lr)
 
     if H.ema:
         ema = EMA(H.ema_beta)
@@ -143,6 +129,9 @@ def main(H, vis):
     mean_losses = np.array([])
     steps_per_epoch = len(data_loader)
     fids = []
+    best_fid = float('inf')
+    scaler = torch.cuda.amp.GradScaler()
+    d_scaler = torch.cuda.amp.GradScaler()
     print('Epoch length:', steps_per_epoch)
 
     for step in range(start_step, H.train_steps):
@@ -154,34 +143,54 @@ def main(H, vis):
         if target:
             target = target[0].cuda()
         
-        stats = model.train_iter(x, target, step)
-
-        optim.zero_grad()
-        stats['loss'].backward()
-        optim.step()
-        losses = np.append(losses, stats['loss'].item())
+        if H.deepspeed:
+            x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
+            stats = model.train_iter(x, target, step)
+            model_engine.backward(stats['loss'])
+            model_engine.step()
+        elif H.amp:
+            with torch.cuda.amp.autocast():
+                stats = model.train_iter(x, target, step)
+            scaler.scale(stats['loss']).backward()
+            scaler.step(optim)
+            scaler.update()
+        else:
+            stats = model.train_iter(x, target, step)
+            optim.zero_grad()
+            stats['loss'].backward()
+            optim.step()
 
         if H.model == 'vqgan':
             if step > H.disc_start_step:
-                d_optim.zero_grad()
-                stats['d_loss'].backward()
-                d_optim.step()
+                if H.deepspeed:
+                    d_engine.backward(stats['d_loss'])
+                    d_engine.step()
+                elif H.amp:
+                    d_scaler.scale(stats['d_loss']).backward()
+                    d_scaler.step()
+                    d_scaler.update()
+                else:
+                    d_optim.zero_grad()
+                    stats['d_loss'].backward()
+                    d_optim.step()
 
             # collect stats
             latent_ids.append(stats['latent_ids'].cpu().contiguous())
 
-            # FIDs - don't do it every epoch
+            # calculate FIDs 
             if (step % H.steps_per_fid_calc == 0 or step == start_step) and step > 0:
                 if H.dataset == 'cifar10':
                     recons_epoch = collect_recons(H, ema_model if H.ema else model, test_data_loader)
                     recons_epoch = (recons_epoch * 255).clamp(0, 255).to(torch.uint8)
                     recons_epoch = TensorDataset(recons_epoch)
                     # TODO: just use test_data_loader instead, probably have to has to uint8 though
-                    metrics_dict = torch_fidelity.calculate_metrics(input1=recons_epoch, input2='cifar10-train', 
-                        cuda=True, fid=True, verbose=False)
-                    fids.append(metrics_dict["frechet_inception_distance"])
-                    log(f'FID: {metrics_dict["frechet_inception_distance"]}')
+                    fid = torch_fidelity.calculate_metrics(input1=recons_epoch, input2='cifar10-train', 
+                        cuda=True, fid=True, verbose=False)["frechet_inception_distance"]
+                    fids.append(fid)
+                    log(f'FID: {fid}')
                     vis.line(fids, win='FID',opts=dict(title='FID'))
+                    if fid < best_fid:
+                        save_model(ema_model if H.ema else model, f'{H.model}_bestfid', step, H.log_dir)
 
             if step % steps_per_epoch == 0 and step > 0: 
                 latent_ids = torch.cat(latent_ids, dim=0)
@@ -213,7 +222,7 @@ def main(H, vis):
             ema.update_model_average(ema_model, model)
 
         if step % H.steps_per_display_output == 0 and step > 0:
-            images, output_win_name = display_output(H, vis, data_iterator, ae, ema_model if H.ema else model)
+            images, output_win_name = display_output(H, x, vis, data_iterator, ae, ema_model if H.ema else model)
             if step % H.steps_per_save_output == 0:
                 save_images(images, output_win_name, step, H.log_dir, H.save_individuallyH)
 

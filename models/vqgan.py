@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import random
 from utils import *
 from .diffaug import DiffAugment
+import deepspeed
 
 #%% helper functions
 def normalize(in_channels):
@@ -448,6 +449,11 @@ class VQGAN(nn.Module):
         self.disc_start_step = H.disc_start_step
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
+
+        if H.deepspeed:
+            self.ae_engine, self.optim, _, _ = deepspeed.initialize(args=H, model=self.ae, model_parameters=self.ae.parameters())
+            self.d_engine, self.d_optim, _, _ =  deepspeed.initialize(args=H, model=self.disc, model_parameters=self.disc.parameters())
+            self.perceptual_engine, _, _, _ = deepspeed.initialize(args=H, model=self.perceptual, model_parameters=self.perceptual.parameters()) # try to make 16-bit. Try init_inference
 
     def train_iter(self, x, _, step):
         stats = {}
