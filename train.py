@@ -7,6 +7,7 @@ from models import VQAutoEncoder, VQGAN, EBM, BERT, MultinomialDiffusion, Segmen
 from hparams import get_training_hparams
 from utils import *
 import torch_fidelity
+import deepspeed
 
 
 def get_sampler(H, ae, data_loader):
@@ -86,7 +87,6 @@ def main(H, vis):
         data_iterator = cycle(data_loader)
         model = VQGAN(ae, H).cuda()
         if H.deepspeed:
-            import deepspeed
             model_engine, d_engine = model.ae_engine, model.d_engine
             optim, d_optim = model.optim, model.d_optim
         else:
@@ -98,7 +98,6 @@ def main(H, vis):
         data_loader, data_iterator = get_latent_loaders(H, ae)
         model = get_sampler(H, ae, data_loader).cuda()
         if H.deepspeed:
-            import deepspeed
             model_engine, optim, _, _ = deepspeed.initialize(args=H, model=model, model_parameters=model.parameters())
         else:
             optim = torch.optim.Adam(model.parameters(), lr=H.lr)
