@@ -144,11 +144,13 @@ def main(H, vis):
             target = target[0].cuda()
         
         if H.deepspeed:
+            optim.zero_grad()
             x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
             stats = model.train_iter(x, target, step)
             model_engine.backward(stats['loss'])
             model_engine.step()
         elif H.amp:
+            optim.zero_grad()
             with torch.cuda.amp.autocast():
                 stats = model.train_iter(x, target, step)
             scaler.scale(stats['loss']).backward()
@@ -165,9 +167,11 @@ def main(H, vis):
         if H.model == 'vqgan':
             if step > H.disc_start_step:
                 if H.deepspeed:
+                    d_optim.zero_grad()
                     d_engine.backward(stats['d_loss'])
                     d_engine.step()
                 elif H.amp:
+                    d_optim.zero_grad()
                     d_scaler.scale(stats['d_loss']).backward()
                     d_scaler.step()
                     d_scaler.update()
