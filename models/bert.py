@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dists
 from tqdm import tqdm
-from utils import *
 from .sampler import Sampler
+from .helpers import latent_ids_to_onehot
 
 class GPTConfig:
     """ base GPT config, params common to all GPT versions """
@@ -318,7 +318,9 @@ def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, 
 
             samples = display_images_from_latents(
                 model, ae, latents, vis, 'MH samples', H)
-            save_images(samples, 'samples_mcmcstep', i, H.log_dir)
+
+            #NOTE shouldn't be saving images from inside model
+            # save_images(samples, 'samples_mcmcstep', i, H.log_dir)
 
             # print(all_acceptance_rates[-50:])
             # print("energy_prev", energy_prev_backup.squeeze())

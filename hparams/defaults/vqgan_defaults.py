@@ -103,7 +103,7 @@ def add_vqgan_args(parser):
     parser.add_argument('--gumbel_kl_weight', type=float, default=1e-8)
     parser.add_argument('--gumbel_straight_through', const=True, action='store_const', default=False)
     parser.add_argument('--quantizer', type=str, default='nearest')
-    parser.add_argument('--steps_per_fid_calc', type=int, default=1000)
+    parser.add_argument('--steps_per_calc_fid', type=int, default=1000)
 
     # dataset-dependent arguments (do not set defaults)
     parser.add_argument('--attn_resolutions', nargs='+', type=int)

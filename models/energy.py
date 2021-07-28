@@ -5,7 +5,11 @@ import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
 from .sampler import Sampler
-from utils import latent_ids_to_onehot, MyOneHotCategorical
+from .helpers import latent_ids_to_onehot, MyOneHotCategorical
+
+# TODO: create seperate utils for models and add these to ti
+
+
 
 #%% helper functions
 def approx_difference_function_multi_dim(x, model):

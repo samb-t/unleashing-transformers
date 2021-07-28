@@ -3,10 +3,8 @@ import lpips
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 from utils import *
 from .diffaug import DiffAugment
-import deepspeed
 
 #%% helper functions
 def normalize(in_channels):
@@ -386,6 +384,7 @@ class VQAutoEncoder(nn.Module):
         x = self.generator(quant)
         return x, codebook_loss, quant_stats
 
+
 # patch based discriminator
 class Discriminator(nn.Module):
     def __init__(self, nc, ndf, n_layers=3):
@@ -435,12 +434,10 @@ class VQGAN(nn.Module):
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
 
-    def train_iter(self, x, _, step):
+    def train_iter(self, x, step):
         stats = {}
-
-        # TODO: change this to use H.quantize
         # update gumbel softmax temperature based on step. Anneal from 1 to 1/16 over 150000 steps
-        if isinstance(self.ae.quantize, GumbelQuantizer):
+        if self.ae.quantizer_type == 'gumbel':
             self.ae.quantize.temperature = max(1/16, ((-1/160000) * step) + 1)
             stats['gumbel_temp'] = self.ae.quantize.temperature
 
@@ -484,4 +481,4 @@ class VQGAN(nn.Module):
             d_loss = hinge_d_loss(logits_real, logits_fake)
             stats['d_loss'] = d_loss
 
-        return stats
+        return x_hat, stats
