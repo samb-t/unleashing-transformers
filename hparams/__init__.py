@@ -1,0 +1,1 @@
+from .setup_hparams import get_vqgan_hparams

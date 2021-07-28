@@ -2,7 +2,7 @@
 # loads all params that are shared by both stages (e.g. batch size)
 import argparse
 import deepspeed
-from vqgan_params import HparamsVQGAN, add_vqgan_args
+from .defaults import HparamsVQGAN, add_vqgan_args
 
 
 def set_up_H(H, args):

@@ -1,4 +1,4 @@
-from base import HparamsBase
+from .base import HparamsBase
 
 class HparamsVQGAN(HparamsBase):
     def __init__(self, dataset):
@@ -6,6 +6,7 @@ class HparamsVQGAN(HparamsBase):
         
         if self.dataset == 'mnist':
             self.attn_resolutions = [8]
+            self.batch_size = 128
             self.ch_mult = [1,1,1]
             self.codebook_size = 10
             self.disc_layers = 1
@@ -22,6 +23,7 @@ class HparamsVQGAN(HparamsBase):
 
         elif self.dataset == 'cifar10':
             self.attn_resolutions = [8]
+            self.batch_size = 128
             self.ch_mult = [1,1,2]
             self.codebook_size = 128
             self.disc_layers = 1
@@ -38,6 +40,7 @@ class HparamsVQGAN(HparamsBase):
 
         elif self.dataset == 'flowers':
             self.attn_resolutions = [8]
+            self.batch_size = 128
             self.ch_mult = [1,1,2]
             self.codebook_size = 128
             self.disc_layers = 1
@@ -54,6 +57,7 @@ class HparamsVQGAN(HparamsBase):
 
         elif self.dataset == 'churches':
             self.attn_resolutions = [16]
+            self.batch_size = 3
             self.ch_mult = [1, 1, 2, 2, 4]
             self.codebook_size = 1024
             self.disc_layers = 3
@@ -71,6 +75,7 @@ class HparamsVQGAN(HparamsBase):
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
 
             self.attn_resolutions = [16]
+            self.batch_size = 3
             self.ch_mult = [1, 1, 2, 2, 4]
             self.codebook_size = 1024
             self.disc_layers = 3
