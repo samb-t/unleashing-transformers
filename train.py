@@ -12,13 +12,10 @@ import deepspeed
 torch.backends.cudnn.benchmark = True
 
 
-def get_sampler(H, ae, data_loader):
+def get_sampler(H, embedding_weight, data_loader):
     # have to load in whole vqgan to retrieve ae values, garbage collector should disposed of unused params
-    vqgan = VQGAN(ae, H)
-    ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
-    embedding_weight = ae.quantize.embedding.weight
 
-    if H.model != 'diffusion':
+    if H.model != 'diffusion' and H.model != 'absorbing':
         init_dist = get_init_dist(H, data_loader)
 
     if H.model == 'ebm':
@@ -67,8 +64,10 @@ def display_output(H, x, vis, data_iterator, ae, model):
         else:
 
             latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
+            if H.deepspeed:
+                latents = latents.half()
             q = model.embed(latents)
-            images = ae.generator(q.cpu())
+            images = ae.generator(q.cpu().float())
             output_win_name = 'samples'
             
         display_images(vis, images, H, win_name=output_win_name)
@@ -97,8 +96,14 @@ def main(H, vis):
     
     # load sampler (training stage 2)
     else:
+        # load in VQGAN
+        vqgan = VQGAN(ae, H)
+        ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
+        # TODO: Work out garbage collection for VQGAN - don't need encoder anyway
+        embedding_weight = ae.quantize.embedding.weight
+        # get data loaders
         data_loader, data_iterator = get_latent_loaders(H, ae)
-        model = get_sampler(H, ae, data_loader).cuda()
+        model = get_sampler(H, embedding_weight, data_loader).cuda()
         if H.deepspeed:
             model_engine, optim, _, _ = deepspeed.initialize(args=H, model=model, model_parameters=model.parameters())
         else:
@@ -135,6 +140,18 @@ def main(H, vis):
     scaler = torch.cuda.amp.GradScaler()
     d_scaler = torch.cuda.amp.GradScaler()
     print('Epoch length:', steps_per_epoch)
+
+    # check recons
+    if H.model != 'vqgan':
+        with torch.no_grad():
+            latents = next(data_iterator)
+            latents = latent_ids_to_onehot(latents, model.shape, model.num_classes)
+            if H.deepspeed:
+                latents = latents.half()
+            q = model.embed(latents.cuda()).cpu()
+            images = ae.generator(q.float())
+            vis.images(images.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
+
 
     for step in range(start_step, H.train_steps):
         if H.warmup_iters:

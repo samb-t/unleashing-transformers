@@ -323,8 +323,8 @@ class HparamsAbsorbing(Hparams):
         elif self.dataset == 'churches':
             # architcture defaults
             self.block_size = 256
-            self.bert_n_layers = 8
-            self.bert_n_head = 8
+            self.bert_n_layers = 24
+            self.bert_n_head = 16
             self.bert_n_emb = 256
 
             # training param defaults
