@@ -1,4 +1,4 @@
-class Hparams(dict):
+class HparamsBase(dict):
     def __init__(self, dataset):
         self.dataset = dataset
 

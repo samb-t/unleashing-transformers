@@ -1,0 +1,1 @@
+from .vqgan_defaults import add_vqgan_args, HparamsVQGAN
