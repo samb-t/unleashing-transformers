@@ -185,8 +185,11 @@ def get_latent_loaders(H, ae):
 @torch.no_grad()
 def collect_recons(H, model, data_iterator):
     recons = []
-    for x, *_ in data_iterator:
+    log('Collecting recons...')
+    for x, *_ in tqdm(data_iterator):
         x = x.cuda()
+        if H.deepspeed:
+            x = x.half()
         x_hat, *_ = model.ae(x)
         recons.append(x_hat.detach().cpu())
     return torch.cat(recons, dim=0)

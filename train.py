@@ -89,8 +89,9 @@ def main(H, vis):
         data_iterator = cycle(data_loader)
         model = VQGAN(ae, H).cuda()
         if H.deepspeed:
-            model_engine, d_engine = model.ae_engine, model.d_engine
-            optim, d_optim = model.optim, model.d_optim
+            model_engine, optim, _, _ = deepspeed.initialize(args=H, model=model.ae, model_parameters=model.ae.parameters())
+            d_engine, d_optim, _, _ =  deepspeed.initialize(args=H, model=model.disc, model_parameters=model.disc.parameters())
+            # perceptual_engine, _, _, _ = deepspeed.initialize(args=H, model=self.perceptual, model_parameters=self.perceptual.parameters())
         else:
             optim = torch.optim.Adam(model.ae.parameters(), lr=H.vqgan_lr)
             d_optim = torch.optim.Adam(model.disc.parameters(), lr=H.vqgan_lr)
@@ -145,14 +146,16 @@ def main(H, vis):
             x, *target = batch
         else:
             x, target = batch, None
-        x = x.cuda()
+        # x = x.cuda()
+        x = x[0].cuda()
         if target is not None:
             target = target[0].cuda()
         
         if H.deepspeed:
             optim.zero_grad()
             if H.model == 'vqgan':
-                x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
+                # x, target = x.half(), target.half() # TODO: Figure out this casting, only seems to be needed for VQGAN
+                x = x.half()
             stats = model.train_iter(x, target, step)
             model_engine.backward(stats['loss'])
             model_engine.step()
@@ -197,11 +200,11 @@ def main(H, vis):
             if (step % H.steps_per_fid_calc == 0 or step == start_step) and step > 0:
                 if H.dataset == 'cifar10':
                     recons_epoch = collect_recons(H, ema_model if H.ema else model, test_data_loader)
-                    recons_epoch = (recons_epoch * 255).clamp(0, 255).to(torch.uint8)
+                    recons_epoch = torch.round((recons_epoch * 255)).to(torch.uint8).clamp(0, 255) # goes to uint as original data is uint
                     recons_epoch = TensorDataset(recons_epoch)
                     # TODO: just use test_data_loader instead, probably have to has to uint8 though
                     fid = torch_fidelity.calculate_metrics(input1=recons_epoch, input2='cifar10-train', 
-                        cuda=True, fid=True, verbose=False)["frechet_inception_distance"]
+                        cuda=True, fid=True, verbose=True)["frechet_inception_distance"]
                     fids.append(fid)
                     log(f'FID: {fid}')
                     vis.line(fids, win='FID',opts=dict(title='FID'))

@@ -34,7 +34,7 @@ def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight=0.8):
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
         d_weight = torch.norm(recon_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
+        d_weight = torch.clamp(d_weight, 0.0, 1).detach()
         return d_weight * disc_weight 
 
 
@@ -448,11 +448,6 @@ class VQGAN(nn.Module):
         self.disc_start_step = H.disc_start_step
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
-
-        if H.deepspeed and H.model == 'vqgan':
-            self.ae_engine, self.optim, _, _ = deepspeed.initialize(args=H, model=self.ae, model_parameters=self.ae.parameters())
-            self.d_engine, self.d_optim, _, _ =  deepspeed.initialize(args=H, model=self.disc, model_parameters=self.disc.parameters())
-            self.perceptual_engine, _, _, _ = deepspeed.initialize(args=H, model=self.perceptual, model_parameters=self.perceptual.parameters()) # try to make 16-bit. Try init_inference
 
     def train_iter(self, x, _, step):
         stats = {}
