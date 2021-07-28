@@ -180,3 +180,22 @@ def get_latent_loaders(H, ae):
         latent_iterator = cycle(latent_loader, encode_to_one_hot=(H.model=='ebm'), H=H)
     
     return latent_loader, latent_iterator
+
+
+@torch.no_grad()
+def collect_recons(H, model, data_iterator):
+    recons = []
+    for x, *_ in data_iterator:
+        x = x.cuda()
+        x_hat, *_ = model.ae(x)
+        recons.append(x_hat.detach().cpu())
+    return torch.cat(recons, dim=0)
+
+
+class TensorDataset(torch.utils.data.Dataset):
+    def __init__(self, tensor):
+        self.tensor = tensor
+    def __getitem__(self, index):
+        return self.tensor[index]
+    def __len__(self):
+        return self.tensor.size(0)
