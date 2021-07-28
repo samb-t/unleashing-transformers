@@ -1,0 +1,1 @@
+# file for running the training of the VQGAN

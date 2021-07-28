@@ -26,7 +26,7 @@ class HparamsVQGAN(Hparams):
 
         # gumbel softmax defaults
         self.gumbel_straight_through = False
-        self.gumbel_kl_weight = 1e-8 
+        self.gumbel_kl_weight = 1e-8 deepspeed
 
         # diffaug defaults
         self.diff_aug = False
@@ -414,8 +414,8 @@ def add_vqgan_args(parser):
 def add_sampler_args(parser):
     parser.add_argument('--ae_load_step', type=int)
     parser.add_argument('--ae_load_dir', type=str)
-    parser.add_argument('--batch_size', type=int)
-    parser.add_argument('--lr', type=float)
+    # parser.add_argument('--batch_size', type=int) # removed as in global args now
+    # parser.add_argument('--lr', type=float)
     parser.add_argument('--n_samples', type=int)
    
 
