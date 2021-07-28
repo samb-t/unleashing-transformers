@@ -78,8 +78,6 @@ class AbsorbingDiffusion(Sampler):
         loss = loss / pt
         loss = loss / (math.log(2) * x_0.shape[1:].numel())
 
-        # TODO: add some form of loss to the history for importance sampling
-
         return loss.mean(), vb_loss.mean(), self.aux_weight * aux_loss.mean()
     
     def sample(self):
@@ -99,11 +97,7 @@ class AbsorbingDiffusion(Sampler):
         return x_0
 
     def train_iter(self, x, *_):
-        # x = x.reshape(-1, self.latent_shape[-2], self.latent_shape[-1]).cuda()
         loss, vb_loss, aux_loss = self._train_loss(x)
-        # norm = math.log(2) * x.shape[1:].numel()
         norm = 1
         stats = {'loss': loss / norm, 'vb_loss': vb_loss, 'aux_loss': aux_loss}
-        # if step % self.steps_per_sample == 0 and step > 0:
-        #     stats['sampled_latents'] = self.sample().reshape(self.n_samples, 1, -1) # TODO not sure about this reshaping
         return stats
