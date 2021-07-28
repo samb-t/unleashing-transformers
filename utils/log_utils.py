@@ -3,6 +3,7 @@ import torchvision
 import numpy as np
 import logging
 import os
+import visdom
 
 
 def config_log(log_dir, filename='log.txt'):
@@ -83,3 +84,16 @@ def save_latents(latents, dataset, size):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
     torch.save(latents, f'latents/{dataset}_{size}_latents')
+
+
+def setup_visdom(H):
+    if H.ncc:
+        server = 'ncc1.clients.dur.ac.uk'
+    else:
+        server = None
+
+    if server:
+        vis = visdom.Visdom(server=server, port=H.visdom_port)
+    else:
+        vis = visdom.Visdom(port=H.visdom_port)
+    return vis

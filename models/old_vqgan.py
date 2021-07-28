@@ -105,7 +105,21 @@ class VectorQuantizer(nn.Module):
 
         return z_q
 
+    def recycle_unused_codes(self, unique_code_ids, unused_code_ids):
+        print(f'Recycling {len(unused_code_ids)} codes')
+        codebook_clone = self.embedding.weight.detach().clone()
+        # print('Codebook before recycling: ', self.embedding.weight)
+        unique_code_ids = unique_code_ids.cuda()
+        unused_code_ids =  unused_code_ids.cuda()
+        
+        unique_codes = torch.index_select(codebook_clone, 0, unique_code_ids)
+        
+        for code_id in unused_code_ids:
+            rand_index = random.randint(0, len(unique_codes)-1)
+            codebook_clone[code_id] = unique_codes[rand_index] # + 0.001 * torch.rand_like(codebook_clone[0])
 
+        self.embedding.weight = torch.nn.Parameter(codebook_clone.detach().clone())
+        # print('After recycling: ', self.embedding.weight)
 class GumbelQuantizer(nn.Module):
     def __init__(self, codebook_size, emb_dim, num_hiddens, straight_through=False, kl_weight=5e-4, temp_init=1.0):
         super().__init__()
@@ -421,9 +435,9 @@ class Discriminator(nn.Module):
 
 
 class VQGAN(nn.Module):
-    def __init__(self, H):
+    def __init__(self, ae, H):
         super().__init__()
-        self.ae = VQAutoEncoder(H)
+        self.ae = ae
         self.disc = Discriminator(
             H.n_channels,
             H.ndf,

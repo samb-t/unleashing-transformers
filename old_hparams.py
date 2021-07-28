@@ -26,7 +26,7 @@ class HparamsVQGAN(Hparams):
 
         # gumbel softmax defaults
         self.gumbel_straight_through = False
-        self.gumbel_kl_weight = 1e-8 deepspeed
+        self.gumbel_kl_weight = 1e-8
 
         # diffaug defaults
         self.diff_aug = False

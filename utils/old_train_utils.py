@@ -1,28 +1,10 @@
 import torch
 import torchvision
 import os
-from torchvision import transforms
-from torchvision.transforms.transforms import CenterCrop
 import visdom
 from tqdm import tqdm
 from .log_utils import log, save_latents
 from .model_utils import MyOneHotCategorical, BERTDataset
-
-
-class EMA():
-    def __init__(self, beta):
-        super().__init__()
-        self.beta = beta
-
-    def update_model_average(self, ma_model, current_model):
-        for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
-            old_weight, up_weight = ma_params.data, current_params.data
-            ma_params.data = self.update_average(old_weight, up_weight)
-
-    def update_average(self, old, new):
-        if old is None:
-            return new
-        return old * self.beta + (1 - self.beta) * new
 
 
 def cycle(iterable, encode_to_one_hot=False, H=None):
@@ -182,17 +164,38 @@ def get_latent_loaders(H, ae):
     return latent_loader, latent_iterator
 
 
+def optim_warmup(H, step, optim):
+    if step <= H.warmup_iters:
+        lr = H.lr * float(step) / H.warmup_iters
+        for param_group in optim.param_groups:
+            param_group['lr'] = lr
+
+
 @torch.no_grad()
-def collect_recons(H, model, data_iterator):
+def collect_ims_and_recons(H, model):
+    
+    data_iterator = get_data_loader(
+        H.dataset,
+        H.img_size,
+        H.batch_size,
+        drop_last=False,
+        shuffle=False
+    )
+
+    images = []
     recons = []
-    log('Collecting recons...')
+    log('Collecting recons:')
     for x, *_ in tqdm(data_iterator):
+        images.append(x)
         x = x.cuda()
         if H.deepspeed:
             x = x.half()
         x_hat, *_ = model.ae(x)
         recons.append(x_hat.detach().cpu())
-    return torch.cat(recons, dim=0)
+
+        images = convert_to_RGB(torch.cat(images, dim=0))
+        recons = convert_to_RGB(torch.cat(recons, dim=0))
+    return images, recons
 
 
 class TensorDataset(torch.utils.data.Dataset):
@@ -202,3 +205,7 @@ class TensorDataset(torch.utils.data.Dataset):
         return self.tensor[index]
     def __len__(self):
         return self.tensor.size(0)
+
+def convert_to_RGB(image_estimate):
+    images = torch.round((image_estimate * 255)).to(torch.uint8).clamp(0,255)
+    return images
