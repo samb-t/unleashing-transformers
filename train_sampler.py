@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import copy
-from models import VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, AbsorbingDiffusion, Transformer
+from models import MyOneHotCategorical, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, AbsorbingDiffusion, Transformer
 from hparams import get_sampler_hparams
 from utils import *
 import deepspeed
@@ -12,16 +12,27 @@ torch.backends.cudnn.benchmark = True
 
 
 # TODO: review ae loading
-# TODO: tidy this function up aLOT
 def get_sampler(H, ae, embedding_weight, latent_loader):
     # have to load in whole vqgan to retrieve ae values, garbage collector should disposed of unused params
     vqgan = VQGAN(ae, H)
     ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
 
-    if H.sampler != 'diffusion' and H.sampler != 'absorbing':
-        init_dist = get_init_dist(H, latent_loader)
+    if H.sampler == 'absorbing':
+        denoise_fn = Transformer(H).cuda()
+        sampler =  AbsorbingDiffusion(H, denoise_fn, H.codebook_size, embedding_weight)
 
-    if H.sampler == 'ebm':
+    elif H.sampler == 'bert':
+        sampler = BERT(H, embedding_weight)
+
+    elif H.sampler == 'diffusion':
+        if H.diffusion_net == 'unet':
+            denoise_fn = SegmentationUnet(H)
+        sampler =  MultinomialDiffusion(H, embedding_weight, denoise_fn)
+
+    elif H.sampler == 'ebm':
+        # UNTESTED - need to fix EBM training first!
+        init_mean = get_init_mean(H, latent_loader)
+        init_dist = MyOneHotCategorical(init_mean)
         # TODO put buffer loading in seperate function
         if H.load_step > 0:
             buffer = load_buffer(H.load_step, H.log_dir)
@@ -32,49 +43,38 @@ def get_sampler(H, ae, embedding_weight, latent_loader):
             buffer = torch.cat(buffer, dim=0)
         sampler = EBM(H, embedding_weight, buffer)
 
-    elif H.sampler == 'bert':
-        sampler = BERT(H, embedding_weight)
-
-    elif H.sampler == 'diffusion':
-        if H.diffusion_net == 'unet':
-            denoise_fn = SegmentationUnet(H)
-        # create multinomial diffusion model
-        sampler =  MultinomialDiffusion(H, embedding_weight, denoise_fn)
-
-    elif H.sampler == 'absorbing':
-        denoise_fn = Transformer(H).cuda()
-        sampler =  AbsorbingDiffusion(H, denoise_fn, H.codebook_size, embedding_weight)
-
     return sampler
 
-
-# TODO: move to (sampler?) utils
-@torch.no_grad()
-def display_samples(H, vis, ae, model):            
-
-    latents = model.sample() #TODO need to write sample function for EBMS (give option of AIS?)
-    if H.deepspeed:
-        latents = latents.half()
-    q = model.embed(latents)
-    images = ae.generator(q.cpu().float())
-    output_win_name = 'samples'
-    
-    display_images(vis, images, H, win_name=output_win_name)
-
-    return None
-
-
 def main(H, vis):
-    vqgan = VQGAN(H) # TODO: we only actually need the decoder for latent recons, may as well remove half the params!
-    ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
-    embedding_weight = ae.quantize.embedding.weight
 
-    latent_loader= get_latent_loader(H, ae)
+    '''
+    - need encoder to load initial latents
+    - need quantizer and decoder for generating all samples
+    '''
+
+    # vqgan = VQGAN(H) # TODO: we only actually need the decoder for latent recons, may as well remove half the params!
+    # ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
+    # embedding_weight = ae.quantize.embedding.weight
+    
+    
+    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
+    if not os.path.exists(latents_filepath):
+        # get autoencoder state_dict and load into VQAutoEncoder model
+        ae_load_path = f'logs/{H.ae_load_dir}/saved_models/vqgan_{H.ae_load_step}.th'        
+        ae_state_dict = torch.load(ae_load_path)['VQAutoEncoder']
+        full_dataloader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
+        ae = ae.cuda() # put ae on GPU for generating
+        generate_latent_ids(H, ae, full_dataloader)
+        ae = ae.cpu() # put back onto CPU to save memory during EBM training
+    
+    latent_loader = get_latent_loader(H, latents_filepath)
+        
+    # here is where to load generator and quantizer
 
     #TODO: set to only use loader or iterator (loader probably easier, can just iterate later)
     sampler = get_sampler(H, ae, embedding_weight, latent_loader).cuda()
     if H.deepspeed:
-        model_engine, optim, _, _ = deepspeed.initialize(args=H, model=sampler, model_parameters=model.parameters())
+        model_engine, optim, _, _ = deepspeed.initialize(args=H, model=sampler, model_parameters=sampler.parameters())
     else:
         optim = torch.optim.Adam(sampler.parameters(), lr=H.lr)
 
@@ -96,11 +96,10 @@ def main(H, vis):
             for param_group in optim.param_groups:
                 param_group['lr'] = H.lr         
 
+
     losses = np.array([])
     mean_losses = np.array([])
-    
     scaler = torch.cuda.amp.GradScaler()
-
     latent_iterator = cycle(latent_loader)
 
     start_step = H.load_step # defaults to 0 if not specified
@@ -155,10 +154,15 @@ def main(H, vis):
             ema.update_model_average(ema_sampler, sampler)
 
         # TODO: set this up to perform sampling instead
+        images = None
         if step % H.steps_per_display_output == 0 and step > 0:
-            images, output_win_name = display_samples(H, x, vis, latent_iterator, ae, ema_sampler if H.ema else sampler)
-            if step % H.steps_per_save_output == 0:
-                save_images(images, output_win_name, step, H.log_dir, H.save_individuallyH)
+            images = get_samples(H, generator, ema_sampler if H.ema else sampler)
+            display_images(vis, images, H, win_name=f'{H.model}_samples')
+
+        if step % H.steps_per_save_output == 0:
+            if not images:
+                images = get_samples(H, generator, ema_sampler if H.ema else sampler)
+            save_images(images, 'samples', step, H.log_dir, H.save_individuallyH)
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
 
@@ -167,8 +171,8 @@ def main(H, vis):
                 save_model(ema_sampler, f'{H.sampler}_ema', step, H.log_dir)
             else:
                 save_model(optim, f'{H.sampler}_optim', step, H.log_dir)
-            # if H.sampler == 'ebm':
-            #     save_buffer(buffer, step, H.log_dir)
+            if H.sampler == 'ebm':
+                save_buffer(sampler.buffer, step, H.log_dir)
 
 
 if __name__=='__main__':

@@ -13,7 +13,7 @@ def main(H, vis):
     data_loader = get_data_loader(
         H.dataset,
         H.img_size,
-        H.batch_size,torch.backends.cudnn.benchmark = True
+        H.batch_size,
         shuffle=True
     )
 

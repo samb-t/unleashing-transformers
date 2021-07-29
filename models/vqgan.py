@@ -371,6 +371,7 @@ class VQAutoEncoder(nn.Module):
         self.straight_through = H.gumbel_straight_through
         self.kl_weight = H.gumbel_kl_weight
         self.encoder = Encoder(self.in_channels, self.nf, self.embed_dim, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
+        
         if self.quantizer_type== 'nearest':
             self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
         elif self.quantizer_type == 'gumbel':

@@ -4,7 +4,6 @@ import torch.distributions as dists
 import numpy as np
 import math
 from .sampler import Sampler
-from helpers import latent_ids_to_onehot
 
 
 class AbsorbingDiffusion(Sampler):

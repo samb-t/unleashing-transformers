@@ -80,12 +80,16 @@ def get_sampler_hparams():
     dataset = parser_args.dataset
     
     if parser_args.sampler  == 'absorbing':
-        H = HparamsAbsorbing(dataset)
+        H_sampler = HparamsAbsorbing(dataset)
     elif parser_args.sampler  == 'bert':
-        H = HparamsAutoregressive(dataset)
+        H_sampler = HparamsAutoregressive(dataset)
     else:
         # other models go here
         ... 
-    H.update(HparamsVQGAN(dataset))
+    
+    # has to be in this order to overwrite duplicate defaults such as batch_size and lr
+    H = HparamsVQGAN(dataset)
+    H.vqgan_batch_size = H.batch_size # used for generating samples and latents
+    H.update(H_sampler) # overwrites old (vqgan) H.batch_size
     H = set_up_H(H, parser_args)
     return H

@@ -237,15 +237,15 @@ def top_k_logits(logits, k):
 def MH_sampling(model, mask_id, data_dim, init_dist, ae, vis, H, batch_size=32, mcmc_steps=50, energy_type='norm'):
     # sample initial latents from init_dist as opposed to greedy sampling use in MH paper
     latents = init_dist.sample((batch_size,)).max(2)[1].cuda()
-    display_images_from_latents(
-        model, ae, latents, vis, 'init_dist samples', H)
+    # display_images_from_latents(
+    #     model, ae, latents, vis, 'init_dist samples', H)
     # latents = torch.ones(batch_size, data_dim).long().cuda() * mask_id
     first_latents = latents.clone()
 
     latents = warm_start_from_real(model, mask_id, data_dim, latents=latents)
     warmup_latents = latents.clone()
-    display_images_from_latents(
-        model, ae, warmup_latents, vis, 'greedy warmup', H)
+    # display_images_from_latents(
+    #     model, ae, warmup_latents, vis, 'greedy warmup', H)
 
     # energy_prev = torch.zeros(latents.size(0), 1)
     energy_prev, logits = implicit_energy_fn(
