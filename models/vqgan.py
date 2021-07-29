@@ -27,13 +27,13 @@ def hinge_d_loss(logits_real, logits_fake):
     return d_loss
 
 
-def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight=0.8):
+def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight_max):
         recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
         d_weight = torch.norm(recon_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1).detach()
-        return d_weight * disc_weight 
+        d_weight = torch.clamp(d_weight, 0.0, disc_weight_max).detach()
+        return d_weight
 
 
 def weights_init(m):
@@ -370,7 +370,6 @@ class VQAutoEncoder(nn.Module):
         self.gumbel_num_hiddens = H.emb_dim # TODO: may change to use higher hidden dims
         self.straight_through = H.gumbel_straight_through
         self.kl_weight = H.gumbel_kl_weight
-
         self.encoder = Encoder(self.in_channels, self.nf, self.embed_dim, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
         if self.quantizer_type== 'nearest':
             self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
@@ -431,6 +430,7 @@ class VQGAN(nn.Module):
         self.perceptual = lpips.LPIPS(net='vgg')
         self.perceptual_weight = H.perceptual_weight
         self.disc_start_step = H.disc_start_step
+        self.disc_weight_max = H.disc_weight_max
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
 
@@ -457,7 +457,7 @@ class VQGAN(nn.Module):
         logits_fake = self.disc(x_hat)
         g_loss = -torch.mean(logits_fake)
         last_layer = self.ae.generator.blocks[-1].weight
-        d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer)
+        d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer, self.disc_weight_max)
         d_weight *= adopt_weight(1, step, self.disc_start_step)
         loss = nll_loss + d_weight * g_loss + codebook_loss
 

@@ -10,7 +10,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1,1,1]
             self.codebook_size = 10
             self.disc_layers = 1
-            self.disc_max_weight = 1000
+            self.disc_weight_max = 1000
             self.disc_start_step = 2001
             self.emb_dim = 64
             self.img_size = 32
@@ -27,7 +27,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1,1,2]
             self.codebook_size = 128
             self.disc_layers = 1
-            self.disc_max_weight = 1
+            self.disc_weight_max = 1
             self.disc_start_step = 30001
             self.emb_dim = 256
             self.img_size = 32
@@ -44,7 +44,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1,1,2]
             self.codebook_size = 128
             self.disc_layers = 1
-            self.disc_max_weight = 1000
+            self.disc_weight_max = 1000
             self.disc_start_step = 10001
             self.emb_dim = 256
             self.img_size = 32
@@ -61,7 +61,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1, 1, 2, 2, 4]
             self.codebook_size = 1024
             self.disc_layers = 3
-            self.disc_max_weight = 1000
+            self.disc_weight_max = 1000
             self.disc_start_step = 30001
             self.emb_dim = 256
             self.img_size = 256
@@ -79,7 +79,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1, 1, 2, 2, 4]
             self.codebook_size = 1024
             self.disc_layers = 3
-            self.disc_max_weight = 1000
+            self.disc_weight_max = 1000
             self.disc_start_step = 30001
             self.emb_dim = 256
             self.img_size = 256
@@ -110,7 +110,7 @@ def add_vqgan_args(parser):
     parser.add_argument('--ch_mult', nargs='+', type=int)
     parser.add_argument('--codebook_size', type=int)
     parser.add_argument('--disc_layers', type=int)
-    parser.add_argument('--disc_max_weight', type=float)
+    parser.add_argument('--disc_weight_max', type=float)
     parser.add_argument('--disc_start_step', type=int)
     parser.add_argument('--emb_dim', type=int)
     parser.add_argument('--img_size', type=int)

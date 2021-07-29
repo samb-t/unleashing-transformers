@@ -69,7 +69,6 @@ def main(H, vis):
         x = x.cuda()
         if H.deepspeed:
             optim.zero_grad()
-            # x, target = x.half(), target.half() 
             x = x.half() # only seems to be needed for vqgan?
             x_hat, stats = vqgan.train_iter(x, step)
             model_engine.backward(stats['loss'])
@@ -143,8 +142,9 @@ def main(H, vis):
         if step % H.steps_per_display_output == 0 and step > 0:
             display_images(vis, x, H, 'Original Images')
             display_images(vis, x_hat, H, 'VQGAN Recons')
-            if step % H.steps_per_save_output == 0:
-                save_images(x_hat, 'recons', step, H.log_dir, H.save_individually)
+        
+        if step % H.steps_per_save_output == 0:
+            save_images(x_hat, 'recons', step, H.log_dir, H.save_individually)
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
 

@@ -3,16 +3,6 @@
 import argparse
 import deepspeed
 from .defaults import HparamsVQGAN, add_vqgan_args
-
-
-def set_up_H(H, args):
-    # DEFAULT ARGS IN H WILL BE OVERWRITTEN BY ANY DEFAULT PARSER ARGS
-    args = args.__dict__
-    for arg in args:
-        if args[arg] != None:
-            H[arg] = args[arg]
-
-    return H
     
 
 # args for training of all models: dataset, EMA and loading
@@ -52,6 +42,15 @@ def setup_base_parser(parser):
     add_logging_args(parser)
     add_deepspeed_args(parser)
 
+
+def set_up_H(H, args):
+    # DEFAULT ARGS IN H WILL BE OVERWRITTEN BY ANY DEFAULT PARSER ARGS
+    args = args.__dict__
+    for arg in args:
+        if args[arg] != None:
+            H[arg] = args[arg]
+
+    return H
 
 def get_vqgan_hparams():
     parser = argparse.ArgumentParser('Parser for setting up VQGAN training :)')
