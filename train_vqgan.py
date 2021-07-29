@@ -60,7 +60,6 @@ def main(H, vis):
     for step in range(start_step, H.train_steps):
         batch = next(data_iterator)
 
-        #TODO: fix bugs here, this doesn't seem to work for CIFAR (does it work for churches?)
         if isinstance(batch, list):
             x = batch[0]
         else:
@@ -119,7 +118,6 @@ def main(H, vis):
             )
             log_stats(step, stats)         
 
-        # calculate FIDs 
         if (step % H.steps_per_calc_fid == 0) and step > 0:
             fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
             fids.append(fid)
@@ -136,7 +134,6 @@ def main(H, vis):
             latent_ids = []
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
-            # log(f'Updating ema for step {step}')
             ema.update_model_average(ema_vqgan, vqgan)
 
         if step % H.steps_per_display_output == 0 and step > 0:

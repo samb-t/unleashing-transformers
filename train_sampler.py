@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 import copy
 from models import \
-    MyOneHotCategorical, VQAutoEncoder, Generator,VQGAN,\
+    MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
     AbsorbingDiffusion, Transformer
 from hparams import get_sampler_hparams
@@ -14,7 +14,6 @@ import deepspeed
 
 torch.backends.cudnn.benchmark = True
 
-# TODO: review ae loading and move this to utils
 def get_sampler(H, embedding_weight, latent_loader):
 
     if H.sampler == 'absorbing':
@@ -62,7 +61,6 @@ def main(H, vis):
     
     latent_loader = get_latent_loader(H, latents_filepath)
         
-    # here is where to load generator and quantizer
     quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
         H,
         ['quantize', 'generator'],
@@ -74,7 +72,8 @@ def main(H, vis):
         embedding_weight = embedding_weight.half()
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
-    # want generator on GPU? maybe add flag to save space if needbe
+
+    #NOTE: can move generator to cpu to save memory if needbe - add flag?
     generator.load_state_dict(quanitzer_and_generator_state_dict)
     generator = generator.cuda()
     sampler = get_sampler(H, embedding_weight, latent_loader).cuda()
