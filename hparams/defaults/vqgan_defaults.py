@@ -10,7 +10,7 @@ class HparamsVQGAN(HparamsBase):
         self.diff_aug = False
         self.gumbel_kl_weight = 1e-8
         self.gumbel_straight_through = False
-        self.quanitzer = 'nearest'
+        self.quantizer = 'nearest'
         self.steps_per_calc_fid = 1000
 
         if self.dataset == 'mnist':

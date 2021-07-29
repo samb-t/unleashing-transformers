@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
 from .sampler import Sampler
-from .helpers import latent_ids_to_onehot, MyOneHotCategorical
+from .helpers import MyOneHotCategorical
 
 # TODO: figure out if this can be seperated without messing up imports
 def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):

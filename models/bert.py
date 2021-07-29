@@ -3,11 +3,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as dists
 import random
 from tqdm import tqdm
 from .sampler import Sampler
-from .helpers import latent_ids_to_onehot
 
 #TODO move this to seperate file
 def get_masked_latent(latent, mask_id, num_ids):

@@ -1,21 +1,21 @@
+from models.vqgan import VQAutoEncoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import copy
-from models import MyOneHotCategorical, VQGAN, EBM, BERT, MultinomialDiffusion, SegmentationUnet, AbsorbingDiffusion, Transformer
+from models import \
+    MyOneHotCategorical, VQAutoEncoder, Generator,VQGAN,\
+    EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
+    AbsorbingDiffusion, Transformer
 from hparams import get_sampler_hparams
 from utils import *
 import deepspeed
 
 torch.backends.cudnn.benchmark = True
 
-
-# TODO: review ae loading
-def get_sampler(H, ae, embedding_weight, latent_loader):
-    # have to load in whole vqgan to retrieve ae values, garbage collector should disposed of unused params
-    vqgan = VQGAN(ae, H)
-    ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
+# TODO: review ae loading and move this to utils
+def get_sampler(H, embedding_weight, latent_loader):
 
     if H.sampler == 'absorbing':
         denoise_fn = Transformer(H).cuda()
@@ -45,12 +45,8 @@ def get_sampler(H, ae, embedding_weight, latent_loader):
 
     return sampler
 
-def main(H, vis):
 
-    '''
-    - need encoder to load initial latents
-    - need quantizer and decoder for generating all samples
-    '''
+def main(H, vis):
 
     # vqgan = VQGAN(H) # TODO: we only actually need the decoder for latent recons, may as well remove half the params!
     # ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
@@ -58,21 +54,33 @@ def main(H, vis):
     
     
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
-    if not os.path.exists(latents_filepath):
-        # get autoencoder state_dict and load into VQAutoEncoder model
-        ae_load_path = f'logs/{H.ae_load_dir}/saved_models/vqgan_{H.ae_load_step}.th'        
-        ae_state_dict = torch.load(ae_load_path)['VQAutoEncoder']
+    if not os.path.exists(latents_filepath):        
+        ae_state_dict = retrieve_autoencoder_components_state_dicts(H, ['encoder', 'quantize', 'generator'])
+        ae = VQAutoEncoder(H)
+        ae.load_state_dict(ae_state_dict)
         full_dataloader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
         ae = ae.cuda() # put ae on GPU for generating
         generate_latent_ids(H, ae, full_dataloader)
-        ae = ae.cpu() # put back onto CPU to save memory during EBM training
+        #TODO: test if this actually frees up GPU space or not
+        ae = ae.cpu()
+        # del ae
     
     latent_loader = get_latent_loader(H, latents_filepath)
         
     # here is where to load generator and quantizer
+    quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
+        H,
+        ['quantize', 'generator'],
+        remove_component_from_key=True
+    )
 
-    #TODO: set to only use loader or iterator (loader probably easier, can just iterate later)
-    sampler = get_sampler(H, ae, embedding_weight, latent_loader).cuda()
+    embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
+    generator = Generator(H)
+    # want generator on GPU? maybe add flag to save space if needbe
+    generator.load_state_dict(quanitzer_and_generator_state_dict)
+    generator = generator.cuda()
+    sampler = get_sampler(H, embedding_weight, latent_loader).cuda()
+
     if H.deepspeed:
         model_engine, optim, _, _ = deepspeed.initialize(args=H, model=sampler, model_parameters=sampler.parameters())
     else:
@@ -92,10 +100,9 @@ def main(H, vis):
                 ema_sampler =  copy.deepcopy(sampler)
         if H.load_optim:
             optim = load_model(optim, f'{H.sampler}_optim', H.load_step, H.load_dir)
-            # only used when changing learning rates when reloading from checkpoint
+            # only used when changing learning rates and reloading from checkpoint
             for param_group in optim.param_groups:
                 param_group['lr'] = H.lr         
-
 
     losses = np.array([])
     mean_losses = np.array([])
@@ -150,10 +157,8 @@ def main(H, vis):
             log_stats(step, stats)            
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
-            # log(f'Updating ema for step {step}')
             ema.update_model_average(ema_sampler, sampler)
 
-        # TODO: set this up to perform sampling instead
         images = None
         if step % H.steps_per_display_output == 0 and step > 0:
             images = get_samples(H, generator, ema_sampler if H.ema else sampler)
@@ -165,7 +170,6 @@ def main(H, vis):
             save_images(images, 'samples', step, H.log_dir, H.save_individuallyH)
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
-
             save_model(sampler, H.sampler, step, H.log_dir)
             if H.ema:
                 save_model(ema_sampler, f'{H.sampler}_ema', step, H.log_dir)

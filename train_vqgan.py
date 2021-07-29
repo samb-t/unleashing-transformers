@@ -120,7 +120,7 @@ def main(H, vis):
             log_stats(step, stats)         
 
         # calculate FIDs 
-        if (step % H.steps_per_calc_fid == 0 or step == start_step) and step > 0:
+        if (step % H.steps_per_calc_fid == 0) and step > 0:
             fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
             fids.append(fid)
             log(f'FID: {fid}')

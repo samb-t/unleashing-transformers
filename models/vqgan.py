@@ -308,20 +308,22 @@ class Encoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, nf, out_channels, ch_mult, num_res_blocks, resolution, attn_resolutions):
+    def __init__(self, H):
         super().__init__()
-        self.nf = nf
-        self.num_resolutions = len(ch_mult)
-        self.num_res_blocks = num_res_blocks
-        self.resolution = resolution
-        self.attn_resolutions = attn_resolutions 
-
-        block_in_ch = nf * ch_mult[-1]
+        self.nf = H.nf
+        self.ch_mult = H.ch_mult
+        self.num_resolutions = len(self.ch_mult)
+        self.num_res_blocks = H.res_blocks
+        self.resolution = H.img_size
+        self.attn_resolutions = H.attn_resolutions
+        self.in_channels = H.emb_dim
+        self.out_channels = H.n_channels
+        block_in_ch = self.nf * self.ch_mult[-1]
         curr_res = self.resolution // 2 ** (self.num_resolutions-1)
 
         blocks = []
         # initial conv
-        blocks.append(nn.Conv2d(in_channels, block_in_ch, kernel_size=3, stride=1, padding=1))
+        blocks.append(nn.Conv2d(self.in_channels, block_in_ch, kernel_size=3, stride=1, padding=1))
         
         # non-local attention block
         blocks.append(ResBlock(block_in_ch, block_in_ch))
@@ -329,7 +331,7 @@ class Generator(nn.Module):
         blocks.append(ResBlock(block_in_ch, block_in_ch))
 
         for i in reversed(range(self.num_resolutions)):
-            block_out_ch = nf * ch_mult[i]
+            block_out_ch = self.nf * self.ch_mult[i]
 
             for _ in range(self.num_res_blocks):
                 blocks.append(ResBlock(block_in_ch, block_out_ch))
@@ -343,7 +345,7 @@ class Generator(nn.Module):
                 curr_res = curr_res * 2
 
         blocks.append(normalize(block_in_ch))
-        blocks.append(nn.Conv2d(block_in_ch, out_channels, kernel_size=3, stride=1, padding=1))
+        blocks.append(nn.Conv2d(block_in_ch, self.out_channels, kernel_size=3, stride=1, padding=1))
 
         self.blocks = nn.ModuleList(blocks)
 
@@ -376,7 +378,7 @@ class VQAutoEncoder(nn.Module):
             self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
         elif self.quantizer_type == 'gumbel':
             self.quantize = GumbelQuantizer(self.codebook_size, self.embed_dim, self.gumbel_num_hiddens, self.straight_through, self.kl_weight)
-        self.generator = Generator(self.embed_dim, self.nf, self.in_channels, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
+        self.generator = Generator(H)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -483,3 +485,4 @@ class VQGAN(nn.Module):
             stats['d_loss'] = d_loss
 
         return x_hat, stats
+# %%

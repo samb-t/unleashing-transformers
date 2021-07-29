@@ -1,8 +1,7 @@
 import os
 import torch
 from tqdm import tqdm
-from .log_utils import save_latents, display_images, log
-from .data_utils import get_data_loader
+from .log_utils import save_latents, log
 
 @torch.no_grad()
 def get_samples(H, generator, sampler):            
@@ -90,6 +89,18 @@ def get_latent_loader(H, latents_filepath):
     return latent_loader
 
 
-def retrieve_autoencoder_components_state_dicts(H, components_list):
-    ...
-    # define logic for retrieving specific components from vqgan.th files 
+def retrieve_autoencoder_components_state_dicts(H, components_list, remove_component_from_key=False):
+    state_dict = {}
+    ae_load_path = f'logs/{H.ae_load_dir}/saved_models/vqgan_{H.ae_load_step}.th'        
+    full_vqgan_state_dict = torch.load(ae_load_path, map_location='cpu')
+
+    for key in full_vqgan_state_dict:
+        for component in components_list:
+            if component in key:
+                new_key = key[3:] # remove 'ae.'
+                if remove_component_from_key:
+                    new_key = new_key[len(component)+1:] # e.g. remove 'quantize.'
+
+                state_dict[new_key] = full_vqgan_state_dict[key]            
+
+    return state_dict

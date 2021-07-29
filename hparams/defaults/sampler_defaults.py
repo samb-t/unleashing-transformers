@@ -6,7 +6,7 @@ class HparamsAbsorbing(HparamsBase):
 
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
-        self.resid_prdrop = 0.
+        self.resid_pdrop = 0.
         super().__init__(dataset)
         if self.dataset == 'mnist':
             self.batch_size = 128
@@ -143,7 +143,7 @@ def add_bert_args(parser):
     parser.add_argument('--embd_pdrop', type=float)
     parser.add_argument('--greedy_epochs', type=int)
     parser.add_argument('--greedy', const=True, action='store_const', default=False)
-    parser.add_argument('--resid_pdrop', type=float)    
+    parser.add_argument('--resid_dprop', type=float)    
     parser.add_argument('--sample_block_size', type=int)
 
 
