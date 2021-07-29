@@ -12,3 +12,9 @@ class EMA():
         if old is None:
             return new
         return old * self.beta + (1 - self.beta) * new
+
+
+def optim_warmup(H, step, optim):
+    lr = H.lr * float(step) / H.warmup_iters
+    for param_group in optim.param_groups:
+        param_group['lr'] = lr

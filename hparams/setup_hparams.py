@@ -79,9 +79,9 @@ def get_sampler_hparams():
     parser_args = parser.parse_args()
     dataset = parser_args.dataset
     
-    if parser_args.model == 'absorbing':
+    if parser_args.sampler  == 'absorbing':
         H = HparamsAbsorbing(dataset)
-    elif parser_args.model == 'bert':
+    elif parser_args.sampler  == 'bert':
         H = HparamsAutoregressive(dataset)
     else:
         # other models go here

@@ -4,7 +4,7 @@ import torch.distributions as dists
 import numpy as np
 import math
 from .sampler import Sampler
-from utils import latent_ids_to_onehot
+from helpers import latent_ids_to_onehot
 
 
 class AbsorbingDiffusion(Sampler):
@@ -93,10 +93,10 @@ class AbsorbingDiffusion(Sampler):
             x_0_hat = x_0_dist.sample().long()
             x_0[x_t == self.mask_id] = x_0_hat[x_t == self.mask_id]
             # print("x0 at", t, x_0, x_0.shape)
-        x_0 = latent_ids_to_onehot(x_0, self.shape, self.num_classes)
+
         return x_0
 
-    def train_iter(self, x, *_):
+    def train_iter(self, x):
         loss, vb_loss, aux_loss = self._train_loss(x)
         norm = 1
         stats = {'loss': loss / norm, 'vb_loss': vb_loss, 'aux_loss': aux_loss}

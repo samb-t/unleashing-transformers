@@ -172,7 +172,7 @@ def add_ebm_args(parser):
 def add_sampler_args(parser):
     parser.add_argument('--ae_load_dir', type=str, required=True)
     parser.add_argument('--ae_load_step', type=int, required=True)
-    parser.add_argument('--model', type=str, required=True)
+    parser.add_argument('--sampler', type=str, required=True)
     parser.add_argument('--n_samples', type=int)
 
     add_bert_args(parser)

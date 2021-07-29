@@ -4,9 +4,35 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dists
+import random
 from tqdm import tqdm
 from .sampler import Sampler
 from .helpers import latent_ids_to_onehot
+
+#TODO move this to seperate file
+def get_masked_latent(latent, mask_id, num_ids):
+        target = []
+        # NOTE: When calculating loss make sure to mean over dim 1 then over dim 0.
+
+        for idx, l in enumerate(latent):
+            prob = random.random()
+            if prob < 0.15:
+                prob /= 0.15
+                target.append(l.clone())
+
+                if prob < 0.8: # 80% randomly change token to mask token
+                    latent[idx] = mask_id
+                elif prob < 0.9: # 10% randomly change to random token
+                    latent[idx] = random.randrange(num_ids)
+                # 10% randomly don't change but use to train network
+                
+            else:
+                # mark to not train with
+                target.append(-1)
+        
+        target = torch.tensor(target).reshape(latent.shape).long()
+        
+        return target
 
 class GPTConfig:
     """ base GPT config, params common to all GPT versions """
@@ -152,16 +178,14 @@ class BERT(Sampler):
 
         return logits, loss
 
-    def train_iter(self, latent_ids, target, step):
+    def train_iter(self, latent_ids):
         stats = {}
+        # UNTESTED
+        target = get_masked_latent(latent_ids, self.codebook_size, self.codebook_size)
         logits, nll = self.forward(latent_ids, targets=target)
         stats['loss'] = nll
         stats['accuracy'] = (logits.max(-1)[1][target > 0]
                              == target[target > 0]).float().mean()
-
-        if step % self.steps_per_sample == 0 and step > 0:
-            return self.sample()
-
         return stats
 
     def sample(self):
@@ -196,16 +220,16 @@ def top_k_logits(logits, k):
     return out
 
 
-def display_images_from_latents(model, ae, latents, vis, win_name, H):
-    with torch.no_grad():
-        q = model.embed(latent_ids_to_onehot(
-            latents.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
-        samples = ae.generator(q.cpu())
+# def display_images_from_latents(model, ae, latents, vis, win_name, H):
+#     with torch.no_grad():
+#         q = model.embed(latent_ids_to_onehot(
+#             latents.reshape(-1, H.latent_shape[-1], H.latent_shape[-1]).contiguous(), H))
+#         samples = ae.generator(q.cpu())
 
-        vis.images(samples[:64].clamp(0, 1), win=win_name,
-                   opts=dict(title=win_name))
+#         vis.images(samples[:64].clamp(0, 1), win=win_name,
+#                    opts=dict(title=win_name))
 
-    return samples
+#     return samples
 
 
 # TODO: FIX - currently broken, produces far worse samples than greedy sampling which makes 0 sense
@@ -373,53 +397,53 @@ def implicit_energy_fn(model, latents, mask_id, energy_type='norm'):
 
 
 # locally informed proposals - from GWG code
-def locally_informed_proposal(model, cur_latents, forward_logits, mask_id, H, block_size=1, energy_type='norm'):
-    # TODO: Currently it's possible to sample the same the same movement more than once.
-    #       So no guarantees that will be exactly block_size changes. Just <=.
+# def locally_informed_proposal(model, cur_latents, forward_logits, mask_id, H, block_size=1, energy_type='norm'):
+#     # TODO: Currently it's possible to sample the same the same movement more than once.
+#     #       So no guarantees that will be exactly block_size changes. Just <=.
 
-    # When calculating the energy output logits/normalized logits to pass into here
-    # For each dimension calculate d = logits - prev_logit.
-    # sample from multinomial dist with d as the logits to get both the dimension and new
-    # value for the proposal.
+#     # When calculating the energy output logits/normalized logits to pass into here
+#     # For each dimension calculate d = logits - prev_logit.
+#     # sample from multinomial dist with d as the logits to get both the dimension and new
+#     # value for the proposal.
 
-    # calculate estimate of energy change for each state
-    # print(forward_logits.shape, cur_latents.shape)
-    # print(torch.gather(forward_logits, 2, cur_latents.unsqueeze(-1)).shape)
-    cur_latents_onehot = latent_ids_to_onehot(cur_latents, H)
-    forward_delta = forward_logits - \
-        torch.gather(forward_logits, 2, cur_latents.unsqueeze(-1))
-    # make sure we move
-    # forward_delta = forward_delta - 1e9 * cur_latents_onehot
-    cd_forward = dists.OneHotCategorical(
-        logits=forward_delta.view(forward_logits.size(0), -1))
-    # sample change
-    changes = cd_forward.sample((block_size,)).sum(0).clamp(
-        max=1)  # clampec in case picked more than once
+#     # calculate estimate of energy change for each state
+#     # print(forward_logits.shape, cur_latents.shape)
+#     # print(torch.gather(forward_logits, 2, cur_latents.unsqueeze(-1)).shape)
+#     cur_latents_onehot = latent_ids_to_onehot(cur_latents, H)
+#     forward_delta = forward_logits - \
+#         torch.gather(forward_logits, 2, cur_latents.unsqueeze(-1))
+#     # make sure we move
+#     # forward_delta = forward_delta - 1e9 * cur_latents_onehot
+#     cd_forward = dists.OneHotCategorical(
+#         logits=forward_delta.view(forward_logits.size(0), -1))
+#     # sample change
+#     changes = cd_forward.sample((block_size,)).sum(0).clamp(
+#         max=1)  # clampec in case picked more than once
 
-    # calculate probability of sampling this change
-    # NOTE: Why doesn't this need summing? Does it itself?
-    lp_forward = cd_forward.log_prob(changes).unsqueeze(1)
-    # reshape back to B x latent_length x codebook_size
-    changes = changes.view(cur_latents_onehot.size())
-    # get binary indicator indicating which dims were changed
-    changed_ind = changes.sum(-1)
-    # mask out changed dims and add in the change
-    proposal_latents = cur_latents.clone() * (1 - changed_ind.long()) + \
-        changes.max(-1)[1]
+#     # calculate probability of sampling this change
+#     # NOTE: Why doesn't this need summing? Does it itself?
+#     lp_forward = cd_forward.log_prob(changes).unsqueeze(1)
+#     # reshape back to B x latent_length x codebook_size
+#     changes = changes.view(cur_latents_onehot.size())
+#     # get binary indicator indicating which dims were changed
+#     changed_ind = changes.sum(-1)
+#     # mask out changed dims and add in the change
+#     proposal_latents = cur_latents.clone() * (1 - changed_ind.long()) + \
+#         changes.max(-1)[1]
 
-    # Do same for reverse
-    reverse_energy, reverse_logits = implicit_energy_fn(
-        model, proposal_latents, mask_id, energy_type)
-    reverse_delta = reverse_logits - \
-        torch.gather(reverse_logits, 2, proposal_latents.unsqueeze(-1))
-    # reverse_delta = reverse_delta - 1e-9 * latent_ids_to_onehot(proposal_latents, H)
-    cd_reverse = dists.OneHotCategorical(
-        logits=reverse_delta.view(reverse_logits.size(0), -1))
-    reverse_logits = cur_latents_onehot * changed_ind[:, :, None]
-    lp_reverse = cd_reverse.log_prob(reverse_logits.view(
-        reverse_logits.size(0), -1)).unsqueeze(1)
+#     # Do same for reverse
+#     reverse_energy, reverse_logits = implicit_energy_fn(
+#         model, proposal_latents, mask_id, energy_type)
+#     reverse_delta = reverse_logits - \
+#         torch.gather(reverse_logits, 2, proposal_latents.unsqueeze(-1))
+#     # reverse_delta = reverse_delta - 1e-9 * latent_ids_to_onehot(proposal_latents, H)
+#     cd_reverse = dists.OneHotCategorical(
+#         logits=reverse_delta.view(reverse_logits.size(0), -1))
+#     reverse_logits = cur_latents_onehot * changed_ind[:, :, None]
+#     lp_reverse = cd_reverse.log_prob(reverse_logits.view(
+#         reverse_logits.size(0), -1)).unsqueeze(1)
 
-    return proposal_latents, reverse_logits, reverse_energy, lp_forward, lp_reverse
+#     return proposal_latents, reverse_logits, reverse_energy, lp_forward, lp_reverse
 
 
 # NOTE: q_x_prop should be more negative than q_prop_x as there should be a low chance of moving to the previous state

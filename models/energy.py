@@ -7,8 +7,21 @@ import numpy as np
 from .sampler import Sampler
 from .helpers import latent_ids_to_onehot, MyOneHotCategorical
 
-# TODO: create seperate utils for models and add these to ti
-
+# TODO: figure out if this can be seperated without messing up imports
+def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):
+    min_encoding_indices = latent_ids.view(-1).unsqueeze(1)
+    encodings = torch.zeros(
+        min_encoding_indices.shape[0],
+        codebook_size
+    ).to(latent_ids.device)
+    encodings.scatter_(1, min_encoding_indices, 1)
+    one_hot = encodings.view(
+        latent_ids.shape[0],
+        latent_shape[1],
+        latent_shape[2],
+        codebook_size
+    )
+    return one_hot.reshape(one_hot.shape[0], -1, codebook_size)
 
 
 #%% helper functions
@@ -148,7 +161,8 @@ class EBM(Sampler):
         return logp + bd
 
     # single training step of the EBM
-    def train_iter(self, x, *_):
+    # TODO encode input to one hot before processing
+    def train_iter(self, x):
         if self.buffer == None:
             raise ValueError('Please set a buffer for the EBM before training')
         stats = {}
