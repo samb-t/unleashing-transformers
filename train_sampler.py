@@ -47,11 +47,6 @@ def get_sampler(H, embedding_weight, latent_loader):
 
 
 def main(H, vis):
-
-    # vqgan = VQGAN(H) # TODO: we only actually need the decoder for latent recons, may as well remove half the params!
-    # ae = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir).ae
-    # embedding_weight = ae.quantize.embedding.weight
-    
     
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
     if not os.path.exists(latents_filepath):        
@@ -75,6 +70,7 @@ def main(H, vis):
     )
 
     embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
+    embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
     # want generator on GPU? maybe add flag to save space if needbe
     generator.load_state_dict(quanitzer_and_generator_state_dict)
@@ -162,9 +158,9 @@ def main(H, vis):
         images = None
         if step % H.steps_per_display_output == 0 and step > 0:
             images = get_samples(H, generator, ema_sampler if H.ema else sampler)
-            display_images(vis, images, H, win_name=f'{H.model}_samples')
+            display_images(vis, images, H, win_name=f'{H.sampler}_samples')
 
-        if step % H.steps_per_save_output == 0:
+        if step % H.steps_per_save_output == 0 and step > 0:
             if not images:
                 images = get_samples(H, generator, ema_sampler if H.ema else sampler)
             save_images(images, 'samples', step, H.log_dir, H.save_individuallyH)
