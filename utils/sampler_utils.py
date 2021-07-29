@@ -9,7 +9,8 @@ def get_samples(H, generator, sampler):
     latents = sampler.sample() 
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     if H.deepspeed:
-        latents_one_hot = latents_one_hot.half()
+        if H.deepspeed:
+            latents_one_hot = latents_one_hot.half()
         latents_one_hot = latents_one_hot.cuda()
     q = sampler.embed(latents_one_hot)
     images = generator(q.float()) # move to cpu if not keeping generator on GPU

@@ -70,6 +70,8 @@ def main(H, vis):
     )
 
     embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
+    if H.deepspeed:
+        embedding_weight = embedding_weight.half()
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
     # want generator on GPU? maybe add flag to save space if needbe
