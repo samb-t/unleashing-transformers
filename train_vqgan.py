@@ -6,14 +6,14 @@ from models import VQGAN
 from hparams import get_vqgan_hparams
 from utils import *
 import deepspeed
-
+torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
     data_loader = get_data_loader(
         H.dataset,
         H.img_size,
-        H.batch_size,
+        H.batch_size,torch.backends.cudnn.benchmark = True
         shuffle=True
     )
 

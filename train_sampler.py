@@ -1,3 +1,6 @@
+import torch
+torch.backends.cudnn.benchmark = True
+
 # TODO: move to (sampler?) utils
 @torch.no_grad()
 def display_output(H, output, vis, ae, model):            

@@ -92,8 +92,7 @@ class Transformer(nn.Module):
         # self.merge_time_tok = nn.Linear(self.n_embd*2, self.n_embd)
         
         # transformer
-        self.blocks = nn.Sequential(*[Block(H)
-                                    for _ in range(self.n_layers)])
+        self.blocks = nn.Sequential(*[Block(H) for _ in range(self.n_layers)])
         # decoder head
         self.ln_f = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.codebook_size, bias=False)

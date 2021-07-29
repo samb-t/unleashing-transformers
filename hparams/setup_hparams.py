@@ -2,7 +2,9 @@
 # loads all params that are shared by both stages (e.g. batch size)
 import argparse
 import deepspeed
-from .defaults import HparamsVQGAN, add_vqgan_args
+from .defaults import \
+    HparamsVQGAN, HparamsAbsorbing, HparamsAutoregressive, \
+    add_sampler_args, add_vqgan_args
     
 
 # args for training of all models: dataset, EMA and loading
@@ -70,16 +72,20 @@ def get_diffusion_decoder_hparams():
 
 
 def get_sampler_hparams():
-    ...
-    # calls to sampler hparam py file
-
-
-
-
-'''
-- Can't use seperate get_ functions for samplers unfortunately, will set up loggin seperately
-- Will want to set up deepspeed in this section I believe
-    - Include in collective args function? (i.e. batch size, learning rate, logging args etc.)
-    - batch_size may not be communal to both, as will need seperate batch size for ae when producing samples while training sampler
-    - can specify ae_batch_size for samplers I suppose
-'''
+    parser = argparse.ArgumentParser('Parser for training discrete latent sampler models :)')
+    setup_base_parser(parser)
+    add_vqgan_args(parser) # necessary for loading decoder/generator for displaying samples
+    add_sampler_args(parser)
+    parser_args = parser.parse_args()
+    dataset = parser_args.dataset
+    
+    if parser_args.model == 'absorbing':
+        H = HparamsAbsorbing(dataset)
+    elif parser_args.model == 'bert':
+        H = HparamsAutoregressive(dataset)
+    else:
+        # other models go here
+        ... 
+    H.update(HparamsVQGAN(dataset))
+    H = set_up_H(H, parser_args)
+    return H

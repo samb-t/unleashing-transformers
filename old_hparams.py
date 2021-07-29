@@ -26,7 +26,7 @@ class HparamsVQGAN(Hparams):
 
         # gumbel softmax defaults
         self.gumbel_straight_through = False
-        self.gumbel_kl_weight = 1e-8
+        self.gumbel_kl_weight = 1e-8H
 
         # diffaug defaults
         self.diff_aug = False
@@ -323,8 +323,8 @@ class HparamsAbsorbing(Hparams):
         elif self.dataset == 'churches':
             # architcture defaults
             self.block_size = 256
-            self.bert_n_layers = 8
-            self.bert_n_head = 8
+            self.bert_n_layers = 24
+            self.bert_n_head = 16
             self.bert_n_emb = 256
 
             # training param defaults
