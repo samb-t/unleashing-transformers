@@ -59,26 +59,20 @@ class HparamsAutoregressive(HparamsBase):
     def __init__(self, dataset):
         super().__init__(dataset)
         if self.dataset == 'mnist':
-            # bert architcture defaults
-            self.block_size = 512
-            self.bert_n_layers = 16
-            self.bert_n_head = 8
-            self.bert_n_emb = 512
-
-            # bert training defaults
             self.batch_size = 32
+            self.bert_n_emb = 512
+            self.bert_n_head = 8
+            self.bert_n_layers = 16
+            self.block_size = 512
             self.lr = 1e-4
             self.sample_block_size = 1
 
         elif self.dataset == 'cifar10':
-            # bert architcture defaults
-            self.block_size = 512
-            self.bert_n_layers = 16
-            self.bert_n_head = 8
-            self.bert_n_emb = 512
-
-            # bert training defaults
             self.batch_size = 32
+            self.bert_n_emb = 512
+            self.bert_n_head = 8
+            self.bert_n_layers = 16
+            self.block_size = 512
             self.lr = 1e-4
             self.sample_block_size = 1
 
@@ -86,23 +80,17 @@ class HparamsAutoregressive(HparamsBase):
             ...
 
         elif self.dataset == 'churches':
-
-            # bert architcture defaults
-            self.block_size = 256
-            self.bert_n_layers = 8
-            self.bert_n_head = 8
-            self.bert_n_emb = 256
-
-            # bert training defaults
             self.batch_size = 32
+            self.bert_n_emb = 256
+            self.bert_n_head = 8
+            self.bert_n_layers = 8
+            self.block_size = 256
             self.lr = 1e-4
             self.sample_block_size = 1
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
             ...
 
-        elif self.dataset == None:
-            raise KeyError('Please specify a dataset using the -d flag')
         else:
             raise KeyError(f'Defaults not defined for BERT model on dataset: {self.dataset}')
 

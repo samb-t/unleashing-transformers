@@ -5,7 +5,7 @@ import deepspeed
 from .defaults import \
     HparamsVQGAN, HparamsAbsorbing, HparamsAutoregressive, \
     add_sampler_args, add_vqgan_args
-    
+
 
 # args for training of all models: dataset, EMA and loading
 def add_training_args(parser):
@@ -39,7 +39,7 @@ def add_deepspeed_args(parser):
     parser.add_argument('--local_rank', type=int, default=0)
 
 
-def setup_base_parser(parser):
+def set_up_base_parser(parser):
     add_training_args(parser)
     add_logging_args(parser)
     add_deepspeed_args(parser)
@@ -56,7 +56,7 @@ def set_up_H(H, args):
 
 def get_vqgan_hparams():
     parser = argparse.ArgumentParser('Parser for setting up VQGAN training :)')
-    setup_base_parser(parser)
+    set_up_base_parser(parser)
     add_vqgan_args(parser)
     parser_args = parser.parse_args()
     H = HparamsVQGAN(parser_args.dataset)
@@ -73,12 +73,16 @@ def get_diffusion_decoder_hparams():
 
 def get_sampler_hparams():
     parser = argparse.ArgumentParser('Parser for training discrete latent sampler models :)')
-    setup_base_parser(parser)
+    set_up_base_parser(parser)
     add_vqgan_args(parser) # necessary for loading decoder/generator for displaying samples
     add_sampler_args(parser)
     parser_args = parser.parse_args()
     dataset = parser_args.dataset
     
+    # has to be in this order to overwrite duplicate defaults such as batch_size and lr
+    H = HparamsVQGAN(dataset)
+    H.vqgan_batch_size = H.batch_size # used for generating samples and latents
+        
     if parser_args.sampler  == 'absorbing':
         H_sampler = HparamsAbsorbing(dataset)
     elif parser_args.sampler  == 'bert':
@@ -86,10 +90,6 @@ def get_sampler_hparams():
     else:
         # other models go here
         ... 
-    
-    # has to be in this order to overwrite duplicate defaults such as batch_size and lr
-    H = HparamsVQGAN(dataset)
-    H.vqgan_batch_size = H.batch_size # used for generating samples and latents
     H.update(H_sampler) # overwrites old (vqgan) H.batch_size
     H = set_up_H(H, parser_args)
     return H
