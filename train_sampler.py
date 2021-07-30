@@ -90,6 +90,7 @@ def main(H, vis):
     losses = np.array([])
     mean_losses = np.array([])
     start_step = 0
+    log_start_step = 0
     if H.load_step > 0:
         start_step = H.load_step + 1
 

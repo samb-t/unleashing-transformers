@@ -153,7 +153,6 @@ def add_ebm_args(parser):
     parser.add_argument('--l2_coef', type=float)
     parser.add_argument('--mcmc_steps', type=int)
     parser.add_argument('--reinit_buffer_prob', type=float)
-    parser.add_argument('--warmup_iters', type=int)
 
 
 # arguments for all sampler models
@@ -162,6 +161,7 @@ def add_sampler_args(parser):
     parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--sampler', type=str, required=True)
     parser.add_argument('--n_samples', type=int)
+    parser.add_argument('--warmup_iters', type=int)
 
     add_bert_args(parser)
     add_diffusion_args(parser)

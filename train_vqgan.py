@@ -64,15 +64,13 @@ def main(H, vis):
     fids = np.array([])
     best_fid = float('inf')
 
+    #NOTE this is getting messy now - need to tidy up all this steps stuff, easier to just build up a list of steps I think
     start_step = 0
+    log_start_step = 0
+    eval_start_step = H.steps_per_eval 
     if H.load_step > 0:
         start_step = H.load_step + 1 # don't repeat the checkpointed step
         vqgan, optim, d_optim, ema_vqgan, train_stats = load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
-
-        # fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
-        # fids = np.append(fids, fid)
-        # log(f'FID: {fid}')
-
 
         # stats won't load for old models with no associated stats file
         if train_stats is not None: 
