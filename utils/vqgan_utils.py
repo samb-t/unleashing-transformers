@@ -14,7 +14,7 @@ class TensorDataset(torch.utils.data.Dataset):
         return self.tensor.size(0)
 
 
-def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
+def load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
     vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
     if H.load_optim:
             optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
@@ -29,7 +29,7 @@ def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
                             H.load_dir
                         )
         except:
-            # if no ema model found to load, start a new one from load step
+            print('No ema model found')
             ema_vqgan = copy.deepcopy(vqgan)
 
     # return none if no associated saved stats
@@ -59,7 +59,6 @@ def calc_FID(H, model):
     recons = TensorDataset(recons)
     fid = torch_fidelity.calculate_metrics(input1=recons, input2=images, 
         cuda=True, fid=True, verbose=True)["frechet_inception_distance"]
-
     return fid
 
 @torch.no_grad()

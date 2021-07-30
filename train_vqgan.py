@@ -67,7 +67,13 @@ def main(H, vis):
     start_step = 0
     if H.load_step > 0:
         start_step = H.load_step + 1 # don't repeat the checkpointed step
-        vqgan, optim, d_optim, ema_vqgan, train_stats = load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
+        vqgan, optim, d_optim, ema_vqgan, train_stats = load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
+
+        fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
+        fids = np.append(fids, fid)
+        log(f'FID: {fid}')
+
+
         # stats won't load for old models with no associated stats file
         if train_stats is not None: 
             losses, mean_losses, val_losses, latent_ids, fids, best_fid, H.steps_per_log, H.steps_per_eval = unpack_vqgan_stats(train_stats)
@@ -77,7 +83,13 @@ def main(H, vis):
             log('No stats found for model, displaying stats from load step instead')
             log_start_step = start_step
             if H.steps_per_eval:
-                eval_start_step = start_step + H.steps_per_eval - start_step % H.steps_per_eval
+                if H.steps_per_eval == 1:
+                    eval_start_step = start_step
+                else:
+                    # set eval_start_step to nearest next eval point
+                    # NOTE could just define an array to hold steps the whole time and add as it goes? more/less efficient? does it matter?
+                        # would have to regenerate steps list again anyway
+                    eval_start_step = start_step + H.steps_per_eval - start_step % H.steps_per_eval
 
     steps_per_epoch = len(train_loader)
     log(f'Epoch length: {steps_per_epoch}')
@@ -151,7 +163,7 @@ def main(H, vis):
         if H.steps_per_eval:
             if step % H.steps_per_eval == 0 and step > 0:
                 log('Evaluating FIDs and validation loss:')
-                vqgan.eval()
+                # vqgan.eval()
                 # Calc FIDs
                 fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
                 fids = np.append(fids, fid)
