@@ -94,6 +94,7 @@ def save_stats(H, stats, step):
     save_dir = f'logs/{H.log_dir}/saved_stats'
     os.makedirs(save_dir, exist_ok=True)
     save_path = f'logs/{H.log_dir}/saved_stats/stats_{step}'
+    log(f'Saving stats to {save_path}')
     torch.save(stats, save_path)
 
 

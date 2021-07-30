@@ -1,16 +1,15 @@
 from models.vqgan import VQAutoEncoder
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import deepspeed
 import numpy as np
 import copy
+import time
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
     AbsorbingDiffusion, Transformer
 from hparams import get_sampler_hparams
 from utils import *
-import deepspeed
 
 torch.backends.cudnn.benchmark = True
 
@@ -87,6 +86,10 @@ def main(H, vis):
         ema = EMA(H.ema_beta)
         ema_sampler =  copy.deepcopy(sampler)
 
+    # initialise before loading so as not to overwrite loaded stats
+    losses = np.array([])
+    mean_losses = np.array([])
+    start_step = 0
     if H.load_step > 0:
         sampler =  load_model(sampler, H.sampler, H.load_step, H.load_dir).cuda()
         if H.ema:
@@ -94,20 +97,23 @@ def main(H, vis):
             try:
                 ema_sampler =  load_model(ema_sampler, f'{H.sampler}_ema', H.load_step, H.load_dir)
             except:
-                ema_sampler =  copy.deepcopy(sampler)
+                    ema_sampler =  copy.deepcopy(sampler)
         if H.load_optim:
             optim = load_model(optim, f'{H.sampler}_optim', H.load_step, H.load_dir)
             # only used when changing learning rates and reloading from checkpoint
             for param_group in optim.param_groups:
                 param_group['lr'] = H.lr         
 
-    losses = np.array([])
-    mean_losses = np.array([])
+        train_stats = load_stats(H, H.load_step)
+        losses, mean_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
+        start_step = H.load_step + 1
+
+
     scaler = torch.cuda.amp.GradScaler()
     latent_iterator = cycle(latent_loader)
 
-    start_step = H.load_step # defaults to 0 if not specified
     for step in range(start_step, H.train_steps):
+        step_start_time = time.time()
         # lr warmup
         if H.warmup_iters:
             if step <= H.warmup_iters:
@@ -141,13 +147,17 @@ def main(H, vis):
         losses = np.append(losses, stats['loss'].item())
 
         if step % H.steps_per_log == 0:
+            step_time_taken = time.time() - step_start_time
+            stats['step_time'] = step_time_taken
             mean_loss = np.mean(losses)
             stats['loss'] = mean_loss
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
+            print(mean_losses)
+            print(list(range(0, step+1, H.steps_per_log)))
             vis.line(
                 mean_losses, 
-                list(range(start_step, step+1, H.steps_per_log)),
+                list(range(0, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )
@@ -174,7 +184,12 @@ def main(H, vis):
                 save_model(optim, f'{H.sampler}_optim', step, H.log_dir)
             if H.sampler == 'ebm':
                 save_buffer(sampler.buffer, step, H.log_dir)
-
+            train_stats = {
+                'losses' : losses,
+                'mean_losses' : mean_losses,
+                'steps_per_log' : H.steps_per_log
+            }
+            save_stats(H, train_stats, step)
 
 if __name__=='__main__':
     H = get_sampler_hparams()

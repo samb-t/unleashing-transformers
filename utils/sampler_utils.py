@@ -18,6 +18,14 @@ def get_samples(H, generator, sampler):
     return images
 
 
+def unpack_sampler_stats(stats):
+    return (
+        stats['losses'],
+        stats['mean_losses'],
+        stats['steps_per_log']
+    )
+
+
 def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):
     min_encoding_indices = latent_ids.view(-1).unsqueeze(1)
     encodings = torch.zeros(

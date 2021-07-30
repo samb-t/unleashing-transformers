@@ -37,7 +37,7 @@ def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
     return vqgan, optim, d_optim, ema_vqgan, train_stats
 
 
-def unpack_stats(stats):
+def unpack_vqgan_stats(stats):
     return (
         stats['losses'],
         stats['mean_losses'],
