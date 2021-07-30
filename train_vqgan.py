@@ -2,10 +2,11 @@
 import torch
 import numpy as np
 import copy
+import deepspeed
+import time
 from models import VQGAN
 from hparams import get_vqgan_hparams
 from utils import *
-import deepspeed
 torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
@@ -70,9 +71,10 @@ def main(H, vis):
         start_step = H.load_step + 1 # don't repeat the checkpointed step
 
     steps_per_epoch = len(train_loader)
-    print('Epoch length:', steps_per_epoch)
+    log('Epoch length:', steps_per_epoch)
 
     for step in range(start_step, H.train_steps):
+        step_start_time = time.time()
         batch = next(train_iterator)
 
         if isinstance(batch, list):
@@ -123,11 +125,13 @@ def main(H, vis):
         if step % H.steps_per_log == 0:
             mean_loss = np.mean(losses)
             stats['loss'] = mean_loss
+            step_time = time.time() - step_start_time
+            stats['step_time'] = step_time
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
             vis.line(
                 mean_losses, 
-                list(range(start_step, step+1, H.steps_per_log)),
+                list(range(0, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )
@@ -137,24 +141,26 @@ def main(H, vis):
         # NOTE put in seperate function?
         if H.steps_per_eval:
             if step % H.steps_per_eval == 0 and step > 0:
-                with torch.no_grad():
-                    # CALC FIDs
-                    fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
-                    fids = np.append(fids, fid)
-                    log(f'FID: {fid}')
-                    if fid < best_fid:
-                        save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
+                log('Evaluating FIDs and validation loss:')
+                vqgan.eval()
+                # CalcFIDs
+                fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
+                fids = np.append(fids, fid)
+                log(f'FID: {fid}')
+                if fid < best_fid:
+                    save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
 
-                    # Calc validation losses
-                    x_val = next(val_iterator)
-                    if H.deepspeed:
-                        x_val = x_val.half()
-                    _, stats = vqgan.train_iter(x, step)
-                    val_losses = np.append(val_losses, stats['loss'].item())
-                    steps = [step for step in range(start_step, step+1, H.steps_per_eval)]
-                    vis.line(fids, steps, win='FID',opts=dict(title='FID'))
-                    vis.line(val_losses, steps, win='val', opts=dict(title='Validation Loss'))
-
+                # Calc validation losses
+                x_val = next(val_iterator)
+                if H.deepspeed:
+                    x_val = x_val.half()
+                _, stats = vqgan.train_iter(x, step)
+                val_losses = np.append(val_losses, stats['loss'].item())
+                steps = [step for step in range(H.steps_per_eval, step+1, H.steps_per_eval)]
+                vis.line(fids, steps, win='FID',opts=dict(title='FID'))
+                vis.line(val_losses, steps, win='val', opts=dict(title='Validation Loss'))
+                
+                vqgan.train()
 
         # log codebook usage
         if step % steps_per_epoch == 0 and step > 0: 

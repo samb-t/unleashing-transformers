@@ -9,7 +9,11 @@ import visdom
 def config_log(log_dir, filename='log.txt'):
     log_dir = 'logs/' + log_dir
     os.makedirs(log_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(log_dir, filename), level=logging.INFO)
+    logging.basicConfig(
+        filename=os.path.join(log_dir, filename), 
+        level=logging.INFO,
+        format='%(message)s'
+    )
 
 
 def log(output):
@@ -87,13 +91,14 @@ def save_latents(latents, dataset, size):
 
 
 def save_stats(H, stats, step):
-    save_path = f'logs/{H.log_dir}/stats_{step}'
-    os.makedirs(save_path, exist_ok=True)
+    save_dir = f'logs/{H.log_dir}/saved_stats'
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = f'logs/{H.log_dir}/saved_stats/stats_{step}'
     torch.save(stats, save_path)
 
 
 def load_stats(H, step):
-    load_path = f'logs/{H.log_dir}/stats_{step}'
+    load_path = f'logs/{H.log_dir}/saved_stats/stats_{step}'
     stats = torch.load(load_path)
     return stats
 
