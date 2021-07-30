@@ -17,7 +17,7 @@ class TensorDataset(torch.utils.data.Dataset):
 def load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
     vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
     if H.load_optim:
-            optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
+            optim = load_model(optim, 'ae_optim', H.load_step, H.load_dir)
             d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.load_dir)
 
     if H.ema:
@@ -89,5 +89,6 @@ def collect_ims_and_recons(H, model):
 
 
 def convert_to_RGB(image_estimate):
-    images = torch.round((image_estimate * 255)).to(torch.uint8).clamp(0,255)
+    # images = torch.round((image_estimate * 255)).to(torch.uint8).clamp(0,255)
+    images = (image_estimate * 255).clamp(0,255).to(torch.uint8)
     return images

@@ -69,9 +69,9 @@ def main(H, vis):
         start_step = H.load_step + 1 # don't repeat the checkpointed step
         vqgan, optim, d_optim, ema_vqgan, train_stats = load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
 
-        fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
-        fids = np.append(fids, fid)
-        log(f'FID: {fid}')
+        # fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
+        # fids = np.append(fids, fid)
+        # log(f'FID: {fid}')
 
 
         # stats won't load for old models with no associated stats file
