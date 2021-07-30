@@ -91,6 +91,8 @@ def main(H, vis):
     mean_losses = np.array([])
     start_step = 0
     if H.load_step > 0:
+        start_step = H.load_step + 1
+
         sampler =  load_model(sampler, H.sampler, H.load_step, H.load_dir).cuda()
         if H.ema:
             # if EMA has not been generated previously, recopy newly loaded model
@@ -104,10 +106,17 @@ def main(H, vis):
             for param_group in optim.param_groups:
                 param_group['lr'] = H.lr         
 
-        train_stats = load_stats(H, H.load_step)
-        losses, mean_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
-        start_step = H.load_step + 1
+        try:
+            train_stats = load_stats(H, H.load_step)
+        except:
+            train_stats = None
 
+        if train_stats is not None:
+            losses, mean_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
+            log_start_step = 0
+        else:
+            log('No stats file found for loaded model, displaying stats from load step only.')
+            log_start_step = start_step
 
     scaler = torch.cuda.amp.GradScaler()
     latent_iterator = cycle(latent_loader)
@@ -153,11 +162,9 @@ def main(H, vis):
             stats['loss'] = mean_loss
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
-            print(mean_losses)
-            print(list(range(0, step+1, H.steps_per_log)))
             vis.line(
                 mean_losses, 
-                list(range(0, step+1, H.steps_per_log)),
+                list(range(log_start_step, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )

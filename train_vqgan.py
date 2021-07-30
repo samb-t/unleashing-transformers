@@ -74,6 +74,7 @@ def main(H, vis):
             log_start_step = 0
             eval_start_step = H.steps_per_eval
         else:
+            log('No stats found for model, displaying stats from load step instead')
             log_start_step = start_step
             if H.steps_per_eval:
                 eval_start_step = start_step + H.steps_per_eval - start_step % H.steps_per_eval

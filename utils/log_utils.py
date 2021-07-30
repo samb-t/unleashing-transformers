@@ -99,7 +99,7 @@ def save_stats(H, stats, step):
 
 
 def load_stats(H, step):
-    load_path = f'logs/{H.log_dir}/saved_stats/stats_{step}'
+    load_path = f'logs/{H.load_dir}/saved_stats/stats_{step}'
     stats = torch.load(load_path)
     return stats
 
