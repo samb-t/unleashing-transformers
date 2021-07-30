@@ -65,13 +65,21 @@ def main(H, vis):
     best_fid = float('inf')
 
     start_step = 0
-    if H.load_step > 0: #TODO add loading for stats
-        vqgan, optim, d_optim, ema_vqgan, train_stats = load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
-        losses, mean_losses, val_losses, latent_ids, fids, best_fid, H.steps_per_log, H.steps_per_eval = unpack_stats(train_stats)
+    if H.load_step > 0:
         start_step = H.load_step + 1 # don't repeat the checkpointed step
+        vqgan, optim, d_optim, ema_vqgan, train_stats = load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
+        # stats won't load for old models with no associated stats file
+        if train_stats is not None: 
+            losses, mean_losses, val_losses, latent_ids, fids, best_fid, H.steps_per_log, H.steps_per_eval = unpack_vqgan_stats(train_stats)
+            log_start_step = 0
+            eval_start_step = H.steps_per_eval
+        else:
+            log_start_step = start_step
+            if H.steps_per_eval:
+                eval_start_step = start_step + H.steps_per_eval - start_step % H.steps_per_eval
 
     steps_per_epoch = len(train_loader)
-    log('Epoch length:', steps_per_epoch)
+    log(f'Epoch length: {steps_per_epoch}')
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()
@@ -131,7 +139,7 @@ def main(H, vis):
             losses = np.array([])
             vis.line(
                 mean_losses, 
-                list(range(0, step+1, H.steps_per_log)),
+                list(range(log_start_step, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )
@@ -143,7 +151,7 @@ def main(H, vis):
             if step % H.steps_per_eval == 0 and step > 0:
                 log('Evaluating FIDs and validation loss:')
                 vqgan.eval()
-                # CalcFIDs
+                # Calc FIDs
                 fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
                 fids = np.append(fids, fid)
                 log(f'FID: {fid}')
@@ -156,7 +164,8 @@ def main(H, vis):
                     x_val = x_val.half()
                 _, stats = vqgan.train_iter(x, step)
                 val_losses = np.append(val_losses, stats['loss'].item())
-                steps = [step for step in range(H.steps_per_eval, step+1, H.steps_per_eval)]
+
+                steps = [step for step in range(eval_start_step, step+1, H.steps_per_eval)]
                 vis.line(fids, steps, win='FID',opts=dict(title='FID'))
                 vis.line(val_losses, steps, win='val', opts=dict(title='Validation Loss'))
                 

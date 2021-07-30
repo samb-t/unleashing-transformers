@@ -32,8 +32,11 @@ def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
             # if no ema model found to load, start a new one from load step
             ema_vqgan = copy.deepcopy(vqgan)
 
-    train_stats = load_stats(H, H.load_step)
-
+    # return no if no associated saved stats
+    try:
+        train_stats = load_stats(H, H.load_step)
+    except:
+        train_stats = None
     return vqgan, optim, d_optim, ema_vqgan, train_stats
 
 
