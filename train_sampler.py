@@ -162,9 +162,9 @@ def main(H, vis):
             display_images(vis, images, H, win_name=f'{H.sampler}_samples')
 
         if step % H.steps_per_save_output == 0 and step > 0:
-            if not images:
+            if images == None:
                 images = get_samples(H, generator, ema_sampler if H.ema else sampler)
-            save_images(images, 'samples', step, H.log_dir, H.save_individuallyH)
+            save_images(images, 'samples', step, H.log_dir, H.save_individually)
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)

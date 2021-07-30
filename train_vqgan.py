@@ -10,22 +10,32 @@ torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
-    data_loader = get_data_loader(
+    train_loader = get_data_loader(
         H.dataset,
         H.img_size,
         H.batch_size,
+        train=True,
         shuffle=True
     )
+    train_iterator = cycle(train_loader)
+
+    if H.steps_per_eval:
+        val_loader = get_data_loader(
+            H.dataset,
+            H.img_size,
+            H.batch_size,
+            train=False,
+            shuffle=True
+        )
+        val_iterator = cycle(val_loader)
+
 
     if H.ema:
         ema = EMA(H.ema_beta)
         ema_vqgan = copy.deepcopy(vqgan)
     else:
         ema_vqgan = None
-    data_iterator = cycle(data_loader)
     
-    # load vqgan (training stage 1)
-    latent_ids = []
     if H.deepspeed:
         model_engine, optim, _, _ = deepspeed.initialize(
                                         args=H,
@@ -45,20 +55,25 @@ def main(H, vis):
         scaler = torch.cuda.amp.GradScaler()
         d_scaler = torch.cuda.amp.GradScaler()
 
-    if H.load_step > 0:
-        vqgan, optim, d_optim, ema_vqgan = load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
 
     losses = np.array([])
     mean_losses = np.array([])
-    fids = []
+    val_losses = np.array([])
+    latent_ids = []
+    fids = np.array([])
     best_fid = float('inf')
 
-    steps_per_epoch = len(data_loader)
+    start_step = 0
+    if H.load_step > 0: #TODO add loading for stats
+        vqgan, optim, d_optim, ema_vqgan, train_stats = load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan)
+        losses, mean_losses, val_losses, latent_ids, fids, best_fid, H.steps_per_log, H.steps_per_eval = unpack_stats(train_stats)
+        start_step = H.load_step + 1 # don't repeat the checkpointed step
+
+    steps_per_epoch = len(train_loader)
     print('Epoch length:', steps_per_epoch)
 
-    start_step = H.load_step # default 0
     for step in range(start_step, H.train_steps):
-        batch = next(data_iterator)
+        batch = next(train_iterator)
 
         if isinstance(batch, list):
             x = batch[0]
@@ -118,13 +133,28 @@ def main(H, vis):
             )
             log_stats(step, stats)         
 
-        if (step % H.steps_per_calc_fid == 0) and step > 0:
-            fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
-            fids.append(fid)
-            log(f'FID: {fid}')
-            vis.line(fids, win='FID',opts=dict(title='FID'))
-            if fid < best_fid:
-                save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
+        # bundled validation loss and FID calculations together
+        # NOTE put in seperate function?
+        if H.steps_per_eval:
+            if step % H.steps_per_eval == 0 and step > 0:
+                with torch.no_grad():
+                    # CALC FIDs
+                    fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
+                    fids = np.append(fids, fid)
+                    log(f'FID: {fid}')
+                    if fid < best_fid:
+                        save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
+
+                    # Calc validation losses
+                    x_val = next(val_iterator)
+                    if H.deepspeed:
+                        x_val = x_val.half()
+                    _, stats = vqgan.train_iter(x, step)
+                    val_losses = np.append(val_losses, stats['loss'].item())
+                    steps = [step for step in range(start_step, step+1, H.steps_per_eval)]
+                    vis.line(fids, steps, win='FID',opts=dict(title='FID'))
+                    vis.line(val_losses, steps, win='val', opts=dict(title='Validation Loss'))
+
 
         # log codebook usage
         if step % steps_per_epoch == 0 and step > 0: 
@@ -151,6 +181,18 @@ def main(H, vis):
             if H.ema:
                 save_model(ema_vqgan, 'vqgan_ema', step, H.log_dir)
 
+            train_stats = {
+                'losses' : losses,
+                'mean_losses' : mean_losses,
+                'val_losses' : val_losses,
+                'latent_ids' : latent_ids,
+                'fids' : fids,
+                'best_fid' : best_fid,
+                'steps_per_log' : H.steps_per_log,
+                'steps_per_eval' : H.steps_per_eval,
+            }
+
+            save_stats(H, train_stats, step)
 
 if __name__=='__main__':
     H = get_vqgan_hparams()

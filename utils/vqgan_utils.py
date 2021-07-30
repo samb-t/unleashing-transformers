@@ -3,7 +3,7 @@ import torch
 import torch_fidelity
 from tqdm import tqdm
 from .data_utils import get_data_loader
-from .log_utils import load_model
+from .log_utils import load_model, load_stats
 
 class TensorDataset(torch.utils.data.Dataset):
     def __init__(self, tensor):
@@ -16,6 +16,10 @@ class TensorDataset(torch.utils.data.Dataset):
 
 def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
     vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
+    if H.load_optim:
+            optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
+            d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.load_dir)
+
     if H.ema:
         try:
             ema_vqgan = load_model(
@@ -27,11 +31,23 @@ def load_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
         except:
             # if no ema model found to load, start a new one from load step
             ema_vqgan = copy.deepcopy(vqgan)
-    if H.load_optim:
-            optim = load_model(optim, f'ae_optim', H.load_step, H.load_dir)
-            d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.load_dir)
 
-    return vqgan, optim, d_optim, ema_vqgan
+    train_stats = load_stats(H, H.load_step)
+
+    return vqgan, optim, d_optim, ema_vqgan, train_stats
+
+
+def unpack_stats(stats):
+    return (
+        stats['losses'],
+        stats['mean_losses'],
+        stats['val_losses'],
+        stats['latent_ids'],
+        stats['fids'],
+        stats['best_fid'],
+        stats['steps_per_log'],
+        stats['steps_per_eval']
+    )
 
 
 def calc_FID(H, model):

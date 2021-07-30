@@ -31,18 +31,18 @@ def start_training_log(hparams):
         log(f'> {param}: {hparams[param]}')
 
 
-def save_model(model, model_save_name, suffix, log_dir):
+def save_model(model, model_save_name, step, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
     os.makedirs(log_dir, exist_ok=True)
-    model_name = f'{model_save_name}_{suffix}.th'
-    log(f'Saving {model_save_name} to {model_save_name}_{str(suffix)}.th')
+    model_name = f'{model_save_name}_{step}.th'
+    log(f'Saving {model_save_name} to {model_save_name}_{str(step)}.th')
     torch.save(model.state_dict(), os.path.join(log_dir, model_name))
 
 
-def load_model(model, model_load_name, suffix, log_dir):
+def load_model(model, model_load_name, step, log_dir):
     log_dir = 'logs/' + log_dir + '/saved_models'
-    model.load_state_dict(torch.load(os.path.join(log_dir, f'{model_load_name}_{suffix}.th')))
-    log(f'Loading {model_load_name}_{str(suffix)}.th')
+    model.load_state_dict(torch.load(os.path.join(log_dir, f'{model_load_name}_{step}.th')))
+    log(f'Loading {model_load_name}_{str(step)}.th')
     return model
 
 
@@ -84,6 +84,18 @@ def save_latents(latents, dataset, size):
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
     torch.save(latents, f'latents/{dataset}_{size}_latents')
+
+
+def save_stats(H, stats, step):
+    save_path = f'logs/{H.log_dir}/stats_{step}'
+    os.makedirs(save_path, exist_ok=True)
+    torch.save(stats, save_path)
+
+
+def load_stats(H, step):
+    load_path = f'logs/{H.log_dir}/stats_{step}'
+    stats = torch.load(load_path)
+    return stats
 
 
 def setup_visdom(H):
