@@ -131,7 +131,7 @@ def main(H, vis):
             elif H.amp:
                 d_optim.zero_grad()
                 d_scaler.scale(stats['d_loss']).backward()
-                d_scaler.step()
+                d_scaler.step(d_optim)
                 d_scaler.update()
             else:
                 d_optim.zero_grad()
