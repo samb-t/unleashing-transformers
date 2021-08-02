@@ -58,6 +58,10 @@ class HparamsAbsorbing(HparamsBase):
 class HparamsAutoregressive(HparamsBase):
     def __init__(self, dataset):
         super().__init__(dataset)
+        self.attn_pdrop = 0.
+        self.embd_pdrop = 0.
+        self.resid_pdrop = 0.
+        
         if self.dataset == 'mnist':
             self.batch_size = 32
             self.bert_n_emb = 512
@@ -68,12 +72,12 @@ class HparamsAutoregressive(HparamsBase):
             self.sample_block_size = 1
 
         elif self.dataset == 'cifar10':
-            self.batch_size = 32
-            self.bert_n_emb = 512
-            self.bert_n_head = 8
-            self.bert_n_layers = 16
-            self.block_size = 512
-            self.lr = 1e-4
+            self.batch_size = 64
+            self.bert_n_emb = 256
+            self.bert_n_head = 16
+            self.bert_n_layers = 24
+            self.block_size = 64
+            self.lr = 5e-4
             self.sample_block_size = 1
 
         elif self.dataset == 'flowers':

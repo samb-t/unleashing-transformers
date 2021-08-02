@@ -6,3 +6,4 @@ from .unet import SegmentationUnet
 from .transformer import Transformer
 from .absorbing_diffusion import AbsorbingDiffusion
 from .diffaug import DiffAugment
+from .autoregressive import AutoregressiveTransformer

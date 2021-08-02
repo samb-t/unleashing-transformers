@@ -33,7 +33,7 @@ class HparamsVQGAN(HparamsBase):
             self.attn_resolutions = [8]
             self.batch_size = 128
             self.ch_mult = [1,1,2]
-            self.codebook_size = 128
+            self.codebook_size = 1024
             self.disc_layers = 1
             self.disc_weight_max = 1
             self.disc_start_step = 30001

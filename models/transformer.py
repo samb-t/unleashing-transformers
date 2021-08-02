@@ -28,8 +28,13 @@ class CausalSelfAttention(nn.Module):
         # output projection
         self.proj = nn.Linear(H.bert_n_emb, H.bert_n_emb)
         self.n_head = H.bert_n_head
-
-        self.causal = H.transformer_causal
+        
+        self.causal = H.sampler == 'autoregressive'
+        if self.causal:
+            block_size = np.prod(H.latent_shape)
+            mask = torch.tril(torch.ones(block_size,
+                                         block_size))
+            self.register_buffer("mask", mask.view(1, 1, block_size, block_size))
 
     def forward(self, x, layer_past=None):
         B, T, C = x.size()
@@ -102,11 +107,15 @@ class Transformer(nn.Module):
         self.block_size = H.block_size
         self.n_layers = H.bert_n_layers
         self.codebook_size = H.codebook_size
+        self.causal = H.sampler == 'autoregressive'
+        if self.causal:
+            self.vocab_size = H.codebook_size
 
         self.tok_emb = nn.Embedding(self.vocab_size, self.n_embd)
         # self.time_emb = nn.Embedding(H.diffusion_steps+1, self.n_embd)
         self.pos_emb = nn.Parameter(
             torch.zeros(1, self.block_size, self.n_embd))
+        self.start_tok = nn.Parameter(torch.zeros(1, 1, self.n_embd))
         self.drop = nn.Dropout(H.embd_pdrop)
         # self.merge_time_tok = nn.Linear(self.n_embd*2, self.n_embd)
 
@@ -115,7 +124,10 @@ class Transformer(nn.Module):
         # decoder head
         self.ln_f = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.codebook_size, bias=False)
-        self.apply(self._init_weights)
+
+        # BUG: This breaks the autoregressive transformer. Is it bad for diffusion too?
+        if not self.causal:
+            self.apply(self._init_weights)
 
     def get_block_size(self):
         return self.block_size
@@ -129,12 +141,12 @@ class Transformer(nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
-    def forward(self, time, idx):
-        # TODO: Add time embedding for diffusions? Might help
-        # forward the GPT model
+    def forward(self, idx, t=None):
         # each index maps to a (learnable) vector
         token_embeddings = self.tok_emb(idx)
-        # time_embeddings = self.time_emb(time).unsqueeze(1).repeat(1,token_embeddings.size(1),1)
+
+        if self.causal:
+            token_embeddings = torch.cat((self.start_tok.repeat(token_embeddings.size(0),1,1), token_embeddings), dim=1)
 
         t = token_embeddings.shape[1]
         assert t <= self.block_size, "Cannot forward, model block size is exhausted."
@@ -151,27 +163,3 @@ class Transformer(nn.Module):
         logits = self.head(x)
 
         return logits
-
-    def forward_autoregressive_sample(self, idx, past=None, past_length=None):
-
-        assert not self.training
-        token_embeddings = self.tok_emb(idx)    # each index maps to a (learnable) vector
-
-        if past is not None:
-            assert past_length is not None
-            past = torch.cat(past, dim=-2)   # n_layer, 2, b, nh, len_past, dim_head
-            position_embeddings = self.pos_emb[:, past_length, :]  # each position maps to a (learnable) vector
-        else:
-            position_embeddings = self.pos_emb[:, :token_embeddings.shape[1], :]
-
-        x = self.drop(token_embeddings + position_embeddings)
-        presents = []  # accumulate over layers
-        for i, block in enumerate(self.blocks):
-            x, present = block(x, layer_past=past[i, ...] if past is not None else None, return_present=True)
-            presents.append(present)
-
-        x = self.ln_f(x)
-        logits = self.head(x)
-
-
-        return logits, torch.stack(presents)

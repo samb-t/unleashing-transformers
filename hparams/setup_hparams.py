@@ -88,6 +88,8 @@ def get_sampler_hparams():
         H_sampler = HparamsAbsorbing(dataset)
     elif parser_args.sampler  == 'bert':
         H_sampler = HparamsAutoregressive(dataset)
+    elif parser_args.sampler == 'autoregressive':
+        H_sampler = HparamsAutoregressive(dataset)
     else:
         # other models go here
         ... 

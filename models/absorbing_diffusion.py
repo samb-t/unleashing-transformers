@@ -59,7 +59,7 @@ class AbsorbingDiffusion(Sampler):
         t, pt = self.sample_time(b, device, 'importance')
 
         x_t, x_0_ignore = self.q_sample(x_0=x_0, t=t)
-        x_0_hat_logits = self._denoise_fn(t, x_t).permute(0,2,1)
+        x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
 
         # ELBO: weighted by 1/t as on average there should be t masked tokens
         vb_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) / t
@@ -86,7 +86,7 @@ class AbsorbingDiffusion(Sampler):
             print(f'Sample timestep {t:4d}', end='\r')
             t = torch.full((b,), t, device=device, dtype=torch.long)
             x_t, _ = self.q_sample(x_0, t)
-            x_0_logits = self._denoise_fn(t, x_t)
+            x_0_logits = self._denoise_fn(x_t, t=t)
             x_0_dist = dists.Categorical(
                 logits=x_0_logits)
             x_0_hat = x_0_dist.sample().long()

@@ -7,7 +7,7 @@ import time
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
-    AbsorbingDiffusion, Transformer
+    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
 from hparams import get_sampler_hparams
 from utils import *
 
@@ -40,6 +40,9 @@ def get_sampler(H, embedding_weight, latent_loader):
                 buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
             buffer = torch.cat(buffer, dim=0)
         sampler = EBM(H, embedding_weight, buffer)
+    
+    elif H.sampler == 'autoregressive':
+        sampler = AutoregressiveTransformer(H, embedding_weight)
 
     return sampler
 
