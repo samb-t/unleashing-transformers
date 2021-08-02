@@ -194,6 +194,8 @@ def main(H, vis):
 
         if step % H.steps_per_display_output == 0 and step > 0:
             display_images(vis, x, H, 'Original Images')
+            if H.ema:
+                x_hat, _ = ema_vqgan.train_iter(x, step)
             display_images(vis, x_hat, H, 'VQGAN Recons')
         
         if step % H.steps_per_save_output == 0:

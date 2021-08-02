@@ -29,7 +29,9 @@ class CausalSelfAttention(nn.Module):
         self.proj = nn.Linear(H.bert_n_emb, H.bert_n_emb)
         self.n_head = H.bert_n_head
 
-    def forward(self, x):
+        self.causal = H.transformer_causal
+
+    def forward(self, x, layer_past=None):
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -40,8 +42,18 @@ class CausalSelfAttention(nn.Module):
         v = self.value(x).view(B, T, self.n_head, C //
                                self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
+        present = torch.stack((k, v))
+        if self.causal and layer_past is not None:
+            past_key, past_value = layer_past
+            k = torch.cat((past_key, k), dim=-2)
+            v = torch.cat((past_value, v), dim=-2)
+
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+
+        if self.causal and layer_past is None:
+            att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
+
         att = F.softmax(att, dim=-1)
         att = self.attn_drop(att)
         y = att @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
@@ -50,7 +62,8 @@ class CausalSelfAttention(nn.Module):
 
         # output projection
         y = self.resid_drop(self.proj(y))
-        return y
+        return y, present
+
 
 class Block(nn.Module):
     """ an unassuming Transformer block """
@@ -67,17 +80,23 @@ class Block(nn.Module):
             nn.Dropout(H.resid_pdrop),
         )
 
-    def forward(self, x):
-        x = x + self.attn(self.ln1(x))
+    def forward(self, x, layer_past=None, return_present=False):
+
+        attn, present = self.attn(self.ln1(x), layer_past)
+        x = x + attn
         x = x + self.mlp(self.ln2(x))
+
+        if layer_past is not None or return_present:
+            return x, present
         return x
+
 
 class Transformer(nn.Module):
     """  the full GPT language model, with a context size of block_size """
 
     def __init__(self, H):
         super().__init__()
-        
+
         self.vocab_size = H.codebook_size + 1
         self.n_embd = H.bert_n_emb
         self.block_size = H.block_size
@@ -90,7 +109,7 @@ class Transformer(nn.Module):
             torch.zeros(1, self.block_size, self.n_embd))
         self.drop = nn.Dropout(H.embd_pdrop)
         # self.merge_time_tok = nn.Linear(self.n_embd*2, self.n_embd)
-        
+
         # transformer
         self.blocks = nn.Sequential(*[Block(H) for _ in range(self.n_layers)])
         # decoder head
@@ -120,9 +139,9 @@ class Transformer(nn.Module):
         t = token_embeddings.shape[1]
         assert t <= self.block_size, "Cannot forward, model block size is exhausted."
         # each position maps to a (learnable) vector
-        
+
         position_embeddings = self.pos_emb[:, :t, :]
-                
+
         x = token_embeddings + position_embeddings
         # x = torch.cat((x, time_embeddings), dim=-1)
         x = self.drop(x)
@@ -130,5 +149,29 @@ class Transformer(nn.Module):
         x = self.blocks(x)
         x = self.ln_f(x)
         logits = self.head(x)
-        
+
         return logits
+
+    def forward_autoregressive_sample(self, idx, past=None, past_length=None):
+
+        assert not self.training
+        token_embeddings = self.tok_emb(idx)    # each index maps to a (learnable) vector
+
+        if past is not None:
+            assert past_length is not None
+            past = torch.cat(past, dim=-2)   # n_layer, 2, b, nh, len_past, dim_head
+            position_embeddings = self.pos_emb[:, past_length, :]  # each position maps to a (learnable) vector
+        else:
+            position_embeddings = self.pos_emb[:, :token_embeddings.shape[1], :]
+
+        x = self.drop(token_embeddings + position_embeddings)
+        presents = []  # accumulate over layers
+        for i, block in enumerate(self.blocks):
+            x, present = block(x, layer_past=past[i, ...] if past is not None else None, return_present=True)
+            presents.append(present)
+
+        x = self.ln_f(x)
+        logits = self.head(x)
+
+
+        return logits, torch.stack(presents)
