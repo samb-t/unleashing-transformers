@@ -128,17 +128,18 @@ class SegmentationUnet(nn.Module):
     def __init__(self, H):
         super().__init__()
         self.dim = H.unet_dim
-        self.num_classes = H.codebook_size
+        self.num_classes = H.codebook_size+1
         self.embedding = nn.Embedding(self.num_classes, self.dim)
         self.dim_mults = tuple(H.unet_dim_mults)
         self.groups = H.groups
         dims = [self.dim, *map(lambda m: self.dim * m, self.dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
+        self.latent_shape = H.latent_shape
 
 
         self.dropout = nn.Dropout(p=H.dropout)
 
-        self.time_pos_emb = SinusoidalPosEmb(self.dim, num_steps=H.diffusion_steps)
+        self.time_pos_emb = SinusoidalPosEmb(self.dim, num_steps=H.diffusion_steps+1)
         self.mlp = nn.Sequential(
             nn.Linear(self.dim, self.dim * 4),
             Mish(),
@@ -181,7 +182,8 @@ class SegmentationUnet(nn.Module):
             nn.Conv2d(self.dim, out_dim, 1)
         )
 
-    def forward(self, time, x):
+    def forward(self, x, t=None):
+        x = x.reshape(x.size(0), *self.latent_shape)
         x_shape = x.size()[1:]
         if len(x.size()) == 3:
             x = x.unsqueeze(1)
@@ -191,7 +193,7 @@ class SegmentationUnet(nn.Module):
 
         x = x.permute(0, 1, 3, 2, 4)
         x = x.reshape(B, C * self.dim, H, W)
-        t = self.time_pos_emb(time)
+        t = self.time_pos_emb(t)
         t = self.mlp(t)
 
         h = []
