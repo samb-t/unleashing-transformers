@@ -121,6 +121,7 @@ def main(H, vis):
             stats['loss'].backward()
             optim.step()
 
+
         losses = np.append(losses, stats['loss'].item())
 
         if step > H.disc_start_step:
@@ -194,8 +195,9 @@ def main(H, vis):
 
         if step % H.steps_per_display_output == 0 and step > 0:
             display_images(vis, x, H, 'Original Images')
-            if H.ema:
-                x_hat, _ = ema_vqgan.train_iter(x, step)
+            # if H.ema:
+            #     x_hat, _ = ema_vqgan.train_iter(x, step)
+            x_hat = x_hat.detach().cpu().to(torch.float32)
             display_images(vis, x_hat, H, 'VQGAN Recons')
         
         if step % H.steps_per_save_output == 0:
