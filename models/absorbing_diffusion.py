@@ -3,8 +3,8 @@ import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
 import math
+import random
 from .sampler import Sampler
-import copy
 
 
 class AbsorbingDiffusion(Sampler):
@@ -19,11 +19,13 @@ class AbsorbingDiffusion(Sampler):
         self._denoise_fn = denoise_fn
         self.n_samples = H.batch_size
         self.loss_type = H.loss_type
-
+        self.mask_schedule = H.mask_schedule
         self.aux_weight = aux_weight
         self.register_buffer('Lt_history', torch.zeros(self.num_timesteps+1))
         self.register_buffer('Lt_count', torch.zeros(self.num_timesteps+1))
         self.register_buffer('loss_history', torch.zeros(self.num_timesteps+1))
+
+        assert self.mask_schedule in ['random', 'fixed']
     
     def sample_time(self, b, device, method='uniform'):
         if method == 'importance':
@@ -52,15 +54,34 @@ class AbsorbingDiffusion(Sampler):
     def q_sample(self, x_0, t):
         # randomly set token to mask with probability t/T
         x_t, x_0_ignore = x_0.clone(), x_0.clone()
+
         mask = torch.rand_like(x_t.float()) < (t.float().unsqueeze(-1) / self.num_timesteps)
         x_t[mask] = self.mask_id
         x_0_ignore[torch.bitwise_not(mask)] = -1
         return x_t, x_0_ignore, mask
     
     def q_sample_mlm(self, x_0, t):
-        # mask exactly k tokens.
-        pass
-    
+        # testing fixed noise schedule
+        x_t, x_0_ignore = x_0.clone(), x_0.clone()
+
+        mask = torch.zeros_like(x_t)
+
+        n_masked_tokens = (t.float() / self.num_timesteps) * x_t.size(1)
+        n_masked_tokens = torch.round(n_masked_tokens).to(torch.int64)
+
+        for idx, mask_batch in enumerate(mask):
+            n_tokens_to_mask = n_masked_tokens[idx]
+            
+            while n_tokens_to_mask > 0:
+                rand_index = random.randint(0, len(mask_batch) -1)
+                if mask_batch[rand_index] != 1:
+                    mask_batch[rand_index] = 1
+                    n_tokens_to_mask -= 1
+        
+        x_t[mask] = self.mask_id
+        x_0_ignore[torch.bitwise_not(mask)] = -1
+        return x_t, x_0_ignore, mask
+
     def _train_loss(self, x_0):
         b, device = x_0.size(0), x_0.device
 
@@ -68,7 +89,13 @@ class AbsorbingDiffusion(Sampler):
         t, pt = self.sample_time(b, device, 'uniform')
 
         # make x noisy and denoise
-        x_t, x_0_ignore, mask = self.q_sample(x_0=x_0, t=t)
+
+        if self.mask_schedule == 'random':
+            x_t, x_0_ignore, mask = self.q_sample(x_0=x_0, t=t)
+        elif self.mask_schedule == 'fixed':
+            x_t, x_0_ignore, mask = self.q_sample_mlm(x_0=x_0, t=t)
+
+            
         x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
 
         # Always compute ELBO for comparison purposes

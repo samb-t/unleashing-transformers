@@ -161,6 +161,7 @@ def add_diffusion_args(parser):
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
     parser.add_argument('--loss_type', type=str)
+    parser.add_argument('--mask_schedule', type=str, default='random')
 
 
 def add_ebm_args(parser):
