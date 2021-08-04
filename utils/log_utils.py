@@ -84,10 +84,15 @@ def save_latents(latents, dataset, size):
     torch.save(latents, f'latents/{dataset}_{size}_latents')
 
 
-def save_latents(latents, dataset, size):
+def save_latents(H, train_latent_ids, val_latent_ids):
+
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
-    torch.save(latents, f'latents/{dataset}_{size}_latents')
+    train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
+    val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
+    
+    torch.save(train_latent_ids, train_latents_fp)
+    torch.save(val_latent_ids, val_latents_fp)
 
 
 def save_stats(H, stats, step):

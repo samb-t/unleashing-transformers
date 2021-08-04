@@ -22,6 +22,7 @@ def unpack_sampler_stats(stats):
     return (
         stats['losses'],
         stats['mean_losses'],
+        stats['val_losses'],
         stats['steps_per_log']
     )
 
@@ -70,7 +71,14 @@ def get_init_mean(H, latent_loader):
 
 
 @torch.no_grad()
-def generate_latent_ids(H, ae, dataloader):
+def generate_latent_ids(H, ae, train_loader, val_loader):
+
+    train_latent_ids = generate_latents_from_loader(H, ae, train_loader)
+    val_latent_ids = generate_latents_from_loader(H, ae, val_loader)
+
+    save_latents(H, train_latent_ids, val_latent_ids)
+
+def generate_latents_from_loader(H, ae, dataloader):
     latent_ids = []
     for x, _ in tqdm(dataloader):
         x = x.cuda()
@@ -87,16 +95,21 @@ def generate_latent_ids(H, ae, dataloader):
         min_encoding_indices = torch.argmin(d, dim=1)
 
         latent_ids.append(min_encoding_indices.reshape(x.shape[0], -1).cpu().contiguous())
-
-    latent_ids_out = torch.cat(latent_ids, dim=0)
-    save_latents(latent_ids_out, H.dataset, H.latent_shape[-1])
-
+    
+    return torch.cat(latent_ids, dim=0)
 
 @torch.no_grad()
-def get_latent_loader(H, latents_filepath):
-    latent_ids = torch.load(latents_filepath)
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=True)    
-    return latent_loader
+def get_latent_loaders(H, shuffle=True):
+    train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
+    val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
+    
+    train_latent_ids = torch.load(train_latents_fp)
+    val_latent_ids = torch.load(val_latents_fp)
+    
+    train_latent_loader = torch.utils.data.DataLoader(train_latent_ids, batch_size=H.batch_size, shuffle=shuffle)    
+    val_latent_loader = torch.utils.data.DataLoader(val_latent_ids, batch_size=H.batch_size, shuffle=shuffle)
+
+    return train_latent_loader, val_latent_loader
 
 
 def retrieve_autoencoder_components_state_dicts(H, components_list, remove_component_from_key=False):

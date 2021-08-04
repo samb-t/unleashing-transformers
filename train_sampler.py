@@ -13,7 +13,7 @@ from utils import *
 
 torch.backends.cudnn.benchmark = True
 
-def get_sampler(H, embedding_weight, latent_loader):
+def get_sampler(H, embedding_weight):
 
     if H.sampler == 'absorbing':
         denoise_fn = Transformer(H).cuda()
@@ -28,18 +28,19 @@ def get_sampler(H, embedding_weight, latent_loader):
         sampler =  MultinomialDiffusion(H, embedding_weight, denoise_fn)
 
     elif H.sampler == 'ebm':
-        # UNTESTED - need to fix EBM training first!
-        init_mean = get_init_mean(H, latent_loader)
-        init_dist = MyOneHotCategorical(init_mean)
-        # TODO put buffer loading in seperate function
-        if H.load_step > 0:
-            buffer = load_buffer(H.load_step, H.log_dir)
-        else:
-            buffer = []
-            for _ in range(int(H.buffer_size / 100)):
-                buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
-            buffer = torch.cat(buffer, dim=0)
-        sampler = EBM(H, embedding_weight, buffer)
+        # # UNTESTED - need to fix EBM training first!
+        # init_mean = get_init_mean(H, latent_loader)
+        # init_dist = MyOneHotCategorical(init_mean)
+        # # TODO put buffer loading in seperate function
+        # if H.load_step > 0:
+        #     buffer = load_buffer(H.load_step, H.log_dir)
+        # else:
+        #     buffer = []
+        #     for _ in range(int(H.buffer_size / 100)):
+        #         buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
+        #     buffer = torch.cat(buffer, dim=0)
+        # sampler = EBM(H, embedding_weight, buffer)
+        pass
     
     elif H.sampler == 'autoregressive':
         sampler = AutoregressiveTransformer(H, embedding_weight)
@@ -55,19 +56,20 @@ def main(H, vis):
     - create latents for training and validation
     - add option for checking validation loss
     '''
-    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
+
+    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
     if not os.path.exists(latents_filepath):        
         ae_state_dict = retrieve_autoencoder_components_state_dicts(H, ['encoder', 'quantize', 'generator'])
         ae = VQAutoEncoder(H)
         ae.load_state_dict(ae_state_dict)
-        full_dataloader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
+        train_loader, val_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
         ae = ae.cuda() # put ae on GPU for generating
-        generate_latent_ids(H, ae, full_dataloader)
+        generate_latent_ids(H, ae, train_loader, val_loader)
         #TODO: test if this actually frees up GPU space or not
         ae = ae.cpu()
         # del ae
     
-    latent_loader = get_latent_loader(H, latents_filepath)
+    train_latent_loader, val_latent_loader = get_latent_loaders(H, latents_filepath)
         
     quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
         H,
@@ -84,7 +86,7 @@ def main(H, vis):
     #NOTE: can move generator to cpu to save memory if needbe - add flag?
     generator.load_state_dict(quanitzer_and_generator_state_dict)
     generator = generator.cuda()
-    sampler = get_sampler(H, embedding_weight, latent_loader).cuda()
+    sampler = get_sampler(H, embedding_weight).cuda()
 
     if H.deepspeed:
         model_engine, optim, _, _ = deepspeed.initialize(args=H, model=sampler, model_parameters=sampler.parameters())
@@ -97,6 +99,7 @@ def main(H, vis):
 
     # initialise before loading so as not to overwrite loaded stats
     losses = np.array([])
+    val_losses = np.array([])
     vb_losses = np.array([])
     mean_losses = np.array([])
     start_step = 0
@@ -123,14 +126,15 @@ def main(H, vis):
             train_stats = None
 
         if train_stats is not None:
-            losses, mean_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
+            losses, mean_losses, val_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
             log_start_step = 0
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
             log_start_step = start_step
 
     scaler = torch.cuda.amp.GradScaler()
-    latent_iterator = cycle(latent_loader)
+    train_iterator = cycle(train_latent_loader)
+    val_iterator = cycle(val_latent_loader)
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()
@@ -139,7 +143,7 @@ def main(H, vis):
             if step <= H.warmup_iters:
                 optim_warmup(H, step, optim)
 
-        x = next(latent_iterator)
+        x = next(train_iterator)
         x = x.cuda()
 
         if H.deepspeed:
@@ -210,6 +214,15 @@ def main(H, vis):
                 images = get_samples(H, generator, ema_sampler if H.ema else sampler)
             save_images(images, 'samples', step, H.log_dir, H.save_individually)
 
+        if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
+            # calculate validation loss
+            x = next(val_iterator)
+            x = x.cuda()
+            with torch.no_grad(): # may not work foramp
+                stats = sampler.train_iter(x)
+                val_losses = np.append(val_losses, stats['loss'].item())
+                vis.line(val_losses, list(range(H.steps_per_eval, step+1, H.steps_per_eval)), win='Val_loss', opts=dict(title='Validation Loss'))
+
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)
             if H.ema:
@@ -221,6 +234,7 @@ def main(H, vis):
             train_stats = {
                 'losses' : losses,
                 'mean_losses' : mean_losses,
+                'val_losses' : val_losses,
                 'steps_per_log' : H.steps_per_log
             }
             save_stats(H, train_stats, step)
