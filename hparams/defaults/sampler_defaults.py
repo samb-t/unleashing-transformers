@@ -4,6 +4,7 @@ from .base import HparamsBase
 class HparamsAbsorbing(HparamsBase):
     def __init__(self, dataset):
 
+        self.loss_type = 'elbo'
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
@@ -27,6 +28,11 @@ class HparamsAbsorbing(HparamsBase):
             self.diffusion_steps = 1000
             self.lr = 1e-4
             self.n_samples = 64
+            self.warmup_iters = 5000
+
+            self.unet_dim = 32
+            self.unet_dim_mults = [1,2,4,8]
+            self.dropout = 0.0
             
         elif self.dataset == 'flowers':
             self.batch_size = 32
@@ -61,7 +67,7 @@ class HparamsAutoregressive(HparamsBase):
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
-        
+
         if self.dataset == 'mnist':
             self.batch_size = 32
             self.bert_n_emb = 512
@@ -79,6 +85,7 @@ class HparamsAutoregressive(HparamsBase):
             self.block_size = 64
             self.lr = 5e-4
             self.sample_block_size = 1
+            self.warmup_iters = 5000
 
         elif self.dataset == 'flowers':
             ...
@@ -153,6 +160,7 @@ def add_diffusion_args(parser):
     parser.add_argument('--parametrization', type=str, default='x0')
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
+    parser.add_argument('--loss_type', type=str)
 
 
 def add_ebm_args(parser):
@@ -170,7 +178,7 @@ def add_sampler_args(parser):
     parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--sampler', type=str, required=True)
     parser.add_argument('--n_samples', type=int)
-    parser.add_argument('--warmup_steps', type=int)
+    parser.add_argument('--warmup_iters', type=int)
 
     add_bert_args(parser)
     add_diffusion_args(parser)

@@ -7,7 +7,8 @@ import time
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
-    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
+    AbsorbingDiffusion, Transformer, AutoregressiveTransformer, \
+    LinearAttentionTransformerEmbedding
 from hparams import get_sampler_hparams
 from utils import *
 
@@ -91,6 +92,7 @@ def main(H, vis):
 
     # initialise before loading so as not to overwrite loaded stats
     losses = np.array([])
+    vb_losses = np.array([])
     mean_losses = np.array([])
     start_step = 0
     log_start_step = 0
@@ -103,7 +105,7 @@ def main(H, vis):
             try:
                 ema_sampler =  load_model(ema_sampler, f'{H.sampler}_ema', H.load_step, H.load_dir)
             except:
-                    ema_sampler =  copy.deepcopy(sampler)
+                ema_sampler =  copy.deepcopy(sampler)
         if H.load_optim:
             optim = load_model(optim, f'{H.sampler}_optim', H.load_step, H.load_dir)
             # only used when changing learning rates and reloading from checkpoint
@@ -166,13 +168,29 @@ def main(H, vis):
             stats['loss'] = mean_loss
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
+            vb_losses = np.append(vb_losses, stats['vb_loss'].item())
             vis.line(
                 mean_losses, 
                 list(range(log_start_step, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )
-            log_stats(step, stats)            
+            log_stats(step, stats)     
+
+            if H.sampler == 'absorbing':
+                vis.bar(
+                    sampler.loss_history, 
+                    list(range(sampler.loss_history.size(0))), 
+                    win='loss_bar', 
+                    opts=dict(title='loss_bar')
+                )
+
+                vis.line(
+                    vb_losses, 
+                    list(range(log_start_step, step+1, H.steps_per_log)),
+                    win='ELBO',
+                    opts=dict(title='ELBO')
+                )
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
             ema.update_model_average(ema_sampler, sampler)
