@@ -424,11 +424,9 @@ class MultinomialDiffusion(Sampler):
             zs[i] = log_onehot_to_index(log_z)
         return zs
 
-    def train_iter(self, x, target, step):
+    def train_iter(self, x):
         stats = {}
         x = x.reshape(-1, self.latent_shape[-2], self.latent_shape[-1]).cuda()
         loss = - self.log_prob(x).sum() / (math.log(2) * x.shape.numel())
         stats['loss'] = loss
-        if step % self.steps_per_sample == 0 and step > 0:
-            stats['sampled_latents'] = self.sample().reshape(self.n_samples, 1, -1)
         return stats

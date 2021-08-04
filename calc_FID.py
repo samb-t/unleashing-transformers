@@ -3,7 +3,7 @@ from utils import *
 from hparams import get_training_hparams
 from models import VQAutoEncoder, VQGAN
 from tqdm import tqdm
-from train import get_sampler
+from train_sampler import get_sampler
 
 '''
 TODO: calculate FID for a given model, either VQGAN or Sampler

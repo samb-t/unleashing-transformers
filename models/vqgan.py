@@ -3,10 +3,8 @@ import lpips
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 from utils import *
 from .diffaug import DiffAugment
-import deepspeed
 
 #%% helper functions
 def normalize(in_channels):
@@ -29,13 +27,13 @@ def hinge_d_loss(logits_real, logits_fake):
     return d_loss
 
 
-def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight=0.8):
+def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight_max):
         recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
         d_weight = torch.norm(recon_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        return d_weight * disc_weight 
+        d_weight = torch.clamp(d_weight, 0.0, disc_weight_max).detach()
+        return d_weight
 
 
 def weights_init(m):
@@ -105,21 +103,7 @@ class VectorQuantizer(nn.Module):
 
         return z_q
 
-    def recycle_unused_codes(self, unique_code_ids, unused_code_ids):
-        print(f'Recycling {len(unused_code_ids)} codes')
-        codebook_clone = self.embedding.weight.detach().clone()
-        # print('Codebook before recycling: ', self.embedding.weight)
-        unique_code_ids = unique_code_ids.cuda()
-        unused_code_ids =  unused_code_ids.cuda()
-        
-        unique_codes = torch.index_select(codebook_clone, 0, unique_code_ids)
-        
-        for code_id in unused_code_ids:
-            rand_index = random.randint(0, len(unique_codes)-1)
-            codebook_clone[code_id] = unique_codes[rand_index] # + 0.001 * torch.rand_like(codebook_clone[0])
 
-        self.embedding.weight = torch.nn.Parameter(codebook_clone.detach().clone())
-        # print('After recycling: ', self.embedding.weight)
 class GumbelQuantizer(nn.Module):
     def __init__(self, codebook_size, emb_dim, num_hiddens, straight_through=False, kl_weight=5e-4, temp_init=1.0):
         super().__init__()
@@ -324,20 +308,22 @@ class Encoder(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, in_channels, nf, out_channels, ch_mult, num_res_blocks, resolution, attn_resolutions):
+    def __init__(self, H):
         super().__init__()
-        self.nf = nf
-        self.num_resolutions = len(ch_mult)
-        self.num_res_blocks = num_res_blocks
-        self.resolution = resolution
-        self.attn_resolutions = attn_resolutions 
-
-        block_in_ch = nf * ch_mult[-1]
+        self.nf = H.nf
+        self.ch_mult = H.ch_mult
+        self.num_resolutions = len(self.ch_mult)
+        self.num_res_blocks = H.res_blocks
+        self.resolution = H.img_size
+        self.attn_resolutions = H.attn_resolutions
+        self.in_channels = H.emb_dim
+        self.out_channels = H.n_channels
+        block_in_ch = self.nf * self.ch_mult[-1]
         curr_res = self.resolution // 2 ** (self.num_resolutions-1)
 
         blocks = []
         # initial conv
-        blocks.append(nn.Conv2d(in_channels, block_in_ch, kernel_size=3, stride=1, padding=1))
+        blocks.append(nn.Conv2d(self.in_channels, block_in_ch, kernel_size=3, stride=1, padding=1))
         
         # non-local attention block
         blocks.append(ResBlock(block_in_ch, block_in_ch))
@@ -345,7 +331,7 @@ class Generator(nn.Module):
         blocks.append(ResBlock(block_in_ch, block_in_ch))
 
         for i in reversed(range(self.num_resolutions)):
-            block_out_ch = nf * ch_mult[i]
+            block_out_ch = self.nf * self.ch_mult[i]
 
             for _ in range(self.num_res_blocks):
                 blocks.append(ResBlock(block_in_ch, block_out_ch))
@@ -359,7 +345,7 @@ class Generator(nn.Module):
                 curr_res = curr_res * 2
 
         blocks.append(normalize(block_in_ch))
-        blocks.append(nn.Conv2d(block_in_ch, out_channels, kernel_size=3, stride=1, padding=1))
+        blocks.append(nn.Conv2d(block_in_ch, self.out_channels, kernel_size=3, stride=1, padding=1))
 
         self.blocks = nn.ModuleList(blocks)
 
@@ -386,19 +372,20 @@ class VQAutoEncoder(nn.Module):
         self.gumbel_num_hiddens = H.emb_dim # TODO: may change to use higher hidden dims
         self.straight_through = H.gumbel_straight_through
         self.kl_weight = H.gumbel_kl_weight
-
         self.encoder = Encoder(self.in_channels, self.nf, self.embed_dim, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
+        
         if self.quantizer_type== 'nearest':
             self.quantize = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
         elif self.quantizer_type == 'gumbel':
             self.quantize = GumbelQuantizer(self.codebook_size, self.embed_dim, self.gumbel_num_hiddens, self.straight_through, self.kl_weight)
-        self.generator = Generator(self.embed_dim, self.nf, self.in_channels, self.ch_mult, self.n_blocks, self.resolution, self.attn_resolutions)
+        self.generator = Generator(H)
 
     def forward(self, x):
         x = self.encoder(x)
         quant, codebook_loss, quant_stats = self.quantize(x)
         x = self.generator(quant)
         return x, codebook_loss, quant_stats
+
 
 # patch based discriminator
 class Discriminator(nn.Module):
@@ -435,9 +422,9 @@ class Discriminator(nn.Module):
 
 
 class VQGAN(nn.Module):
-    def __init__(self, ae, H):
+    def __init__(self, H):
         super().__init__()
-        self.ae = ae
+        self.ae = VQAutoEncoder(H)
         self.disc = Discriminator(
             H.n_channels,
             H.ndf,
@@ -446,20 +433,14 @@ class VQGAN(nn.Module):
         self.perceptual = lpips.LPIPS(net='vgg')
         self.perceptual_weight = H.perceptual_weight
         self.disc_start_step = H.disc_start_step
+        self.disc_weight_max = H.disc_weight_max
         self.diff_aug = H.diff_aug
         self.policy = 'color,translation'
 
-        if H.deepspeed and H.model == 'vqgan':
-            self.ae_engine, self.optim, _, _ = deepspeed.initialize(args=H, model=self.ae, model_parameters=self.ae.parameters())
-            self.d_engine, self.d_optim, _, _ =  deepspeed.initialize(args=H, model=self.disc, model_parameters=self.disc.parameters())
-            self.perceptual_engine, _, _, _ = deepspeed.initialize(args=H, model=self.perceptual, model_parameters=self.perceptual.parameters()) # try to make 16-bit. Try init_inference
-
-    def train_iter(self, x, _, step):
+    def train_iter(self, x, step):
         stats = {}
-
-        # TODO: change this to use H.quantize
         # update gumbel softmax temperature based on step. Anneal from 1 to 1/16 over 150000 steps
-        if isinstance(self.ae.quantize, GumbelQuantizer):
+        if self.ae.quantizer_type == 'gumbel':
             self.ae.quantize.temperature = max(1/16, ((-1/160000) * step) + 1)
             stats['gumbel_temp'] = self.ae.quantize.temperature
 
@@ -473,13 +454,14 @@ class VQGAN(nn.Module):
 
         # augment for input to discriminator
         if self.diff_aug:
+            x_hat_pre_aug = x_hat.detach().clone()
             x_hat = DiffAugment(x_hat, policy=self.policy)
 
         # update generator
         logits_fake = self.disc(x_hat)
         g_loss = -torch.mean(logits_fake)
         last_layer = self.ae.generator.blocks[-1].weight
-        d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer)
+        d_weight = calculate_adaptive_weight(nll_loss, g_loss, last_layer, self.disc_weight_max)
         d_weight *= adopt_weight(1, step, self.disc_start_step)
         loss = nll_loss + d_weight * g_loss + codebook_loss
 
@@ -502,5 +484,9 @@ class VQGAN(nn.Module):
             logits_fake = self.disc(x_hat.contiguous().detach()) # detach so that generator isn't also updated
             d_loss = hinge_d_loss(logits_real, logits_fake)
             stats['d_loss'] = d_loss
-
-        return stats
+        
+        if self.diff_aug:
+            x_hat = x_hat_pre_aug
+            
+        return x_hat, stats
+# %%
