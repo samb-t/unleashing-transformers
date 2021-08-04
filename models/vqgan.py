@@ -484,6 +484,7 @@ class VQGAN(nn.Module):
             logits_fake = self.disc(x_hat.contiguous().detach()) # detach so that generator isn't also updated
             d_loss = hinge_d_loss(logits_real, logits_fake)
             stats['d_loss'] = d_loss
+        
         if self.diff_aug:
             x_hat = x_hat_pre_aug
             

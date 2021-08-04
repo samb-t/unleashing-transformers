@@ -7,8 +7,7 @@ import time
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
-    AbsorbingDiffusion, Transformer, AutoregressiveTransformer, \
-    LinearAttentionTransformerEmbedding
+    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
 from hparams import get_sampler_hparams
 from utils import *
 
@@ -165,7 +164,7 @@ def main(H, vis):
             step_time_taken = time.time() - step_start_time
             stats['step_time'] = step_time_taken
             mean_loss = np.mean(losses)
-            stats['loss'] = mean_loss
+            stats['mean_loss'] = mean_loss
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
             vb_losses = np.append(vb_losses, stats['vb_loss'].item())

@@ -101,8 +101,13 @@ class HparamsAutoregressive(HparamsBase):
             self.sample_block_size = 1
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
-            ...
-
+            self.batch_size = 32
+            self.bert_n_emb = 256
+            self.bert_n_head = 8
+            self.bert_n_layers = 8
+            self.block_size = 256
+            self.lr = 1e-4
+            self.sample_block_size = 1
         else:
             raise KeyError(f'Defaults not defined for BERT model on dataset: {self.dataset}')
 
@@ -143,7 +148,7 @@ def add_bert_args(parser):
     parser.add_argument('--embd_pdrop', type=float)
     parser.add_argument('--greedy_epochs', type=int)
     parser.add_argument('--greedy', const=True, action='store_const', default=False)
-    parser.add_argument('--resid_dprop', type=float)    
+    parser.add_argument('--resid_pdrop', type=float)    
     parser.add_argument('--sample_block_size', type=int)
 
 
@@ -157,6 +162,7 @@ def add_diffusion_args(parser):
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
     parser.add_argument('--loss_type', type=str)
+    parser.add_argument('--mask_schedule', type=str, default='random')
 
 
 def add_ebm_args(parser):
