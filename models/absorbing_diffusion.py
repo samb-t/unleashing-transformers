@@ -121,15 +121,16 @@ class AbsorbingDiffusion(Sampler):
 
         # Track loss at each time step history for bar plot
         Lt2_prev = self.loss_history.gather(dim=0, index=t)
-        new_loss_history = (0.1 * loss + 0.9 * Lt2_prev).detach()
+        new_loss_history = (0.1 * loss + 0.9 * Lt2_prev).detach().to(self.loss_history.dtype)
+
         self.loss_history.scatter_(dim=0, index=t, src=new_loss_history)
 
         # Track loss at each time step for importance sampling
         Lt2 = vb_loss.detach().clone().pow(2)
         Lt2_prev = self.Lt_history.gather(dim=0, index=t)
-        new_Lt_history = (0.1 * Lt2 + 0.9 * Lt2_prev).detach()
+        new_Lt_history = (0.1 * Lt2 + 0.9 * Lt2_prev).detach().to(self.loss_history.dtype)
         self.Lt_history.scatter_(dim=0, index=t, src=new_Lt_history)
-        self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2))
+        self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2).to(self.loss_history.dtype))
 
         return loss.mean(), vb_loss.mean()
     

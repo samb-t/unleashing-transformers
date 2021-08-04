@@ -56,7 +56,15 @@ class HparamsAbsorbing(HparamsBase):
             self.n_samples = 16
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
-            ...    
+            self.batch_size = 32
+            self.bert_n_emb = 256
+            self.bert_n_head = 8
+            self.bert_n_layers = 8
+            self.block_size = 256
+            self.diffusion_steps = 1000
+            self.lr = 1e-4
+            self.sample_block_size = 1 
+            self.n_samples = 16
 
         else:
             raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
