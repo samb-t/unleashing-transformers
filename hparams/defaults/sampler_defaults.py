@@ -29,6 +29,7 @@ class HparamsAbsorbing(HparamsBase):
             self.lr = 1e-4
             self.n_samples = 64
             self.warmup_iters = 5000
+            self.loss_type = 'normed'
 
             self.unet_dim = 32
             self.unet_dim_mults = [1,2,4,8]

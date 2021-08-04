@@ -168,7 +168,8 @@ class Transformer(nn.Module):
         # each index maps to a (learnable) vector
         token_embeddings = self.tok_emb(idx)
 
-        token_embeddings = torch.cat((self.start_tok.repeat(token_embeddings.size(0),1,1), token_embeddings), dim=1)
+        if self.causal:
+            token_embeddings = torch.cat((self.start_tok.repeat(token_embeddings.size(0),1,1), token_embeddings), dim=1)
 
         t = token_embeddings.shape[1]
         assert t <= self.block_size, "Cannot forward, model block size is exhausted."

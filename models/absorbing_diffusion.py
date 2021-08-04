@@ -30,6 +30,7 @@ class AbsorbingDiffusion(Sampler):
             if not (self.Lt_count > 10).all():
                 return self.sample_time(b, device, method='uniform')
 
+            # why do we square just to sqrt again!?!?
             Lt_sqrt = torch.sqrt(self.Lt_history + 1e-10) + 0.0001
             Lt_sqrt[0] = Lt_sqrt[1]  # Overwrite decoder term with L1.
             pt_all = Lt_sqrt / Lt_sqrt.sum()
@@ -124,3 +125,6 @@ class AbsorbingDiffusion(Sampler):
         loss, vb_loss = self._train_loss(x)
         stats = {'loss': loss, 'vb_loss': vb_loss}
         return stats
+
+# NOTE: Is there any point spending as long reducing the loss on the later time 
+#       steps when it can't be improved easily? Maybe that's why it's /t
