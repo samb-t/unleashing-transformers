@@ -131,7 +131,12 @@ class AbsorbingDiffusion(Sampler):
         self.Lt_history.scatter_(dim=0, index=t, src=new_Lt_history)
         self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2))
 
-        return loss.mean(), vb_loss.mean()
+        # not sure about aux_weighting, best method probably to compare output magnitudes and also just play around
+        loss = vb_loss #+ self.aux_weight * aux_loss
+        loss = loss / pt
+        loss = loss / (math.log(2) * x_0.shape[1:].numel())
+
+        return loss.mean(), vb_loss.mean(), self.aux_weight * aux_loss.mean()
     
     def sample(self):
         b, device = self.n_samples, 'cuda'
