@@ -48,7 +48,13 @@ def get_sampler(H, embedding_weight, latent_loader):
 
 
 def main(H, vis):
-    
+    '''
+    TODO: Set up validation loss on sampler by splitting training datasets 90:10 (unless validation set provided)
+    - Check if validation set is available
+    - if it's not, create manually using Subset
+    - create latents for training and validation
+    - add option for checking validation loss
+    '''
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_latents'
     if not os.path.exists(latents_filepath):        
         ae_state_dict = retrieve_autoencoder_components_state_dicts(H, ['encoder', 'quantize', 'generator'])
