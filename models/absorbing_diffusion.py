@@ -65,19 +65,17 @@ class AbsorbingDiffusion(Sampler):
         # testing fixed noise schedule
         x_t, x_0_ignore = x_0.clone(), x_0.clone()
 
-        mask = torch.zeros_like(x_t)
+        mask = torch.zeros_like(x_t).to(torch.bool)
 
+        # TODO: offset so each n_masked_tokens is picked with equal probability
         n_masked_tokens = (t.float() / self.num_timesteps) * x_t.size(1)
         n_masked_tokens = torch.round(n_masked_tokens).to(torch.int64)
+        n_masked_tokens[n_masked_tokens == 0] = 1
+        ones = torch.ones_like(mask[0]).to(torch.bool).to(x_0.device)
 
-        for idx, mask_batch in enumerate(mask):
-            n_tokens_to_mask = n_masked_tokens[idx]
-            
-            while n_tokens_to_mask > 0:
-                rand_index = random.randint(0, len(mask_batch) -1)
-                if mask_batch[rand_index] != 1:
-                    mask_batch[rand_index] = 1
-                    n_tokens_to_mask -= 1
+        for idx, n_tokens_to_mask in enumerate(n_masked_tokens):
+            index = torch.randperm(x_0.size(1))[:n_tokens_to_mask].to(x_0.device)
+            mask[idx].scatter_(dim=0, index=index, src=ones)
         
         x_t[mask] = self.mask_id
         x_0_ignore[torch.bitwise_not(mask)] = -1
@@ -114,6 +112,9 @@ class AbsorbingDiffusion(Sampler):
         elif self.loss_type == 'normed':
             denom = mask.float().sum(1)
             denom[denom == 0] = 1 # prevent divide by 0 errors.
+            # print(denom)
+            # print((F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none') != 0).float().sum(1))
+            # print("---------------------------")
             loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) / denom
         else:
             raise ValueError
