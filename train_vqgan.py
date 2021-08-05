@@ -11,23 +11,15 @@ torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
-    train_loader = get_data_loader(
+    # only load val_loader if running eval
+    train_loader, val_loader = get_data_loader(
         H.dataset,
         H.img_size,
         H.batch_size,
-        train=True,
-        shuffle=True
+        val_train_split=(H.steps_per_eval != 0)
     )
     train_iterator = cycle(train_loader)
-
-    if H.steps_per_eval:
-        val_loader = get_data_loader(
-            H.dataset,
-            H.img_size,
-            H.batch_size,
-            train=False,
-            shuffle=True
-        )
+    if val_loader != None:
         val_iterator = cycle(val_loader)
 
 

@@ -177,7 +177,8 @@ def main(H, vis):
             stats['mean_loss'] = mean_loss
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
-            vb_losses = np.append(vb_losses, stats['vb_loss'].item())
+
+
             vis.line(
                 mean_losses, 
                 list(range(log_start_step, step+1, H.steps_per_log)),
@@ -187,6 +188,7 @@ def main(H, vis):
             log_stats(step, stats)     
 
             if H.sampler == 'absorbing':
+                vb_losses = np.append(vb_losses, stats['vb_loss'].item())
                 vis.bar(
                     sampler.loss_history, 
                     list(range(sampler.loss_history.size(0))), 
@@ -225,10 +227,11 @@ def main(H, vis):
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)
+            save_model(optim, f'{H.sampler}_optim', step, H.log_dir)
+            
             if H.ema:
                 save_model(ema_sampler, f'{H.sampler}_ema', step, H.log_dir)
-            else:
-                save_model(optim, f'{H.sampler}_optim', step, H.log_dir)
+            
             if H.sampler == 'ebm':
                 save_buffer(sampler.buffer, step, H.log_dir)
             train_stats = {

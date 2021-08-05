@@ -17,7 +17,7 @@ def val_train_split(dataset, train_ratio=0.9):
     return train_dataset, val_dataset
 
 
-def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True):
+def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, val_train_split=True):
     if dataset_name == 'mnist':
         train_dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=True, download=download, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -55,24 +55,35 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
             torchvision.transforms.ToTensor()
         ]))
         
-
     elif dataset_name =='celeba':
         dataset = torchvision.datasets.CelebA('~/Repos/_datasets/celeba', download=True, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        train_dataset, val_dataset = val_train_split(dataset)
+
+        if val_train_split:
+            train_dataset, val_dataset = val_train_split(dataset)
+        else:
+            train_dataset, val_dataset = dataset, None
 
     elif dataset_name == 'ffhq':
         dataset = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        train_dataset, val_dataset = val_train_split(dataset)
+        
+        if val_train_split:
+            train_dataset, val_dataset = val_train_split(dataset)
+        else:
+            train_dataset, val_dataset = dataset, None
 
     train_loader = torch.utils.data.DataLoader(train_dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
-    val_loader = torch.utils.data.DataLoader(val_dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
+    if val_dataset != None:
+        val_loader = torch.utils.data.DataLoader(val_dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
+    else:
+        val_loader = None
+        
     return train_loader, val_loader
 
 
