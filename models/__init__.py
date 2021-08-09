@@ -7,3 +7,4 @@ from .transformer import Transformer
 from .absorbing_diffusion import AbsorbingDiffusion
 from .diffaug import DiffAugment
 from .autoregressive import AutoregressiveTransformer
+from .vqgan_v2 import VQGANv2

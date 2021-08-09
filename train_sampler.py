@@ -83,7 +83,7 @@ def main(H, vis):
     if H.deepspeed:
         model_engine, optim, _, _ = deepspeed.initialize(args=H, model=sampler, model_parameters=sampler.parameters())
     else:
-        optim = torch.optim.Adam(sampler.parameters(), lr=H.lr)
+        optim = torch.optim.AdamW(sampler.parameters(), lr=H.lr, betas=(0.9, 0.98), eps=1e-6)
 
     if H.ema:
         ema = EMA(H.ema_beta)
@@ -129,20 +129,21 @@ def main(H, vis):
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()
         # lr warmup
-        if H.warmup_iters:
-            if step <= H.warmup_iters:
-                optim_warmup(H, step, optim)
+        if H.lr_schedule == "warmup":
+            optim_warmup(H, step, optim)
+        elif H.lr_schedule =="warmup+cosine_decay":
+            optim_warmup_cosine_decay(H, step, optim)
 
         x = next(latent_iterator)
         x = x.cuda()
 
         if H.deepspeed:
             optim.zero_grad()
-            stats = sampler.train_iter(x) # don't need to cast to half() for diffusion?
+            stats = sampler.train_iter(x)
             model_engine.backward(stats['loss'])
             model_engine.step()
         elif H.amp:
-            optim.zero_grad()
+            optim.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast():
                 stats = sampler.train_iter(x)
             scaler.scale(stats['loss']).backward()
@@ -154,7 +155,7 @@ def main(H, vis):
             if torch.isnan(stats['loss']).any():
                 print(f'Skipping step {step} with NaN loss')
                 continue
-            optim.zero_grad()
+            optim.zero_grad(set_to_none=True)
             stats['loss'].backward()
             optim.step()
 
@@ -186,7 +187,7 @@ def main(H, vis):
 
                 vis.line(
                     vb_losses, 
-                    list(range(log_start_step, step+1, H.steps_per_log)),
+                    list(range(start_step, step+1, H.steps_per_log)),
                     win='ELBO',
                     opts=dict(title='ELBO')
                 )

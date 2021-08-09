@@ -26,10 +26,13 @@ class HparamsAbsorbing(HparamsBase):
             self.bert_n_layers = 24
             self.block_size = 256
             self.diffusion_steps = 1000
-            self.lr = 1e-4
+            self.lr = 1e-3
             self.n_samples = 64
             self.warmup_iters = 5000
             self.loss_type = 'normed'
+            self.attn_pdrop = 0.1
+            self.embd_pdrop = 0.1
+            self.resid_pdrop = 0.1
 
             self.unet_dim = 32
             self.unet_dim_mults = [1,2,4,8]
@@ -180,7 +183,8 @@ def add_sampler_args(parser):
     parser.add_argument('--ae_load_step', type=int, required=True)
     parser.add_argument('--sampler', type=str, required=True)
     parser.add_argument('--n_samples', type=int)
-    parser.add_argument('--warmup_iters', type=int)
+    parser.add_argument('--warmup_iters', type=int, default=-1)
+    parser.add_argument('--lr_schedule', type=str, default='warmup')
 
     add_bert_args(parser)
     add_diffusion_args(parser)

@@ -1,16 +1,22 @@
 # file for running the training of the VQGAN
+from argparse import ArgumentError
 import torch
 import numpy as np
 import copy
 import deepspeed
 import time
-from models import VQGAN
+from models import VQGAN, VQGANv2
 from hparams import get_vqgan_hparams
 from utils import *
 torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
-    vqgan = VQGAN(H).cuda()
+    if H.model == 'vqgan':
+        vqgan = VQGAN(H).cuda()
+    elif H.model == 'vqganv2':
+        vqgan = VQGANv2(H).cuda()
+    else:
+        raise ArgumentError
     train_loader = get_data_loader(
         H.dataset,
         H.img_size,

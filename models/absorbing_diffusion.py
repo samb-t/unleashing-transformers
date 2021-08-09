@@ -17,10 +17,11 @@ class AbsorbingDiffusion(Sampler):
         self.num_timesteps = H.diffusion_steps
         self.mask_id = mask_id
         self._denoise_fn = denoise_fn
-        self.n_samples = H.batch_size
+        self.n_samples = min(H.batch_size, 64)
         self.loss_type = H.loss_type
         self.mask_schedule = H.mask_schedule
         self.aux_weight = aux_weight
+        self.deepspeed = H.deepspeed
         self.register_buffer('Lt_history', torch.zeros(self.num_timesteps+1))
         self.register_buffer('Lt_count', torch.zeros(self.num_timesteps+1))
         self.register_buffer('loss_history', torch.zeros(self.num_timesteps+1))
@@ -71,7 +72,7 @@ class AbsorbingDiffusion(Sampler):
         n_masked_tokens = (t.float() / self.num_timesteps) * x_t.size(1)
         n_masked_tokens = torch.round(n_masked_tokens).to(torch.int64)
         n_masked_tokens[n_masked_tokens == 0] = 1
-        ones = torch.ones_like(mask[0]).to(torch.bool).to(x_0.device)
+        ones = torch.ones_like(mask[0]).to(torch.bool)
 
         for idx, n_tokens_to_mask in enumerate(n_masked_tokens):
             index = torch.randperm(x_0.size(1))[:n_tokens_to_mask].to(x_0.device)
@@ -122,14 +123,21 @@ class AbsorbingDiffusion(Sampler):
         # Track loss at each time step history for bar plot
         Lt2_prev = self.loss_history.gather(dim=0, index=t)
         new_loss_history = (0.1 * loss + 0.9 * Lt2_prev).detach()
-        self.loss_history.scatter_(dim=0, index=t, src=new_loss_history)
+        if self.deepspeed:
+            self.loss_history.scatter_(dim=0, index=t, src=new_loss_history.half())
+        else:
+            self.loss_history.scatter_(dim=0, index=t, src=new_loss_history)
 
         # Track loss at each time step for importance sampling
-        Lt2 = vb_loss.detach().clone().pow(2)
+        Lt2 = vb_loss.detach().clone().float().pow(2)
         Lt2_prev = self.Lt_history.gather(dim=0, index=t)
         new_Lt_history = (0.1 * Lt2 + 0.9 * Lt2_prev).detach()
-        self.Lt_history.scatter_(dim=0, index=t, src=new_Lt_history)
-        self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2))
+        if self.deepspeed:
+            self.Lt_history.scatter_(dim=0, index=t, src=new_Lt_history.half())
+            self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2).half())
+        else:
+            self.Lt_history.scatter_(dim=0, index=t, src=new_Lt_history)
+            self.Lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(Lt2))
 
         return loss.mean(), vb_loss.mean()
     

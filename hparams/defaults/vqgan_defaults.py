@@ -5,6 +5,7 @@ class HparamsVQGAN(HparamsBase):
         super().__init__(dataset)
         
         # defaults that are same for all datasets
+        self.model = "vqgan"
         self.base_lr = 4.5e-6
         self.beta = 0.25
         self.diff_aug = False
@@ -103,6 +104,7 @@ class HparamsVQGAN(HparamsBase):
 
 
 def add_vqgan_args(parser):
+    parser.add_argument('--model', type=str)
     parser.add_argument('--attn_resolutions', nargs='+', type=int)
     parser.add_argument('--base_lr', type=float)
     parser.add_argument('--beta', type=float)

@@ -25,7 +25,7 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, train=Tru
             torchvision.transforms.ToTensor()
         ]))
     elif dataset_name == 'churches':
-        dataset = torchvision.datasets.LSUN('../Repos/_datasets/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+        dataset = torchvision.datasets.LSUN('../../../data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()

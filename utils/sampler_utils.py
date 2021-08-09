@@ -6,6 +6,7 @@ from .log_utils import save_latents, log
 @torch.no_grad()
 def get_samples(H, generator, sampler):            
     #TODO need to write sample function for EBM (give option of AIS?)
+    sampler.eval()
     latents = sampler.sample() 
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     if H.deepspeed:
@@ -14,6 +15,7 @@ def get_samples(H, generator, sampler):
         latents_one_hot = latents_one_hot.cuda()
     q = sampler.embed(latents_one_hot)
     images = generator(q.float()) # move to cpu if not keeping generator on GPU
+    sampler.train()
 
     return images
 
@@ -95,7 +97,7 @@ def generate_latent_ids(H, ae, dataloader):
 @torch.no_grad()
 def get_latent_loader(H, latents_filepath):
     latent_ids = torch.load(latents_filepath)
-    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=True)    
+    latent_loader = torch.utils.data.DataLoader(latent_ids, batch_size=H.batch_size, shuffle=True, pin_memory=True)    
     return latent_loader
 
 
