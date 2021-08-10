@@ -141,10 +141,12 @@ class AbsorbingDiffusion(Sampler):
 
         return loss.mean(), vb_loss.mean()
     
-    def sample(self):
+    def sample(self, num_steps):
         b, device = self.n_samples, 'cuda'
         x_0 = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
-        for t in reversed(range(1, self.num_timesteps+1)):
+        # endpoint = False since the last step often makes no changes
+        time_steps = np.linspace(self.num_timesteps, 1, num=num_steps, endpoint=False, dtype=np.int)
+        for t in time_steps:
             print(f'Sample timestep {t:4d}', end='\r')
             t = torch.full((b,), t, device=device, dtype=torch.long)
             x_t, _, _ = self.q_sample(x_0, t)
@@ -156,6 +158,69 @@ class AbsorbingDiffusion(Sampler):
             # print("x0 at", t, x_0, x_0.shape)
 
         return x_0
+    
+    def sample_shape(self, shape, num_samples, num_steps=1000):
+        x_0 = torch.ones((num_samples,) + shape, device='cuda').long() * self.mask_id
+        time_steps = np.linspace(self.num_timesteps, 1, num=num_steps, endpoint=False, dtype=np.int)
+        x_lim, y_lim = shape[0] - self.shape[1], shape[1] - self.shape[2]
+
+        for t in time_steps:
+            print(f'Sample timestep {t:4d}', end='\r')
+            t = torch.full((num_samples,), t, device='cuda', dtype=torch.long)
+
+            # make x_0 noisy
+            x_t, _, mask = self.q_sample(x_0.reshape(x_0.size(0), -1), t)
+            x_t = x_t.reshape(x_t.size(0), shape[0], shape[1])
+            mask = mask.reshape(x_t.size(0), shape[0], shape[1])
+            # keep track of PoE probabilities
+            x_0_probs = torch.zeros((num_samples,) + shape + (self.codebook_size,), device='cuda')
+            # keep track of counts
+            count = torch.zeros((num_samples,) + shape, device='cuda')
+
+            # TODO: Use step size > 1
+            for i in range(x_lim+1):
+                for j in range(y_lim+1):
+                    # collect local noisy area
+                    x_t_part = x_t[:,i:i+self.shape[1], j:j+self.shape[2]]
+
+                    # increment count
+                    count[:,i:i+self.shape[1], j:j+self.shape[2]] += 1.0
+
+                    # flatten
+                    x_t_part = x_t_part.reshape(x_t_part.size(0), -1)
+                    
+                    # denoise
+                    x_0_logits_part = self._denoise_fn(x_t_part, t=t)
+
+                    # unflatten
+                    x_0_logits_part = x_0_logits_part.reshape(x_t_part.size(0), self.shape[1], self.shape[2], -1)
+
+                    # multiply probabilities
+                    # for mixture
+                    x_0_probs[:,i:i+self.shape[1], j:j+self.shape[2]] += torch.softmax(x_0_logits_part, dim=-1)
+                    # for PoE
+                    # x_0_probs[:,i:i+self.shape[1], j:j+self.shape[2]] += torch.log_softmax(x_0_logits_part, dim=-1)
+
+            # Normalize probabilities
+            
+            # Product of Experts -ish (with count division probably same as a mixture)
+            # temp = 4.0
+            # x_0_probs = torch.softmax(x_0_probs / count.unsqueeze(-1), dim=-1)
+
+            # Mixture with Temperature
+            x_0_probs = x_0_probs / x_0_probs.sum(-1, keepdim=True)
+            temp = 0.92
+            C = torch.tensor(x_0_probs.size(-1)).float()
+            x_0_probs = torch.softmax((torch.log(x_0_probs) + torch.log(C)) / temp, dim=-1)
+
+            x_0_dist = dists.Categorical(probs=x_0_probs)
+            x_0_hat = x_0_dist.sample().long()
+
+            # update x_0 where anything has been masked
+            x_0[mask] = x_0_hat[mask]
+
+        return x_0
+
 
     def train_iter(self, x):
         loss, vb_loss = self._train_loss(x)

@@ -5,7 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils import *
 from .diffaug import DiffAugment
-from op import upfirdn2d
+
+# Make so only loads if using vqganv2
+# from op import upfirdn2d
 
 #%% helper functions
 def normalize(in_channels):
