@@ -4,9 +4,13 @@ import numpy as np
 import copy
 import deepspeed
 import time
-from models import VQGAN
+from models.vqgan import VQGAN
 from hparams import get_vqgan_hparams
-from utils import *
+from utils.data_utils import get_data_loader, cycle
+from utils.train_utils import EMA
+from utils.log_utils import log, log_stats, save_model, save_stats, save_images, \
+                            display_images, setup_visdom, config_log, start_training_log
+from utils.vqgan_utils import unpack_vqgan_stats, load_vqgan_from_checkpoint, calc_FID
 torch.backends.cudnn.benchmark = True
 
 def main(H, vis):
@@ -16,7 +20,7 @@ def main(H, vis):
         H.dataset,
         H.img_size,
         H.batch_size,
-        val_train_split=(H.steps_per_eval != 0)
+        get_val_train_split=(H.steps_per_eval != 0)
     )
     train_iterator = cycle(train_loader)
     if val_loader != None:
@@ -159,8 +163,8 @@ def main(H, vis):
                 fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
                 fids = np.append(fids, fid)
                 log(f'FID: {fid}')
-                if fid < best_fid:
-                    save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
+                # if fid < best_fid:
+                #     save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
 
                 # Calc validation losses
                 x_val = next(val_iterator)

@@ -64,24 +64,22 @@ def calc_FID(H, model):
 @torch.no_grad()
 def collect_ims_and_recons(H, model):
     
-    data_iterator = get_data_loader(
+    data_loader, _ = get_data_loader(
         H.dataset,
         H.img_size,
         H.batch_size,
         drop_last=False,
         shuffle=False
     )
-
     images = []
     recons = []
-    for x, *_ in tqdm(data_iterator):
+    for x, *_ in tqdm(iter(data_loader)):
         images.append(x)
         x = x.cuda()
         if H.deepspeed:
             x = x.half()
         x_hat, *_ = model.ae(x)
         recons.append(x_hat.detach().cpu())
-
 
     images = convert_to_RGB(torch.cat(images, dim=0))
     recons = convert_to_RGB(torch.cat(recons, dim=0))

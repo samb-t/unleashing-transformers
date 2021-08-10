@@ -17,7 +17,7 @@ def val_train_split(dataset, train_ratio=0.9):
     return train_dataset, val_dataset
 
 
-def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, val_train_split=True):
+def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, get_val_train_split=True):
     if dataset_name == 'mnist':
         train_dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=True, download=download, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -62,7 +62,7 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
             torchvision.transforms.ToTensor()
         ]))
 
-        if val_train_split:
+        if get_val_train_split:
             train_dataset, val_dataset = val_train_split(dataset)
         else:
             train_dataset, val_dataset = dataset, None
@@ -73,7 +73,7 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
             torchvision.transforms.ToTensor()
         ]))
         
-        if val_train_split:
+        if get_val_train_split:
             train_dataset, val_dataset = val_train_split(dataset)
         else:
             train_dataset, val_dataset = dataset, None

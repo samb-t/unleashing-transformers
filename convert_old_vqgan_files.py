@@ -1,7 +1,8 @@
 import torch
 from models import VQAutoEncoder, VQGAN
 from hparams import get_training_hparams
-from utils import *
+from utils.log_utils import load_model, save_model
+
 
 def main(H):
     ae = VQAutoEncoder(H)

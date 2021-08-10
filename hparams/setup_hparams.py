@@ -2,9 +2,8 @@
 # loads all params that are shared by both stages (e.g. batch size)
 import argparse
 import deepspeed
-from .defaults import \
-    HparamsVQGAN, HparamsAbsorbing, HparamsAutoregressive, \
-    add_sampler_args, add_vqgan_args
+from .defaults.sampler_defaults import HparamsAbsorbing, HparamsAutoregressive, add_sampler_args
+from .defaults.vqgan_defaults import HparamsVQGAN, add_vqgan_args
 
 
 # args for training of all models: dataset, EMA and loading

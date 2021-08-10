@@ -1,15 +1,21 @@
-from models.vqgan import VQAutoEncoder
 import torch
 import deepspeed
 import numpy as np
 import copy
 import time
+import os
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
     AbsorbingDiffusion, Transformer, AutoregressiveTransformer
 from hparams import get_sampler_hparams
-from utils import *
+from utils.data_utils import get_data_loader
+from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
+                                get_samples, unpack_sampler_stats
+from utils.train_utils import cycle, EMA, optim_warmup
+from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
+                            save_stats, load_stats, save_model, load_model, save_images, \
+                            display_images, save_buffer
 
 torch.backends.cudnn.benchmark = True
 
@@ -49,13 +55,6 @@ def get_sampler(H, embedding_weight):
 
 
 def main(H, vis):
-    '''
-    TODO: Set up validation loss on sampler by splitting training datasets 90:10 (unless validation set provided)
-    - Check if validation set is available
-    - if it's not, create manually using Subset
-    - create latents for training and validation
-    - add option for checking validation loss
-    '''
 
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
     if not os.path.exists(latents_filepath):        
