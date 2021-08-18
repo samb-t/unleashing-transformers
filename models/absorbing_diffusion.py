@@ -53,6 +53,7 @@ class AbsorbingDiffusion(Sampler):
             raise ValueError
     
     def q_sample(self, x_0, t):
+        # samples q(x_t | x_0)
         # randomly set token to mask with probability t/T
         x_t, x_0_ignore = x_0.clone(), x_0.clone()
 
@@ -62,7 +63,8 @@ class AbsorbingDiffusion(Sampler):
         return x_t, x_0_ignore, mask
     
     def q_sample_mlm(self, x_0, t):
-        # testing fixed noise schedule
+        # samples q(x_t | x_0)
+        # fixed noise schedule, masks exactly int(t/T * latent_size) tokens
         x_t, x_0_ignore = x_0.clone(), x_0.clone()
 
         mask = torch.zeros_like(x_t).to(torch.bool)
@@ -95,10 +97,12 @@ class AbsorbingDiffusion(Sampler):
             x_t, x_0_ignore, mask = self.q_sample_mlm(x_0=x_0, t=t)
 
             
+        # sample p(x_0 | x_t)
         x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
 
-        # Always compute ELBO for comparison purposes
-        vb_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) / t
+        # Always compute ELBO for comparison purposes 
+        cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
+        vb_loss =  cross_entropy_loss / t
         vb_loss = vb_loss / pt
         vb_loss = vb_loss / (math.log(2) * x_0.shape[1:].numel())        
         
@@ -112,10 +116,7 @@ class AbsorbingDiffusion(Sampler):
         elif self.loss_type == 'normed':
             denom = mask.float().sum(1)
             denom[denom == 0] = 1 # prevent divide by 0 errors.
-            # print(denom)
-            # print((F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none') != 0).float().sum(1))
-            # print("---------------------------")
-            loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) / denom
+            loss = cross_entropy_loss / denom
         else:
             raise ValueError
 
@@ -134,10 +135,20 @@ class AbsorbingDiffusion(Sampler):
 
         return loss.mean(), vb_loss.mean()
     
-    def sample(self):
+    def sample(self, sample_stride='all'):
         b, device = self.n_samples, 'cuda'
         x_0 = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
-        for t in reversed(range(1, self.num_timesteps+1)):
+
+        if sample_stride == 'all':
+            sample_steps = list(range(1, self.num_timesteps+1))
+        elif sample_stride == 'quadratic':
+            sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
+        elif sample_stride == 'dynamic':
+            pass # TODO: implement
+
+
+
+        for t in reversed(sample_steps):
             print(f'Sample timestep {t:4d}', end='\r')
             t = torch.full((b,), t, device=device, dtype=torch.long)
             x_t, _, _ = self.q_sample(x_0, t)

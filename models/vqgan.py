@@ -488,4 +488,34 @@ class VQGAN(nn.Module):
             x_hat = x_hat_pre_aug
             
         return x_hat, stats
+
+    @torch.no_grad()
+    def val_iter(self, x, step):
+        stats = {}
+        # update gumbel softmax temperature based on step. Anneal from 1 to 1/16 over 150000 steps
+        if self.ae.quantizer_type == 'gumbel':
+            self.ae.quantize.temperature = max(1/16, ((-1/160000) * step) + 1)
+            stats['gumbel_temp'] = self.ae.quantize.temperature
+
+        x_hat, codebook_loss, quant_stats = self.ae(x)
+        
+        # get recon/perceptual loss
+        recon_loss = torch.abs(x.contiguous() - x_hat.contiguous()) # L1 loss
+        p_loss = self.perceptual(x.contiguous(), x_hat.contiguous())
+        nll_loss = recon_loss + self.perceptual_weight * p_loss
+        nll_loss = torch.mean(nll_loss)
+
+        # update generator
+        logits_fake = self.disc(x_hat)
+        g_loss = -torch.mean(logits_fake)
+
+        stats['l1'] = recon_loss.mean().item()
+        stats['perceptual'] = p_loss.mean().item()
+        stats['nll_loss'] = nll_loss.item()
+        stats['g_loss'] = g_loss.item()
+        stats['codebook_loss'] = codebook_loss.item()
+        stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
+                    
+        return x_hat, stats
+
 # %%

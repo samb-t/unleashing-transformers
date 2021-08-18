@@ -4,7 +4,8 @@ from .base import HparamsBase
 class HparamsAbsorbing(HparamsBase):
     def __init__(self, dataset):
 
-        self.loss_type = 'elbo'
+        self.loss_type = 'normed'
+        self.mask_schedule = 'fixed'
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
@@ -20,20 +21,15 @@ class HparamsAbsorbing(HparamsBase):
             self.n_samples = 128
 
         elif self.dataset == 'cifar10':
-            self.batch_size = 32
+            self.batch_size = 128
             self.bert_n_emb = 256
-            self.bert_n_head = 16
-            self.bert_n_layers = 24
+            self.bert_n_head = 8
+            self.bert_n_layers = 8
             self.block_size = 256
             self.diffusion_steps = 1000
-            self.lr = 1e-4
+            self.lr = 1e-3
             self.n_samples = 64
             self.warmup_iters = 5000
-            self.loss_type = 'normed'
-
-            self.unet_dim = 32
-            self.unet_dim_mults = [1,2,4,8]
-            self.dropout = 0.0
             
         elif self.dataset == 'flowers':
             self.batch_size = 32
@@ -42,8 +38,9 @@ class HparamsAbsorbing(HparamsBase):
             self.bert_n_layers = 24
             self.block_size = 256
             self.diffusion_steps = 1000
-            self.lr = 1e-4
+            self.lr = 1e-3
             self.n_samples = 64
+            self.warmup_iters = 5000
 
         elif self.dataset == 'churches':
             self.batch_size = 32
@@ -54,17 +51,18 @@ class HparamsAbsorbing(HparamsBase):
             self.diffusion_steps = 1000
             self.lr = 1e-4
             self.n_samples = 16
+            self.warmup_iters = 10000
 
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
             self.batch_size = 32
             self.bert_n_emb = 256
-            self.bert_n_head = 8
-            self.bert_n_layers = 8
+            self.bert_n_head = 16
+            self.bert_n_layers = 24
             self.block_size = 256
             self.diffusion_steps = 1000
             self.lr = 1e-4
-            self.sample_block_size = 1 
             self.n_samples = 16
+            self.warmup_iters = 10000
 
         else:
             raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
@@ -164,13 +162,12 @@ def add_diffusion_args(parser):
     parser.add_argument('--diffusion_loss', type=str)#, default='vb_stochastic')
     parser.add_argument('--diffusion_net', type=str)#, default='unet')
     parser.add_argument('--diffusion_steps', type=int)
-    parser.add_argument('--dropout', type=float)
     parser.add_argument('--groups', type=int, default=8)
+    parser.add_argument('--loss_type', type=str)
+    parser.add_argument('--mask_schedule', type=str)
     parser.add_argument('--parametrization', type=str, default='x0')
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
-    parser.add_argument('--loss_type', type=str)
-    parser.add_argument('--mask_schedule', type=str, default='random')
 
 
 def add_ebm_args(parser):

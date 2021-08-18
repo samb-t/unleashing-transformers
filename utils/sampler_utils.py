@@ -23,6 +23,7 @@ def unpack_sampler_stats(stats):
         stats['losses'],
         stats['mean_losses'],
         stats['val_losses'],
+        stats['elbo'],
         stats['steps_per_log']
     )
 

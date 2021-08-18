@@ -9,10 +9,10 @@ from models import \
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
     AbsorbingDiffusion, Transformer, AutoregressiveTransformer
 from hparams import get_sampler_hparams
-from utils.data_utils import get_data_loader
+from utils.data_utils import get_data_loader, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
                                 get_samples, unpack_sampler_stats
-from utils.train_utils import cycle, EMA, optim_warmup
+from utils.train_utils import EMA, optim_warmup
 from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
                             save_stats, load_stats, save_model, load_model, save_images, \
                             display_images, save_buffer
@@ -67,6 +67,7 @@ def main(H, vis):
         #TODO: test if this actually frees up GPU space or not
         ae = ae.cpu()
         # del ae
+        ae = None
     
     train_latent_loader, val_latent_loader = get_latent_loaders(H, latents_filepath)
         
@@ -99,7 +100,7 @@ def main(H, vis):
     # initialise before loading so as not to overwrite loaded stats
     losses = np.array([])
     val_losses = np.array([])
-    vb_losses = np.array([])
+    elbo = np.array([])
     mean_losses = np.array([])
     start_step = 0
     log_start_step = 0
@@ -125,7 +126,7 @@ def main(H, vis):
             train_stats = None
 
         if train_stats is not None:
-            losses, mean_losses, val_losses, H.steps_per_log = unpack_sampler_stats(train_stats)
+            losses, mean_losses, val_losses, elbo, H.steps_per_log = unpack_sampler_stats(train_stats)
             log_start_step = 0
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
@@ -187,7 +188,7 @@ def main(H, vis):
             log_stats(step, stats)     
 
             if H.sampler == 'absorbing':
-                vb_losses = np.append(vb_losses, stats['vb_loss'].item())
+                elbo = np.append(elbo, stats['vb_loss'].item())
                 vis.bar(
                     sampler.loss_history, 
                     list(range(sampler.loss_history.size(0))), 
@@ -196,7 +197,7 @@ def main(H, vis):
                 )
 
                 vis.line(
-                    vb_losses, 
+                    elbo, 
                     list(range(log_start_step, step+1, H.steps_per_log)),
                     win='ELBO',
                     opts=dict(title='ELBO')
@@ -237,6 +238,7 @@ def main(H, vis):
                 'losses' : losses,
                 'mean_losses' : mean_losses,
                 'val_losses' : val_losses,
+                'elbo' : elbo,
                 'steps_per_log' : H.steps_per_log
             }
             save_stats(H, train_stats, step)

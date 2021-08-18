@@ -56,6 +56,7 @@ def main(H, vis):
     losses = np.array([])
     mean_losses = np.array([])
     val_losses = np.array([])
+    recon_losses = np.array([])
     latent_ids = []
     fids = np.array([])
     best_fid = float('inf')
@@ -144,6 +145,7 @@ def main(H, vis):
             step_time = time.time() - step_start_time
             stats['step_time'] = step_time
             mean_losses = np.append(mean_losses, mean_loss)
+            recon_losses = np.append(recon_losses, stats['l1'])
             losses = np.array([])
             vis.line(
                 mean_losses, 
@@ -151,18 +153,24 @@ def main(H, vis):
                 win='loss',
                 opts=dict(title='Loss')
             )
+            vis.line(
+                recon_losses, 
+                list(range(log_start_step, step+1, H.steps_per_log)),
+                win='recon_loss',
+                opts=dict(title='Train L1 Loss')
+            )
             log_stats(step, stats)         
 
         # bundled validation loss and FID calculations together
         # NOTE put in seperate function?
         if H.steps_per_eval:
             if step % H.steps_per_eval == 0 and step > 0:
-                log('Evaluating FIDs and validation loss:')
+                # log('Evaluating FIDs and validation loss:')
                 # vqgan.eval()
-                # Calc FIDs
-                fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
-                fids = np.append(fids, fid)
-                log(f'FID: {fid}')
+                # # Calc FIDs
+                # fid = calc_FID(H, ema_vqgan if H.ema else vqgan)
+                # fids = np.append(fids, fid)
+                # log(f'FID: {fid}')
                 # if fid < best_fid:
                 #     save_model(ema_vqgan if H.ema else vqgan, 'vqgan_bestfid', step, H.log_dir)
 
@@ -170,14 +178,14 @@ def main(H, vis):
                 x_val = next(val_iterator)
                 if H.deepspeed:
                     x_val = x_val.half()
-                _, stats = vqgan.train_iter(x, step)
-                val_losses = np.append(val_losses, stats['loss'].item())
+                _, val_stats = vqgan.val_iter(x, step)
+                val_losses = np.append(val_losses, val_stats['l1'])
 
                 steps = [step for step in range(eval_start_step, step+1, H.steps_per_eval)]
-                vis.line(fids, steps, win='FID',opts=dict(title='FID'))
-                vis.line(val_losses, steps, win='val', opts=dict(title='Validation Loss'))
+                # vis.line(fids, steps, win='FID',opts=dict(title='FID'))
+                vis.line(val_losses, steps, win='val', opts=dict(title='Validation L1 Loss'))
                 
-                vqgan.train()
+                # vqgan.train()
 
         # log codebook usage
         if step % steps_per_epoch == 0 and step > 0: 
