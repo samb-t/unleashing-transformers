@@ -135,7 +135,7 @@ class AbsorbingDiffusion(Sampler):
 
         return loss.mean(), vb_loss.mean()
     
-    def sample(self, sample_stride='all'):
+    def sample(self, sample_stride='all', temp=1.0):
         b, device = self.n_samples, 'cuda'
         x_0 = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
 
@@ -146,13 +146,13 @@ class AbsorbingDiffusion(Sampler):
         elif sample_stride == 'dynamic':
             pass # TODO: implement
 
-
-
         for t in reversed(sample_steps):
             print(f'Sample timestep {t:4d}', end='\r')
             t = torch.full((b,), t, device=device, dtype=torch.long)
             x_t, _, _ = self.q_sample(x_0, t)
             x_0_logits = self._denoise_fn(x_t, t=t)
+            # scale by temperature
+            x_0_logits = x_0_logits / temp
             x_0_dist = dists.Categorical(
                 logits=x_0_logits)
             x_0_hat = x_0_dist.sample().long()

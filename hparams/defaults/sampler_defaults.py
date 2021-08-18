@@ -9,6 +9,8 @@ class HparamsAbsorbing(HparamsBase):
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
+        self.temp = 1.0
+        
         super().__init__(dataset)
         if self.dataset == 'mnist':
             self.batch_size = 128
@@ -183,8 +185,9 @@ def add_ebm_args(parser):
 def add_sampler_args(parser):
     parser.add_argument('--ae_load_dir', type=str, required=True)
     parser.add_argument('--ae_load_step', type=int, required=True)
-    parser.add_argument('--sampler', type=str, required=True)
     parser.add_argument('--n_samples', type=int)
+    parser.add_argument('--sampler', type=str, required=True)
+    parser.add_argument('--temp', type=float)
     parser.add_argument('--warmup_iters', type=int)
 
     add_bert_args(parser)

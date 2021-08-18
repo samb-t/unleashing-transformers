@@ -1,12 +1,15 @@
 import torch_fidelity
-from utils import *
-from hparams import get_vqgan_hparams, get_sampler_hparams
-from models import VQAutoEncoder, VQGAN, Generator
+import torch
+from hparams import get_sampler_hparams
+from models import VQGAN, Generator
 from tqdm import tqdm
 from train_sampler import get_sampler
 import torchvision
 import imageio
-
+import os
+from utils.log_utils import log, display_images, setup_visdom, load_model, save_images, config_log, start_training_log
+from utils.data_utils import get_data_loader
+from utils.sampler_utils import get_samples, retrieve_autoencoder_components_state_dicts, latent_ids_to_onehot
 
 class TensorDataset(torch.utils.data.Dataset):
     def __init__(self, tensor):
@@ -43,79 +46,66 @@ class NoClassDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.dataset)
 
-def main(H):
-    vis = setup_visdom(H)
+def main(H, vis):
     
-    if H.model == 'vqgan':
-        model = VQGAN(H)
-        data_loader, _ = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, get_val_train_split=False)
-    else:
-        quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
-            H,
-            ['quantize', 'generator'],
-            remove_component_from_key=True
-        )
-        embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
-        embedding_weight = embedding_weight.cuda()
-        generator = Generator(H)
-        generator.load_state_dict(quanitzer_and_generator_state_dict)
-        generator = generator.cuda()
+    quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
+        H,
+        ['quantize', 'generator'],
+        remove_component_from_key=True
+    )
+    embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
+    embedding_weight = embedding_weight.cuda()
+    generator = Generator(H)
 
-        model = get_sampler(H, embedding_weight)
+    #NOTE: can move generator to cpu to save memory if needbe - add flag?
+    generator.load_state_dict(quanitzer_and_generator_state_dict)
+    sampler = get_sampler(H, embedding_weight).cuda()
 
-    if H.ema:
-        model_name = H.model + '_ema'
-    else:
-        model_name = H.model
+    if H.load_step > 0:
+        sampler =  load_model(sampler, f'{H.sampler}_ema', H.load_step, H.load_dir).cuda()
 
-    model = load_model(model, model_name, H.load_step, H.load_dir).cuda()
-    model = model.eval()
+    sampler = sampler.eval()
 
     with torch.no_grad():
-        if H.model == 'vqgan': 
-            os.makedirs(f"logs/{H.load_dir}_recons/images", exist_ok=True)
-            log('Generating VQGAN samples:')    
-            idx = 0
-            for x, *_ in tqdm(data_loader):
-                x = x.cuda()
-                x_hat, _, _ = model.ae(x)
-                # vis.images(x_hat.clamp(0,1), win='recon_check', opts=dict(title='recon_check'))
-                save_images(x_hat.detach().cpu(), f'recon', idx, f'{H.load_dir}_recons', save_indivudally=True)
-                idx += 1
-            
-            images = BigDataset(f"logs/{H.load_dir}_recons/images/")
-
-        else:
-            if H.dataset == 'cifar10':
-                samples_needed = 50000
-
-            elif H.dataset == 'churches':
-                # Commonly use 50000 images of samples and training data - https://github.com/GaParmar/clean-fid
-                # Gotta Go Fast only use 5k!
-                samples_needed = 10000
-
-            elif H.dataset == 'ffhq':
-                samples_needed = 10000
-
-            if not H.n_samples:
-                raise ValueError('Please specify number of samples to calculate per step using --n_samples')
-            
-            # for idx in tqdm(range(int(samples_needed/H.batch_size) + 1)):
-            #     latents = model.sample()
-            #     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
-            #     q = model.embed(latents_one_hot)
-            #     gen_images = generator(q)
-            #     vis.images(gen_images[:64].clamp(0,1), win='sample_check', opts=dict(title='sample_check'))
-            #     save_images(gen_images.detach().cpu(), f'sample', idx, f'{H.load_dir}_samples', save_indivudally=True)
-
-            images = BigDataset(f"logs/{H.load_dir}_samples/images/")
-
-        # torch.save(images, f'images_{H.dataset}_backup')
-        # images = (images * 255).clamp(0, 255).to(torch.uint8)
-        # images = TensorDataset(images)
         
-        model = model.cpu()
-        model = None
+        if H.dataset == 'cifar10':
+            samples_needed = 50000
+
+        elif H.dataset == 'churches':
+            samples_needed = 10000
+
+        elif H.dataset == 'ffhq':
+            samples_needed = 10000
+
+        if not H.n_samples:
+            raise ValueError('Please specify number of samples to calculate per step using --n_samples')
+        
+        print(f'Sampling with temperature {H.temp}')
+        all_latents = []
+        for _ in tqdm(range(int(samples_needed/H.batch_size) + 1)):
+            latents = sampler.sample(temp=H.temp)
+            all_latents.append(latents.cpu())
+
+        all_latents = torch.cat(all_latents, dim=0)
+        torch.save(all_latents, 'all_latents_backup.pkl')
+        embedding_weight = sampler.embedding_weight.cuda().clone()
+        sampler = sampler.cpu()
+        del sampler
+
+        for idx, latents in tqdm(list(enumerate(torch.split(all_latents, H.vqgan_batch_size)))):
+            latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size).cuda()
+            q = torch.matmul(latents_one_hot, embedding_weight).view(
+                latents_one_hot.size(0), H.latent_shape[1], H.latent_shape[2], H.emb_dim
+            ).permute(0, 3, 1, 2).contiguous()
+            gen_images = generator(q)
+            vis.images(gen_images[:64].clamp(0,1), win='FID_sample_check', opts=dict(title='FID_sample_check'))
+            save_images(gen_images.detach().cpu(), f'sample', idx, f'{H.load_dir}_samples', save_indivudally=True)
+            images = BigDataset(f"logs/{H.load_dir}_samples/images/")
+            generator = generator.cpu()
+            generator = None
+
+        images = BigDataset(f"logs/{H.load_dir}_samples/images/")
+        
 
         if H.dataset == 'cifar10':
             input2 = 'cifar10-train'
@@ -152,16 +142,14 @@ def main(H):
 
 if __name__=='__main__':
     H = get_sampler_hparams()
-    if H.sampler is None:
-        H.model = 'vqgan'
-    else:
-        H.model = H.sampler
+    H.vqgan_batch_size = 32
+    vis = setup_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
     if H.load_step > 0:
         log(f'Calculating FID for {H.model} loaded from step {H.load_step}')  
         start_training_log(H)
-        main(H) 
+        main(H, vis) 
     else:
         raise ValueError('No value provided for load_step, cannot calculate FID for new model')
 

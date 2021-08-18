@@ -4,9 +4,9 @@ from tqdm import tqdm
 from .log_utils import save_latents, log
 
 @torch.no_grad()
-def get_samples(H, generator, sampler):            
+def get_samples(H, generator, sampler, temp=1.0, stride='all'):            
     #TODO need to write sample function for EBM (give option of AIS?)
-    latents = sampler.sample() 
+    latents = sampler.sample(sample_stride=stride, temp=temp) 
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     if H.deepspeed:
         if H.deepspeed:
@@ -120,7 +120,7 @@ def retrieve_autoencoder_components_state_dicts(H, components_list, remove_compo
     ae_load_path = f'logs/{H.ae_load_dir}/saved_models/vqgan_ema_{H.ae_load_step}.th'        
     if not os.path.exists(ae_load_path):
         ae_load_path = f'logs/{H.ae_load_dir}/saved_models/vqgan_{H.ae_load_step}.th'        
-    
+    print(f'Loading VQGAN from {ae_load_path}')
     full_vqgan_state_dict = torch.load(ae_load_path, map_location='cpu')
 
     for key in full_vqgan_state_dict:
