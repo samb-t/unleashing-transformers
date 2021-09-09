@@ -67,12 +67,16 @@ def main(H, vis):
     sampler = sampler.eval()
 
     with torch.no_grad():
+
+        image_dir = H.FID_images_dir if H.FID_images_dir is not None else f"{H.load_dir}_samples"
         
-        if H.dataset == 'cifar10':
+        if H.samples_needed is not None:
+            samples_needed = H.samples_needed
+        elif H.dataset == 'cifar10':
             samples_needed = 50000
 
         elif H.dataset == 'churches':
-            samples_needed = 10000
+            samples_needed = 2500
 
         elif H.dataset == 'ffhq':
             samples_needed = 10000
@@ -82,15 +86,22 @@ def main(H, vis):
         
         print(f'Sampling with temperature {H.temp}')
         all_latents = []
-        for _ in tqdm(range(int(samples_needed/H.batch_size) + 1)):
+        for i in tqdm(range(int(samples_needed/H.batch_size) + 1)):
             latents = sampler.sample(temp=H.temp)
+            torch.save(latents.cpu(), f"logs/{image_dir}/latents_backup_{i}.pkl")
             all_latents.append(latents.cpu())
 
         all_latents = torch.cat(all_latents, dim=0)
-        torch.save(all_latents, 'all_latents_backup.pkl')
+        torch.save(all_latents, f"logs/{image_dir}/all_latents_backup.pkl")
+        # all_latents = torch.load(f"logs/{image_dir}/images/all_latents_backup.pkl")
         embedding_weight = sampler.embedding_weight.cuda().clone()
-        sampler = sampler.cpu()
+        # sampler = sampler.cpu()
         del sampler
+
+        all_latents = all_latents.cuda()
+        generator = generator.cuda()
+
+        
 
         for idx, latents in tqdm(list(enumerate(torch.split(all_latents, H.vqgan_batch_size)))):
             latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size).cuda()
@@ -98,13 +109,13 @@ def main(H, vis):
                 latents_one_hot.size(0), H.latent_shape[1], H.latent_shape[2], H.emb_dim
             ).permute(0, 3, 1, 2).contiguous()
             gen_images = generator(q)
-            vis.images(gen_images[:64].clamp(0,1), win='FID_sample_check', opts=dict(title='FID_sample_check'))
-            save_images(gen_images.detach().cpu(), f'sample', idx, f'{H.load_dir}_samples', save_indivudally=True)
-            images = BigDataset(f"logs/{H.load_dir}_samples/images/")
-            generator = generator.cpu()
-            generator = None
+            # vis.images(gen_images[:64].clamp(0,1), win='FID_sample_check', opts=dict(title='FID_sample_check'))
+            save_images(gen_images.detach().cpu(), f'sample', idx, image_dir, save_indivudally=True)
+            images = BigDataset(f"logs/{image_dir}/images/")
+        # generator = generator.cpu()
+        del generator
 
-        images = BigDataset(f"logs/{H.load_dir}_samples/images/")
+        images = BigDataset(f"logs/{image_dir}/images/")
         
 
         if H.dataset == 'cifar10':

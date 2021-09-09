@@ -44,12 +44,12 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
         ]))
         train_dataset, val_dataset = val_train_split(dataset)
     elif dataset_name == 'churches':
-        train_dataset = torchvision.datasets.LSUN('../Repos/_datasets/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+        train_dataset = torchvision.datasets.LSUN('/home/sam/workspace/data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        val_dataset = torchvision.datasets.LSUN('../Repos/_datasets/LSUN', classes=['church_outdoor_val'], transform=torchvision.transforms.Compose([
+        val_dataset = torchvision.datasets.LSUN('/home/sam/workspace/data/LSUN', classes=['church_outdoor_val'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()

@@ -28,7 +28,8 @@ def main(H, vis):
     if H.load_step > 0:
         sampler =  load_model(sampler, f'{H.sampler}_ema', H.load_step, H.load_dir).cuda()
 
-    for temp_int in range(945, 955):
+    # for temp_int in range(945, 955):
+    for temp_int in range(900, 1000+1, 10):
         temp = temp_int / 1000
         print(f'Generating samples with temp {temp}')
         samples = get_samples(H, generator, sampler, temp=temp)

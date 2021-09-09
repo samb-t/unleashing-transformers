@@ -104,7 +104,7 @@ class AbsorbingDiffusion(Sampler):
         cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
         vb_loss =  cross_entropy_loss / t
         vb_loss = vb_loss / pt
-        vb_loss = vb_loss / (math.log(2) * x_0.shape[1:].numel())        
+        vb_loss = vb_loss / (math.log(2) * x_0.shape[1:].numel())      
         
         if self.loss_type == 'elbo':
             loss = vb_loss 
@@ -117,6 +117,16 @@ class AbsorbingDiffusion(Sampler):
             denom = mask.float().sum(1)
             denom[denom == 0] = 1 # prevent divide by 0 errors.
             loss = cross_entropy_loss / denom
+        elif self.loss_type == 'new':
+            # denom = mask.float().sum(1)
+            # denom[denom == 0] = 1 # prevent divide by 0 errors.
+            # loss = cross_entropy_loss / denom
+            weight = (1 - (t / self.num_timesteps))
+            loss = weight * cross_entropy_loss #+ (torch.log(weight) * weight)
+            # loss = loss / torch.log(torch.tensor(2.0, device=device)) # convert to bpd
+            # loss = loss / pt
+            loss = loss / (math.log(2) * x_0.shape[1:].numel())     
+
         else:
             raise ValueError
 

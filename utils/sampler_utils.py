@@ -2,6 +2,7 @@ import os
 import torch
 from tqdm import tqdm
 from .log_utils import save_latents, log
+import numpy as np
 
 @torch.no_grad()
 def get_samples(H, generator, sampler, temp=1.0, stride='all'):            

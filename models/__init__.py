@@ -7,3 +7,4 @@ from .bert import BERT
 from .multinomial_diffusion import MultinomialDiffusion
 from .autoregressive import AutoregressiveTransformer
 from .helpers import MyOneHotCategorical
+from .perceiver import PerceiverIO

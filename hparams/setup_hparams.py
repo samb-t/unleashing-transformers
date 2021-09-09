@@ -76,6 +76,8 @@ def get_sampler_hparams():
     set_up_base_parser(parser)
     add_vqgan_args(parser) # necessary for loading decoder/generator for displaying samples
     add_sampler_args(parser)
+    parser.add_argument('--FID_images_dir', type=str)
+    parser.add_argument('--samples_needed', type=int)
     parser_args = parser.parse_args()
     dataset = parser_args.dataset
     

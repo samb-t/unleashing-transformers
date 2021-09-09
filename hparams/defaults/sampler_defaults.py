@@ -10,6 +10,13 @@ class HparamsAbsorbing(HparamsBase):
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
         self.temp = 1.0
+
+        # perceiver params
+        self.perceiver_layers = 6
+        self.layers_per_cross_attn = 4
+        self.perceiver_latents = 64
+        self.perceiver_latent_chunks = 10
+        self.perceiver_dim_head = 64
         
         super().__init__(dataset)
         if self.dataset == 'mnist':
@@ -45,11 +52,21 @@ class HparamsAbsorbing(HparamsBase):
             self.warmup_iters = 5000
 
         elif self.dataset == 'churches':
-            self.batch_size = 32
-            self.bert_n_emb = 256
+            # self.batch_size = 32
+            # self.bert_n_emb = 256
+            # self.bert_n_head = 16
+            # self.bert_n_layers = 24
+            # self.block_size = 256
+            # self.diffusion_steps = 1000
+            # self.lr = 1e-4
+            # self.n_samples = 16
+            # self.warmup_iters = 10000
+
+            self.batch_size = 6
+            self.bert_n_emb = 1024
             self.bert_n_head = 16
             self.bert_n_layers = 24
-            self.block_size = 256
+            self.block_size = 512
             self.diffusion_steps = 1000
             self.lr = 1e-4
             self.n_samples = 16
@@ -146,6 +163,11 @@ class HparamsMultinomialDiffusion(HparamsBase):
         else:
             raise KeyError(f'Defaults not defined for multinomial diffusion model on dataset: {self.dataset}')
 
+def add_perceiver_args(parser):
+    parser.add_argument('--perceiver_layers', type=int)
+    parser.add_argument('--layers_per_cross_attn', type=int)
+    parser.add_argument('--perceiver_latent_chunks', type=int)
+    parser.add_argument('--perceiver_dim_head', type=int)
 
 def add_bert_args(parser):
     parser.add_argument('--attn_pdrop', type=float)
@@ -193,3 +215,4 @@ def add_sampler_args(parser):
     add_bert_args(parser)
     add_diffusion_args(parser)
     add_ebm_args(parser)
+    add_perceiver_args(parser)

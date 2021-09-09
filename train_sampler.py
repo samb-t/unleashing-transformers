@@ -1,13 +1,15 @@
+from models.perceiver import PerceiverIO
 import torch
 import deepspeed
 import numpy as np
 import copy
 import time
 import os
+from tqdm import tqdm
 from models import \
     MyOneHotCategorical, VQAutoEncoder, Generator,\
     EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
-    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
+    AbsorbingDiffusion, Transformer, AutoregressiveTransformer, PerceiverIO
 from hparams import get_sampler_hparams
 from utils.data_utils import get_data_loader, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
@@ -17,12 +19,15 @@ from utils.log_utils import log, log_stats, setup_visdom, config_log, start_trai
                             save_stats, load_stats, save_model, load_model, save_images, \
                             display_images, save_buffer
 
-torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.benchmark = True
 
 def get_sampler(H, embedding_weight):
 
     if H.sampler == 'absorbing':
-        denoise_fn = Transformer(H).cuda()
+        if H.diffusion_net == 'transformer':
+            denoise_fn = Transformer(H).cuda()
+        elif H.diffusion_net == 'perceiver':
+            denoise_fn = PerceiverIO(H).cuda()
         sampler =  AbsorbingDiffusion(H, denoise_fn, H.codebook_size, embedding_weight)
 
     elif H.sampler == 'bert':
@@ -128,6 +133,14 @@ def main(H, vis):
         if train_stats is not None:
             losses, mean_losses, val_losses, elbo, H.steps_per_log = unpack_sampler_stats(train_stats)
             log_start_step = 0
+
+            # initialise plots
+            vis.line(mean_losses, list(range(log_start_step, start_step, H.steps_per_log)),
+                win='loss', opts=dict(title='Loss'))
+            vis.line(elbo, list(range(log_start_step, start_step, H.steps_per_log)),
+                win='ELBO', opts=dict(title='ELBO'))
+            vis.line(val_losses, list(range(H.steps_per_eval, start_step, H.steps_per_eval)), 
+                win='Val_loss', opts=dict(title='Validation Loss'))
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
             log_start_step = start_step
@@ -135,6 +148,8 @@ def main(H, vis):
     scaler = torch.cuda.amp.GradScaler()
     train_iterator = cycle(train_latent_loader)
     val_iterator = cycle(val_latent_loader)
+
+    print("params", sum(p.numel() for p in sampler.parameters()))
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()
@@ -148,13 +163,14 @@ def main(H, vis):
 
         if H.deepspeed:
             optim.zero_grad()
-            stats = sampler.train_iter(x) # don't need to cast to half() for diffusion?
+            stats = sampler.train_iter(x) 
             model_engine.backward(stats['loss'])
             model_engine.step()
         elif H.amp:
             optim.zero_grad()
             with torch.cuda.amp.autocast():
                 stats = sampler.train_iter(x)
+            
             scaler.scale(stats['loss']).backward()
             scaler.step(optim)
             scaler.update()
@@ -179,29 +195,17 @@ def main(H, vis):
             losses = np.array([])
 
 
-            vis.line(
-                mean_losses, 
-                list(range(log_start_step, step+1, H.steps_per_log)),
-                win='loss',
-                opts=dict(title='Loss')
-            )
+            vis.line(np.array([mean_loss]), np.array([step]), win='loss', 
+                update=('append' if step>0 else 'replace'), opts=dict(title='Loss'))
             log_stats(step, stats)     
 
             if H.sampler == 'absorbing':
                 elbo = np.append(elbo, stats['vb_loss'].item())
-                vis.bar(
-                    sampler.loss_history, 
-                    list(range(sampler.loss_history.size(0))), 
-                    win='loss_bar', 
-                    opts=dict(title='loss_bar')
-                )
+                vis.bar(sampler.loss_history, list(range(sampler.loss_history.size(0))), 
+                    win='loss_bar', opts=dict(title='loss_bar'))
 
-                vis.line(
-                    elbo, 
-                    list(range(log_start_step, step+1, H.steps_per_log)),
-                    win='ELBO',
-                    opts=dict(title='ELBO')
-                )
+                vis.line(np.array([stats['vb_loss'].item()]), np.array([step]),
+                    win='ELBO', update=('append' if step>0 else 'replace'), opts=dict(title='ELBO'))
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
             ema.update_model_average(ema_sampler, sampler)
@@ -218,12 +222,28 @@ def main(H, vis):
 
         if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
             # calculate validation loss
-            x = next(val_iterator)
-            x = x.cuda()
-            with torch.no_grad(): # may not work foramp
-                stats = sampler.train_iter(x)
-                val_losses = np.append(val_losses, stats['loss'].item())
-                vis.line(val_losses, list(range(H.steps_per_eval, step+1, H.steps_per_eval)), win='Val_loss', opts=dict(title='Validation Loss'))
+            valid_loss, valid_elbo, num_samples = 0.0, 0.0, 0
+            eval_repeats = 60
+            print("Evaluating")
+            for _ in tqdm(range(eval_repeats)):
+                for x in val_latent_loader:
+                    with torch.no_grad():
+                        stats = sampler.train_iter(x.cuda())
+                        valid_loss += stats['loss'].item()
+                        if H.sampler == 'absorbing':
+                            valid_elbo += stats['vb_loss'].item()
+                        num_samples += x.size(0)
+            valid_loss = valid_loss / num_samples
+            if H.sampler == 'absorbing':
+                valid_elbo = valid_elbo / num_samples
+            
+            val_losses = np.append(val_losses, valid_loss)
+            vis.line(np.array([valid_loss]), np.array([step]), 
+                win='Val_loss', update=('append' if step>0 else 'replace'), opts=dict(title='Validation Loss'))
+            
+            if H.sampler == 'absorbing':
+                vis.line(np.array([valid_elbo]), np.array([step]), 
+                    win='Val_elbo', update=('append' if step>0 else 'replace'), opts=dict(title='Validation ELBO'))
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)

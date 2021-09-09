@@ -21,12 +21,12 @@ class AutoregressiveTransformer(Sampler):
         stats = {'loss': loss}
         return stats
 
-    def sample(self):
+    def sample(self, temp=1.0, sample_stride=None):
         b, device = self.n_samples, 'cuda'
         x = torch.zeros(b, 0).long().to(device)
         for _ in range(self.seq_len):
             logits = self.net(x)[:, -1]
-            probs = F.softmax(logits, dim=-1)
+            probs = F.softmax(logits / temp, dim=-1)
             ix = torch.multinomial(probs, num_samples=1)
             x = torch.cat((x, ix), dim=1)
         return x
