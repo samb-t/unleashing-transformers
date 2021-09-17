@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .diffaug import DiffAugment
+import numpy as np
 
 #%% helper functions
 def normalize(in_channels):
@@ -348,10 +349,23 @@ class Generator(nn.Module):
 
         self.blocks = nn.ModuleList(blocks)
 
+        self.final_block_ch = block_in_ch
+        if H.probabilistic_generator:
+            self.logsigma = nn.Conv2d(block_in_ch, self.out_channels, kernel_size=3, stride=1, padding=1)
+
     def forward(self, x):
         for block in self.blocks:
             x = block(x)
         return x
+    
+    
+    def probabilistic(self, x):
+        with torch.no_grad():
+            for block in self.blocks[:-1]:
+                x = block(x)
+            mu = self.blocks[-1](x)
+        logsigma = self.logsigma(x)
+        return mu, logsigma
 
 
 class VQAutoEncoder(nn.Module):
@@ -384,6 +398,13 @@ class VQAutoEncoder(nn.Module):
         quant, codebook_loss, quant_stats = self.quantize(x)
         x = self.generator(quant)
         return x, codebook_loss, quant_stats
+    
+    def probabilistic(self, x):
+        with torch.no_grad():
+            x = self.encoder(x)
+            quant, _, quant_stats = self.quantize(x)
+        mu, logsigma = self.generator.probabilistic(quant)
+        return mu, logsigma, quant_stats
 
 
 # patch based discriminator
@@ -516,6 +537,33 @@ class VQGAN(nn.Module):
         stats['codebook_loss'] = codebook_loss.item()
         stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
                     
+        return x_hat, stats
+    
+    def probabilistic(self, x, step):
+        stats = {}
+
+        mu, logsigma, quant_stats = self.ae.probabilistic(x)
+        # can we simplify this since mu isn't depement on the learned parameters.
+        # nll = 0.5*((x - mu) / (torch.exp(logsigma))).pow(2) + logsigma + 0.5*np.log(2*np.pi)
+        
+        # Try this instead from NVAE. They also use some weird softclamp for stability - https://github.com/NVlabs/NVAE/blob/38eb9977aa6859c6ee037af370071f104c592695/distributions.py#L27
+        # normalized_samples = (samples - self.mu) / self.sigma
+        # log_p = - 0.5 * normalized_samples * normalized_samples - 0.5 * np.log(2 * np.pi) - torch.log(self.sigma)
+
+        recon = 0.5 * torch.exp(2*torch.log(torch.abs(x - mu)) - 2*logsigma)
+        if torch.isnan(recon.mean()):
+            print("nan detected")
+            print(torch.log(torch.abs(x - mu)).max(), torch.log(torch.abs(x - mu)).min())
+            print(logsigma.max(), logsigma.min())
+        nll = recon + logsigma + 0.5*np.log(2*np.pi)
+
+        # print("exp is inf", torch.any(torch.isinf(torch.exp(logsigma))).item())
+
+        stats['nll'] = nll.mean(0).sum() / (np.log(2) * np.prod(x.shape[1:]))
+        stats['nll_raw'] = nll.sum((1,2,3))
+        stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
+        x_hat = mu + 0.5*torch.exp(logsigma)*torch.randn_like(logsigma)
+
         return x_hat, stats
 
 # %%

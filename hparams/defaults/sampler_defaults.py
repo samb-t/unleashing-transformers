@@ -192,6 +192,7 @@ def add_diffusion_args(parser):
     parser.add_argument('--parametrization', type=str, default='x0')
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
+    parser.add_argument('--stepping', type=str)
 
 
 def add_ebm_args(parser):

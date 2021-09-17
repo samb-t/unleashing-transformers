@@ -64,7 +64,8 @@ def load_buffer(name, log_dir):
 def display_images(vis, images, H, win_name=None):
     if win_name == None:
         win_name = f'{H.model}_images'
-    vis.images(torch.clamp(images, 0, 1), nrow=int(np.sqrt(images.shape[0])), win=win_name, opts=dict(title=win_name))
+    images = torchvision.utils.make_grid(images.clamp(0,1), nrow=int(np.sqrt(images.size(0))), padding=0)
+    vis.image(images, win=win_name, opts=dict(title=win_name))
 
 
 def save_images(images, im_name, step, log_dir, save_indivudally=False):

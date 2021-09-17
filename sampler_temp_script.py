@@ -7,7 +7,9 @@ from utils.sampler_utils import retrieve_autoencoder_components_state_dicts,\
 from utils.log_utils import log, setup_visdom, config_log, start_training_log, \
                              load_model, save_images, display_images
 from train_sampler import get_sampler
+from utils.sampler_utils import latent_ids_to_onehot
 
+import torch
 
 
 def main(H, vis):
@@ -33,6 +35,7 @@ def main(H, vis):
         temp = temp_int / 1000
         print(f'Generating samples with temp {temp}')
         samples = get_samples(H, generator, sampler, temp=temp)
+
         display_images(vis, samples, H, win_name=f'Samples_{temp}')
 
 

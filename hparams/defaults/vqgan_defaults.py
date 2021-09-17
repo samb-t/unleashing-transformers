@@ -11,6 +11,7 @@ class HparamsVQGAN(HparamsBase):
         self.gumbel_kl_weight = 1e-8
         self.gumbel_straight_through = False
         self.quantizer = 'nearest'
+        self.probabilistic_generator = False
 
         if self.dataset == 'mnist':
             self.attn_resolutions = [8]
@@ -123,3 +124,5 @@ def add_vqgan_args(parser):
     parser.add_argument('--perceptual_weight', type=int)
     parser.add_argument('--quantizer', type=str)
     parser.add_argument('--res_blocks', type=int)
+    parser.add_argument('--probabilistic_generator', const=True, action='store_const', default=False)
+    

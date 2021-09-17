@@ -5,9 +5,9 @@ from .log_utils import save_latents, log
 import numpy as np
 
 @torch.no_grad()
-def get_samples(H, generator, sampler, temp=1.0, stride='all'):            
+def get_samples(H, generator, sampler, temp=1.0, stride='all', sample_steps=None):            
     #TODO need to write sample function for EBM (give option of AIS?)
-    latents = sampler.sample(sample_stride=stride, temp=temp) 
+    latents = sampler.sample(sample_stride=stride, temp=temp, sample_steps=sample_steps) 
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     if H.deepspeed:
         if H.deepspeed:
