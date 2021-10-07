@@ -1,6 +1,7 @@
 import torch
 import torchvision
 from torch.utils.data.dataset import Subset
+from torchvision.transforms.transforms import RandomHorizontalFlip
 
 
 def cycle(iterable):
@@ -17,7 +18,7 @@ def val_train_split(dataset, train_ratio=0.9):
     return train_dataset, val_dataset
 
 
-def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, get_val_train_split=True):
+def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, get_val_train_split=True, flip_images=False):
     if dataset_name == 'mnist':
         train_dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=True, download=download, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -44,17 +45,42 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
         ]))
         train_dataset, val_dataset = val_train_split(dataset)
     elif dataset_name == 'churches':
-        train_dataset = torchvision.datasets.LSUN('/home/sam/workspace/data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+        train_dataset = torchvision.datasets.LSUN('/home2/kmhf27/workspace/data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.RandomHorizontalFlip(p=0.0),
+            torchvision.transforms.ToTensor()
+        ]))
+        train_dataset_flip = torchvision.datasets.LSUN('/home2/kmhf27/workspace/data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.RandomHorizontalFlip(p=1.0),
+            torchvision.transforms.ToTensor()
+        ]))
+        val_dataset = torchvision.datasets.LSUN('/home2/kmhf27/workspace/data/LSUN', classes=['church_outdoor_val'], transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.RandomHorizontalFlip(p=0.0),
+            torchvision.transforms.ToTensor()
+        ]))
+    elif dataset_name == 'bedrooms':
+        train_dataset = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.RandomHorizontalFlip(p=0.0),
+            torchvision.transforms.ToTensor()
+        ]))
+        train_dataset_flip = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
+            torchvision.transforms.Resize(img_size),
+            torchvision.transforms.CenterCrop(img_size),
+            torchvision.transforms.RandomHorizontalFlip(p=1.0),
+            torchvision.transforms.ToTensor()
+        ]))
+        val_dataset = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_val'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        val_dataset = torchvision.datasets.LSUN('/home/sam/workspace/data/LSUN', classes=['church_outdoor_val'], transform=torchvision.transforms.Compose([
-            torchvision.transforms.Resize(img_size),
-            torchvision.transforms.CenterCrop(img_size),
-            torchvision.transforms.ToTensor()
-        ]))
-        
     elif dataset_name =='celeba':
         dataset = torchvision.datasets.CelebA('~/Repos/_datasets/celeba', download=True, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -77,6 +103,9 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
             train_dataset, val_dataset = val_train_split(dataset)
         else:
             train_dataset, val_dataset = dataset, None
+
+    if flip_images:
+        train_dataset = torch.utils.data.ConcatDataset([train_dataset, train_dataset_flip])
 
     train_loader = torch.utils.data.DataLoader(train_dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
     if val_dataset != None:
