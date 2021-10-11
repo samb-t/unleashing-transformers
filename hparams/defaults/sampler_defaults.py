@@ -72,6 +72,17 @@ class HparamsAbsorbing(HparamsBase):
             self.n_samples = 16
             self.warmup_iters = 10000
 
+        elif self.dataset == 'bedrooms':
+            self.batch_size = 6
+            self.bert_n_emb = 1024
+            self.bert_n_head = 16
+            self.bert_n_layers = 24
+            self.block_size = 512
+            self.diffusion_steps = 1000
+            self.lr = 1e-4
+            self.n_samples = 16
+            self.warmup_iters = 10000
+
         elif self.dataset == 'celeba' or self.dataset == 'ffhq':
             self.batch_size = 32
             self.bert_n_emb = 256
@@ -117,6 +128,15 @@ class HparamsAutoregressive(HparamsBase):
             ...
 
         elif self.dataset == 'churches':
+            self.batch_size = 32
+            self.bert_n_emb = 256
+            self.bert_n_head = 8
+            self.bert_n_layers = 8
+            self.block_size = 256
+            self.lr = 1e-4
+            self.sample_block_size = 1
+
+        elif self.dataset == 'bedrooms':
             self.batch_size = 32
             self.bert_n_emb = 256
             self.bert_n_head = 8
@@ -193,6 +213,7 @@ def add_diffusion_args(parser):
     parser.add_argument('--unet_dim_mults', nargs='+', type=int)
     parser.add_argument('--unet_dim', type=int)
     parser.add_argument('--stepping', type=str)
+    parser.add_argument('--sample_type', type=str, default='default')
 
 
 def add_ebm_args(parser):

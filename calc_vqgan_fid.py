@@ -12,7 +12,7 @@ from utils.log_utils import log, display_images, setup_visdom, load_model, save_
 from utils.data_utils import get_data_loader
 from utils.sampler_utils import get_samples, retrieve_autoencoder_components_state_dicts, latent_ids_to_onehot
 from utils.vqgan_utils import unpack_vqgan_stats, load_vqgan_from_checkpoint, calc_FID
-
+from tqdm import tqdm
 
 class TensorDataset(torch.utils.data.Dataset):
     def __init__(self, tensor):
@@ -40,14 +40,15 @@ class BigDataset(torch.utils.data.Dataset):
 
 
 class NoClassDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset):
+    def __init__(self, dataset, length=None):
         self.dataset = dataset
+        self.length = length if length is not None else len(dataset)
     
     def __getitem__(self, index):
         return self.dataset[index][0].mul(255).clamp_(0, 255).to(torch.uint8)
     
     def __len__(self):
-        return len(self.dataset)
+        return self.length
 
 def main(H, vis):
     
@@ -64,19 +65,22 @@ def main(H, vis):
     del optim
     del d_optim
 
-    _, val_loader = get_data_loader(
+    train_loader, val_loader = get_data_loader(
         H.dataset,
         H.img_size,
         H.batch_size,
         get_val_train_split=True
     )
+    train_loader = iter(train_loader)
 
     with torch.no_grad():
 
         images = []
-        for i, x in enumerate(val_loader):
+        for i in tqdm(range(int(50000/H.batch_size))):
+            #for i, x in tqdm(enumerate(train_loader), total=len(train_loader)):
+            x = next(train_loader)
             x_hat, stats = ema_vqgan.val_iter(x[0].cuda(), H.load_step)
-            images.append(x_hat)
+            images.append(x_hat.cpu())
             if i == 0:
                 vis.images(x_hat.clamp(0,1), win='recon_sanity', opts=dict(title='recon_sanity'))
 
@@ -91,7 +95,7 @@ def main(H, vis):
             input2 = 'cifar10-train'
             input2_cache_name = 'cifar10-train'
         elif H.dataset == 'churches':
-            input2 = torchvision.datasets.LSUN('../../../data/LSUN', classes=['church_outdoor_val'], transform=torchvision.transforms.Compose([
+            input2 = torchvision.datasets.LSUN('../../../data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
                 torchvision.transforms.Resize(256),
                 torchvision.transforms.CenterCrop(256),
                 torchvision.transforms.ToTensor()
@@ -99,8 +103,19 @@ def main(H, vis):
             # TODO: Maybe only compute stats for samples_needed images from the dataset?
             # Yes. SOTA on churches only uses 50k https://github.com/saic-mdal/CIPS/blob/main/calculate_fid.py
             # This is a good reference as it also uses torch fidelity
-            input2 = NoClassDataset(input2)
-            input2_cache_name = 'lsun_churches_val'
+            input2 = NoClassDataset(input2, length=50000)
+            input2_cache_name = 'lsun_churches_train_50k'
+        elif H.dataset == 'bedrooms':
+            input2 = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
+                torchvision.transforms.Resize(256),
+                torchvision.transforms.CenterCrop(256),
+                torchvision.transforms.ToTensor()
+            ]))
+            # TODO: Maybe only compute stats for samples_needed images from the dataset?
+            # Yes. SOTA on churches only uses 50k https://github.com/saic-mdal/CIPS/blob/main/calculate_fid.py
+            # This is a good reference as it also uses torch fidelity
+            input2 = NoClassDataset(input2, length=50000)
+            input2_cache_name = 'lsun_bedroom_train_50k'
         elif H.dataset == 'ffhq':
             input2 = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
                 torchvision.transforms.Resize(256),
@@ -131,4 +146,3 @@ if __name__=='__main__':
         main(H, vis) 
     else:
         raise ValueError('No value provided for load_step, cannot calculate FID for new model')
-

@@ -7,9 +7,7 @@ from utils.sampler_utils import retrieve_autoencoder_components_state_dicts,\
 from utils.log_utils import log, setup_visdom, config_log, start_training_log, \
                              load_model, save_images, display_images
 from train_sampler import get_sampler
-from utils.sampler_utils import latent_ids_to_onehot
 
-import torch
 
 
 def main(H, vis):
@@ -30,12 +28,10 @@ def main(H, vis):
     if H.load_step > 0:
         sampler =  load_model(sampler, f'{H.sampler}_ema', H.load_step, H.load_dir).cuda()
 
-    # for temp_int in range(945, 955):
-    for temp_int in range(900, 1000+1, 10):
+    for temp_int in range(945, 955):
         temp = temp_int / 1000
         print(f'Generating samples with temp {temp}')
         samples = get_samples(H, generator, sampler, temp=temp)
-
         display_images(vis, samples, H, win_name=f'Samples_{temp}')
 
 

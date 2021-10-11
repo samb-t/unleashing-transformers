@@ -200,7 +200,4 @@ class PerceiverIO(nn.Module):
         return self.to_logits(x)
 
 
-# 24 layer 512D 16 heads each 64D is a 167M param model and with a batch size of 48 
-# uses around 10gb of memory, taking around 0.22s per step.
-
-# What we should try is a standard transformer, 512D, 16 heads each 64D too.
+    

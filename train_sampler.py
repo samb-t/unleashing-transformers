@@ -61,18 +61,21 @@ def get_sampler(H, embedding_weight):
 
 def main(H, vis):
 
-    latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
+    if H.flip_images:
+        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip'
+    else:
+        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
     if not os.path.exists(latents_filepath):        
         ae_state_dict = retrieve_autoencoder_components_state_dicts(H, ['encoder', 'quantize', 'generator'])
         ae = VQAutoEncoder(H)
         ae.load_state_dict(ae_state_dict)
-        train_loader, val_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False)
+        train_loader, val_loader = get_data_loader(H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False, flip_images=H.flip_images)
         ae = ae.cuda() # put ae on GPU for generating
         generate_latent_ids(H, ae, train_loader, val_loader)
         #TODO: test if this actually frees up GPU space or not
         ae = ae.cpu()
         # del ae
-        ae = None
+        del ae
     
     train_latent_loader, val_latent_loader = get_latent_loaders(H, latents_filepath)
         
@@ -139,8 +142,9 @@ def main(H, vis):
                 win='loss', opts=dict(title='Loss'))
             vis.line(elbo, list(range(log_start_step, start_step, H.steps_per_log)),
                 win='ELBO', opts=dict(title='ELBO'))
-            vis.line(val_losses, list(range(H.steps_per_eval, start_step, H.steps_per_eval)), 
-                win='Val_loss', opts=dict(title='Validation Loss'))
+            if H.steps_per_eval > 0 and len(val_losses) > 0:
+                vis.line(val_losses, list(range(H.steps_per_eval, start_step, H.steps_per_eval)), 
+                    win='Val_loss', opts=dict(title='Validation Loss'))
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
             log_start_step = start_step
@@ -212,12 +216,12 @@ def main(H, vis):
 
         images = None
         if step % H.steps_per_display_output == 0 and step > 0:
-            images = get_samples(H, generator, ema_sampler if H.ema else sampler)
+            images = get_samples(H, generator, ema_sampler if H.ema else sampler, sample_type=H.sample_type)
             display_images(vis, images, H, win_name=f'{H.sampler}_samples')
 
         if step % H.steps_per_save_output == 0 and step > 0:
             if images == None:
-                images = get_samples(H, generator, ema_sampler if H.ema else sampler)
+                images = get_samples(H, generator, ema_sampler if H.ema else sampler, sample_type=H.sample_type)
             save_images(images, 'samples', step, H.log_dir, H.save_individually)
 
         if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
@@ -271,3 +275,4 @@ if __name__=='__main__':
     log(f'Setting up training for {H.sampler}')   
     start_training_log(H)
     main(H, vis)
+    

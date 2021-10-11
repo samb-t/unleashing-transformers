@@ -89,8 +89,12 @@ def save_latents(H, train_latent_ids, val_latent_ids):
 
     save_dir = 'latents/'
     os.makedirs(save_dir, exist_ok=True)
-    train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
-    val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
+    if H.flip_images:
+        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip'
+        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents_flip'
+    else:
+        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
+        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
     
     torch.save(train_latent_ids, train_latents_fp)
     torch.save(val_latent_ids, val_latents_fp)

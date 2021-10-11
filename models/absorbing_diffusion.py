@@ -99,6 +99,11 @@ class AbsorbingDiffusion(Sampler):
             
         # sample p(x_0 | x_t)
         x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
+        
+        # mask out codes that are never used
+        # TODO: Try training from scratch with this included. Or somehow only train with codes that appear during training.
+        #if self.mask is not None:
+        #    x_0_hat_logits = x_0_hat_logits + self.mask.reshape(1,-1,1)
 
         # Always compute ELBO for comparison purposes 
         cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
@@ -171,6 +176,8 @@ class AbsorbingDiffusion(Sampler):
             t = torch.full((b,), t, device=device, dtype=torch.long)
             x_t, _, _ = self.q_sample(x_0, t)
             x_0_logits = self._denoise_fn(x_t, t=t)
+            if self.mask is not None:
+                x_0_logits = x_0_logits + self.mask.reshape(1,1,-1)
             # scale by temperature
             x_0_logits = x_0_logits / temp
             x_0_dist = dists.Categorical(
@@ -181,27 +188,56 @@ class AbsorbingDiffusion(Sampler):
 
         return x_0
     
+    def sample_v2(self, sample_stride='all', temp=1.0, sample_steps=None):
+        b, device = self.n_samples, 'cuda'
+        x_t = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
+
+        if sample_stride == 'all':
+            sample_steps = list(range(1, self.num_timesteps+1))
+        elif sample_stride == 'even':
+            sample_steps = np.linspace(1,self.num_timesteps, num=sample_steps).astype(np.long)
+        elif sample_stride == 'quadratic':
+            sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
+        elif sample_stride == 'dynamic':
+            sample_steps = sample_steps
+
+        unmasked = torch.zeros_like(x_t, device=device).bool()
+
+        for t in reversed(sample_steps):
+            print(f'Sample timestep {t:4d}', end='\r')
+            t = torch.full((b,), t, device=device, dtype=torch.long)
+
+            # where to unmask
+            changes = torch.rand(x_t.shape, device=device) < 1/t.float().unsqueeze(-1)
+            # don't unmask somewhere already unmasked
+            changes = torch.bitwise_xor(changes, torch.bitwise_and(changes, unmasked))
+            # update mask with changes
+            unmasked = torch.bitwise_or(unmasked, changes)
+
+            # x_t, _, _ = self.q_sample(x_0, t)
+            x_0_logits = self._denoise_fn(x_t, t=t)
+            # if self.mask is not None:
+            #     x_0_logits = x_0_logits + self.mask.reshape(1,1,-1)
+            # scale by temperature
+            x_0_logits = x_0_logits / temp
+            x_0_dist = dists.Categorical(
+                logits=x_0_logits)
+            x_0_hat = x_0_dist.sample().long()
+            x_t[changes] = x_0_hat[changes]
+            # print("x0 at", t, x_0, x_0.shape)
+
+        return x_t
+    
     @torch.no_grad()
     def elbo_step_unweighted(self, x_0, t):
         b, device = x_0.size(0), x_0.device
         t = torch.full((b,), t, device=device, dtype=torch.long)
         x_t, x_0_ignore, _ = self.q_sample(x_0, t)
         x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
+        #if self.mask is not None:
+        #    x_0_hat_logits = x_0_hat_logits + self.mask.reshape(1,-1,1)
         cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
         return cross_entropy_loss.mean()
-    
-    @torch.no_grad()
-    def elbo(self, x_0):
-        b, device = x_0.size(0), x_0.device
-        elbo = 0.0
-        for t in reversed(list(range(1, self.num_timesteps+1))):
-            print(f'Sample timestep {t:4d}', end='\r')
-            t = torch.full((b,), t, device=device, dtype=torch.long)
-            x_t, x_0_ignore, mask = self.q_sample(x_0=x_0, t=t)
-            x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
-            cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
-            elbo += cross_entropy_loss / t
-        return elbo
 
     def train_iter(self, x):
         loss, vb_loss = self._train_loss(x)

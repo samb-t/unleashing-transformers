@@ -37,14 +37,15 @@ class BigDataset(torch.utils.data.Dataset):
 
 
 class NoClassDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset):
+    def __init__(self, dataset, length=None):
         self.dataset = dataset
+        self.length = length if length is not None else len(dataset)
     
     def __getitem__(self, index):
         return self.dataset[index][0].mul(255).clamp_(0, 255).to(torch.uint8)
     
     def __len__(self):
-        return len(self.dataset)
+        return self.length
 
 def main(H, vis):
     
@@ -156,6 +157,17 @@ def main(H, vis):
             # This is a good reference as it also uses torch fidelity
             input2 = NoClassDataset(input2)
             input2_cache_name = 'lsun_churches'
+        elif H.dataset == 'bedrooms':
+            input2 = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
+                torchvision.transforms.Resize(256),
+                torchvision.transforms.CenterCrop(256),
+                torchvision.transforms.ToTensor()
+            ]))
+            # TODO: Maybe only compute stats for samples_needed images from the dataset?
+            # Yes. SOTA on churches only uses 50k https://github.com/saic-mdal/CIPS/blob/main/calculate_fid.py
+            # This is a good reference as it also uses torch fidelity
+            input2 = NoClassDataset(input2, length=50000)
+            input2_cache_name = 'lsun_bedroom_train_50k'
         elif H.dataset == 'ffhq':
             input2 = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
                 torchvision.transforms.Resize(256),
