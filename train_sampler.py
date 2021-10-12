@@ -233,9 +233,9 @@ def main(H, vis):
                 for x in val_latent_loader:
                     with torch.no_grad():
                         stats = sampler.train_iter(x.cuda())
-                        valid_loss += stats['loss'].item()
+                        valid_loss += stats['loss'].item() * x.size(0)
                         if H.sampler == 'absorbing':
-                            valid_elbo += stats['vb_loss'].item()
+                            valid_elbo += stats['vb_loss'].item() * x.size(0)
                         num_samples += x.size(0)
             valid_loss = valid_loss / num_samples
             if H.sampler == 'absorbing':
