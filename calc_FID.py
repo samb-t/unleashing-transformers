@@ -77,7 +77,7 @@ def main(H, vis):
             samples_needed = 50000
 
         elif H.dataset == 'churches':
-            samples_needed = 2500
+            samples_needed = 50000
 
         elif H.dataset == 'ffhq':
             samples_needed = 10000
@@ -105,17 +105,23 @@ def main(H, vis):
         elif sample_stride == "even":
             sample_steps = int(sample_steps)
         
+        elif sample_stride == 'magic':
+            sample_steps = int(sample_steps)
+            
         else:
             sample_stride, sample_steps = 'all', 1000
 
         print(f'Sampling with temperature {H.temp}')
         all_latents = []
         for i in tqdm(range(int(samples_needed/H.batch_size) + 1)):
-            latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
+            if H.sample_type == 'default':
+                latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
+            elif H.sample_type == 'v2':
+                latents = sampler.sample_v2(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
             torch.save(latents.cpu(), f"logs/{image_dir}/latents_backup_{i}.pkl")
             all_latents.append(latents.cpu())
 
-        # all_latents = [torch.load(f"logs/{image_dir}/latents_backup_{i}.pkl") for i in range(10)]
+        # all_latents = [torch.load(f"logs/{image_dir}/latents_backup_{i}.pkl") for i in range(46)] + [torch.load(f"logs/{image_dir}/part2_latents_backup_{i}.pkl") for i in range(48)] + [torch.load(f"logs/{image_dir}/part3_latents_backup_{i}.pkl") for i in range(9)]
         all_latents = torch.cat(all_latents, dim=0)
         torch.save(all_latents, f"logs/{image_dir}/all_latents_backup.pkl")
         # all_latents = torch.load(f"logs/{image_dir}/images/all_latents_backup.pkl")
@@ -199,4 +205,3 @@ if __name__=='__main__':
         main(H, vis) 
     else:
         raise ValueError('No value provided for load_step, cannot calculate FID for new model')
-

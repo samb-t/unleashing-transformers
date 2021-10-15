@@ -200,6 +200,8 @@ class AbsorbingDiffusion(Sampler):
             sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
         elif sample_stride == 'dynamic':
             sample_steps = sample_steps
+        elif sample_stride == 'magic':
+            sample_steps = list(range(1, sample_steps+1))
 
         unmasked = torch.zeros_like(x_t, device=device).bool()
 
