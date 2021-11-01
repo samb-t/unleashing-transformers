@@ -227,7 +227,10 @@ def main(H, vis):
         if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
             # calculate validation loss
             valid_loss, valid_elbo, num_samples = 0.0, 0.0, 0
-            eval_repeats = 60
+            if H.dataset == "ffhq":
+                eval_repeats = 2
+            else:
+                eval_repeats = 60
             print("Evaluating")
             for _ in tqdm(range(eval_repeats)):
                 for x in val_latent_loader:

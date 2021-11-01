@@ -26,7 +26,7 @@ def main(H, vis):
     sampler = get_sampler(H, embedding_weight).cuda()
     sampler = load_model(sampler, f'{H.sampler}_ema', H.load_step, H.load_dir).cuda()
 
-    samples = get_samples(H, generator, sampler, temp=H.temp, stride='all')
+    samples = get_samples(H, generator, sampler, temp=H.temp, stride='all').clamp(0,1)
     display_images(vis, samples, H, win_name=f'Samples_{H.temp}')
 
     sampler = None
@@ -35,13 +35,15 @@ def main(H, vis):
     nearest_distances = torch.ones(H.batch_size, dtype=torch.float32).cpu() * float('inf')
     nearest_images = torch.zeros_like(samples).cpu()
 
+    # BUG: images should be normalized to [-1, 1]
+    # NOTE: Fixed by adding normalize
 
     log(f'Num batches: {len(data_loader)}')
     for batch_num, image_batch in enumerate(iter(data_loader)):
         image_batch = image_batch[0].cuda()
         for idx, sample in enumerate(samples):
             for image in image_batch:
-                distance = distance_fn(sample, image).item()
+                distance = distance_fn(sample, image, normalize=True).item()
                 
                 if distance < nearest_distances[idx]:
                     nearest_distances[idx] = distance

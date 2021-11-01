@@ -112,19 +112,19 @@ def main(H, vis):
             sample_stride, sample_steps = 'all', 1000
 
         print(f'Sampling with temperature {H.temp}')
-        all_latents = []
-        for i in tqdm(range(int(samples_needed/H.batch_size) + 1)):
-            if H.sample_type == 'default':
-                latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
-            elif H.sample_type == 'v2':
-                latents = sampler.sample_v2(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
-            torch.save(latents.cpu(), f"logs/{image_dir}/latents_backup_{i}.pkl")
-            all_latents.append(latents.cpu())
+        # all_latents = []
+        # for i in tqdm(range(int(samples_needed/H.batch_size) + 1)):
+        #     if H.sample_type == 'default':
+        #         latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
+        #     elif H.sample_type == 'v2':
+        #         latents = sampler.sample_v2(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
+        #     torch.save(latents.cpu(), f"logs/{image_dir}/latents_backup_{i}.pkl")
+        #     all_latents.append(latents.cpu())
 
-        # all_latents = [torch.load(f"logs/{image_dir}/latents_backup_{i}.pkl") for i in range(46)] + [torch.load(f"logs/{image_dir}/part2_latents_backup_{i}.pkl") for i in range(48)] + [torch.load(f"logs/{image_dir}/part3_latents_backup_{i}.pkl") for i in range(9)]
+        all_latents = [torch.load(f"logs/{image_dir}/latents_backup_{i}.pkl") for i in range(137)] 
         all_latents = torch.cat(all_latents, dim=0)
         torch.save(all_latents, f"logs/{image_dir}/all_latents_backup.pkl")
-        # all_latents = torch.load(f"logs/{image_dir}/images/all_latents_backup.pkl")
+        # all_latents = torch.load(f"logs/{image_dir}/all_latents_backup.pkl")
         embedding_weight = sampler.embedding_weight.cuda().clone()
         # sampler = sampler.cpu()
         del sampler
@@ -142,7 +142,7 @@ def main(H, vis):
             gen_images = generator(q)
             # vis.images(gen_images[:64].clamp(0,1), win='FID_sample_check', opts=dict(title='FID_sample_check'))
             save_images(gen_images.detach().cpu(), f'sample', idx, image_dir, save_indivudally=True)
-            images = BigDataset(f"logs/{image_dir}/images/")
+            # images = BigDataset(f"logs/{image_dir}/images/")
         # generator = generator.cpu()
         del generator
 
@@ -158,9 +158,6 @@ def main(H, vis):
                 torchvision.transforms.CenterCrop(256),
                 torchvision.transforms.ToTensor()
             ]))
-            # TODO: Maybe only compute stats for samples_needed images from the dataset?
-            # Yes. SOTA on churches only uses 50k https://github.com/saic-mdal/CIPS/blob/main/calculate_fid.py
-            # This is a good reference as it also uses torch fidelity
             input2 = NoClassDataset(input2)
             input2_cache_name = 'lsun_churches'
         elif H.dataset == 'bedrooms':
@@ -169,13 +166,10 @@ def main(H, vis):
                 torchvision.transforms.CenterCrop(256),
                 torchvision.transforms.ToTensor()
             ]))
-            # TODO: Maybe only compute stats for samples_needed images from the dataset?
-            # Yes. SOTA on churches only uses 50k https://github.com/saic-mdal/CIPS/blob/main/calculate_fid.py
-            # This is a good reference as it also uses torch fidelity
             input2 = NoClassDataset(input2, length=50000)
             input2_cache_name = 'lsun_bedroom_train_50k'
         elif H.dataset == 'ffhq':
-            input2 = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
+            input2 = torchvision.datasets.ImageFolder('../../../data/FFHQ-256',  transform=torchvision.transforms.Compose([
                 torchvision.transforms.Resize(256),
                 torchvision.transforms.ToTensor()
             ]))

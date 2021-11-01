@@ -14,19 +14,21 @@ class TensorDataset(torch.utils.data.Dataset):
         return self.tensor.size(0)
 
 
-def load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
-    vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
+def load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan, load_step=None, load_dir=None):
+    load_step = load_step if load_step is not None else H.load_step
+    load_dir = load_dir if load_dir is not None else H.load_dir
+    vqgan = load_model(vqgan, 'vqgan', load_step, load_dir).cuda()
     if H.load_optim:
-            optim = load_model(optim, 'ae_optim', H.load_step, H.load_dir)
-            d_optim = load_model(d_optim, 'disc_optim', H.load_step, H.load_dir)
+            optim = load_model(optim, 'ae_optim', load_step, load_dir)
+            d_optim = load_model(d_optim, 'disc_optim', load_step, load_dir)
 
     if H.ema:
         try:
             ema_vqgan = load_model(
                             ema_vqgan,
                             f'vqgan_ema',
-                            H.load_step, 
-                            H.load_dir
+                            load_step, 
+                            load_dir
                         )
         except:
             print('No ema model found')
@@ -34,7 +36,7 @@ def load_vqgan_from_checkpoint(H, vqgan, optim, d_optim, ema_vqgan):
 
     # return none if no associated saved stats
     try:
-        train_stats = load_stats(H, H.load_step)
+        train_stats = load_stats(H, load_step)
     except:
         train_stats = None
     return vqgan, optim, d_optim, ema_vqgan, train_stats
