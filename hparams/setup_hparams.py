@@ -19,6 +19,7 @@ def add_training_args(parser):
     parser.add_argument('--lr', type=float)
     parser.add_argument('--steps_per_update_ema', type=int, default=10)
     parser.add_argument('--train_steps', type=int, default=100000000)
+    parser.add_argument('--flip_images', const=True, action='store_const', default=False)
 
 
 # args required for logging
