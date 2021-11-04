@@ -134,7 +134,7 @@ def main(H, vis):
         feats = distance_fn.extract_feats(batch)
         all_feats.append(feats.cpu())
 
-    torch.save(all_feats, f'all_feats_{data}.pkl')
+    torch.save(all_feats, f'all_feats_temp_09_{data}.pkl')
 
     real_features = torch.load("ffhq_real_features")
     metrics = compute_prdc(real_features=real_features,
@@ -143,7 +143,7 @@ def main(H, vis):
 
     print(metrics)
 
-
+# test change
     # import torch
     # import numpy as np
     # from prdc import compute_prdc
