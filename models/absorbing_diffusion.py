@@ -181,6 +181,48 @@ class AbsorbingDiffusion(Sampler):
 
         return x_0
     
+    def sample_v2(self, sample_stride='all', temp=1.0, sample_steps=None):
+        b, device = self.n_samples, 'cuda'
+        x_t = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
+
+        if sample_stride == 'all':
+            n_sample_steps = list(range(1, self.num_timesteps+1))
+        elif sample_stride == 'even':
+            n_sample_steps = np.linspace(1,self.num_timesteps, num=sample_steps).astype(np.long)
+        elif sample_stride == 'quadratic':
+            n_sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
+        elif sample_stride == 'dynamic':
+            n_sample_steps = sample_steps
+        elif sample_stride == 'magic':
+            n_sample_steps = list(range(1, sample_steps+1))
+
+        unmasked = torch.zeros_like(x_t, device=device).bool()
+
+        for t in reversed(n_sample_steps):
+            print(f'Sample timestep {t:4d}', end='\r')
+            t = torch.full((b,), t, device=device, dtype=torch.long)
+
+            # where to unmask
+            changes = torch.rand(x_t.shape, device=device) < 1/t.float().unsqueeze(-1)
+            # don't unmask somewhere already unmasked
+            changes = torch.bitwise_xor(changes, torch.bitwise_and(changes, unmasked))
+            # update mask with changes
+            unmasked = torch.bitwise_or(unmasked, changes)
+
+            # x_t, _, _ = self.q_sample(x_0, t)
+            x_0_logits = self._denoise_fn(x_t, t=t)
+            # if self.mask is not None:
+            #     x_0_logits = x_0_logits + self.mask.reshape(1,1,-1)
+            # scale by temperature
+            x_0_logits = x_0_logits / temp
+            x_0_dist = dists.Categorical(
+                logits=x_0_logits)
+            x_0_hat = x_0_dist.sample().long()
+            x_t[changes] = x_0_hat[changes]
+            # print("x0 at", t, x_0, x_0.shape)
+
+        return x_t
+
     @torch.no_grad()
     def elbo_step_unweighted(self, x_0, t):
         b, device = x_0.size(0), x_0.device

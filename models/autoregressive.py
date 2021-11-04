@@ -21,7 +21,7 @@ class AutoregressiveTransformer(Sampler):
         stats = {'loss': loss}
         return stats
 
-    def sample(self, temp=1.0, sample_stride=None):
+    def sample(self, temp=1.0):
         b, device = self.n_samples, 'cuda'
         x = torch.zeros(b, 0).long().to(device)
         for _ in range(self.seq_len):

@@ -5,9 +5,20 @@ from .log_utils import save_latents, log
 import numpy as np
 
 @torch.no_grad()
-def get_samples(H, generator, sampler, temp=1.0, stride='all', sample_steps=None):            
+def get_samples(H, generator, sampler, temp=1.0, stride='all', sample_steps=None):
     #TODO need to write sample function for EBM (give option of AIS?)
-    latents = sampler.sample(sample_stride=stride, temp=temp, sample_steps=sample_steps) 
+
+    if H.sampler == 'absorbing':
+        if H.sample_type == 'v2':
+            sample_stride, sample_steps = H.stepping.split('-')
+            sample_steps = int(sample_steps)
+            latents = sampler.sample_v2(sample_stride=sample_stride, sample_steps=sample_steps)
+        else:
+            latents = sampler.sample(sample_stride=stride, temp=temp, sample_steps=sample_steps) 
+    
+    elif H.sampler == 'autoregressive':
+        latents = sampler.sample()
+
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     if H.deepspeed:
         if H.deepspeed:
@@ -102,9 +113,11 @@ def generate_latents_from_loader(H, ae, dataloader):
 
 @torch.no_grad()
 def get_latent_loaders(H, shuffle=True):
-    train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
-    val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
+    latents_fp_suffix = '_flipped' if H.horizontal_flip else ''
+    train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents{latents_fp_suffix}'
+    val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents{latents_fp_suffix}'
     
+
     train_latent_ids = torch.load(train_latents_fp)
     val_latent_ids = torch.load(val_latents_fp)
     

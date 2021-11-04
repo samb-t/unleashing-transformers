@@ -4,6 +4,8 @@ import numpy as np
 import copy
 import deepspeed
 import time
+import random
+from torchvision.transforms.functional import hflip
 from models.vqgan import VQGAN
 from hparams import get_vqgan_hparams
 from utils.data_utils import get_data_loader, cycle
@@ -74,6 +76,7 @@ def main(H, vis):
             losses, mean_losses, val_losses, latent_ids, fids, best_fid, H.steps_per_log, H.steps_per_eval = unpack_vqgan_stats(train_stats)
             log_start_step = 0
             eval_start_step = H.steps_per_eval
+            log('Loaded stats')
         else:
             log('No stats found for model, displaying stats from load step instead')
             log_start_step = start_step
@@ -102,6 +105,12 @@ def main(H, vis):
         else:
             x = batch
         
+        if H.horizontal_flip: # randomly flip 50% of samples
+            if random.random() <= 0.5:
+            # vis.images(x, win='preflip', opts=dict(title='Images Pre-Flip'))
+                x = hflip(x)
+            # vis.images(x, win='postflip', opts=dict(title='Images Post-Flip'))
+
         x = x.cuda()
         if H.deepspeed:
             optim.zero_grad()
@@ -151,18 +160,19 @@ def main(H, vis):
             mean_losses = np.append(mean_losses, mean_loss)
             recon_losses = np.append(recon_losses, stats['l1'])
             losses = np.array([])
+
             vis.line(
                 mean_losses, 
                 list(range(log_start_step, step+1, H.steps_per_log)),
                 win='loss',
                 opts=dict(title='Loss')
             )
-            vis.line(
-                recon_losses, 
-                list(range(log_start_step, step+1, H.steps_per_log)),
-                win='recon_loss',
-                opts=dict(title='Train L1 Loss')
-            )
+            # vis.line(
+            #     recon_losses, 
+            #     list(range(log_start_step, step+1, H.steps_per_log)),
+            #     win='recon_loss',
+            #     opts=dict(title='Train L1 Loss')
+            # )
             log_stats(step, stats)         
 
         # bundled validation loss and FID calculations together

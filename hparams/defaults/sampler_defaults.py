@@ -93,6 +93,7 @@ class HparamsAutoregressive(HparamsBase):
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
+        self.temp = 1.0
 
         if self.dataset == 'mnist':
             self.batch_size = 32
@@ -180,6 +181,7 @@ def add_bert_args(parser):
     parser.add_argument('--greedy', const=True, action='store_const', default=False)
     parser.add_argument('--resid_pdrop', type=float)    
     parser.add_argument('--sample_block_size', type=int)
+    parser.add_argument('--sample_type', type=str)
 
 
 def add_diffusion_args(parser):

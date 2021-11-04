@@ -2,6 +2,8 @@ import torch
 import torchvision
 from torch.utils.data.dataset import Subset
 
+from utils.log_utils import log
+
 
 def cycle(iterable):
     while True:
@@ -9,7 +11,7 @@ def cycle(iterable):
             yield x
 
 
-def val_train_split(dataset, train_ratio=0.9):
+def val_train_split(dataset, train_ratio):
     indices = list(range(len(dataset)))
     split_index = int(len(dataset) * train_ratio)
     train_indices, val_indices = indices[:split_index], indices[split_index:]
@@ -17,7 +19,7 @@ def val_train_split(dataset, train_ratio=0.9):
     return train_dataset, val_dataset
 
 
-def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, get_val_train_split=True):
+def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last=True, download=False, shuffle=True, get_val_train_split=True, get_flipped=False, val_train_split_ratio=0.95):
     if dataset_name == 'mnist':
         train_dataset = torchvision.datasets.MNIST('~/Repos/_datasets', train=True, download=download, transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -42,7 +44,7 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
             torchvision.transforms.CenterCrop(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        train_dataset, val_dataset = val_train_split(dataset)
+        train_dataset, val_dataset = val_train_split(dataset, val_train_split_ratio)
     elif dataset_name == 'churches':
         train_dataset = torchvision.datasets.LSUN('/home/sam/workspace/data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
@@ -63,20 +65,36 @@ def get_data_loader(dataset_name, img_size, batch_size, num_workers=1, drop_last
         ]))
 
         if get_val_train_split:
-            train_dataset, val_dataset = val_train_split(dataset)
+            train_dataset, val_dataset = val_train_split(dataset, val_train_split_ratio)
         else:
             train_dataset, val_dataset = dataset, None
 
     elif dataset_name == 'ffhq':
-        dataset = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
+        dataset = torchvision.datasets.ImageFolder('/projects/cgw/FFHQ',  transform=torchvision.transforms.Compose([
             torchvision.transforms.Resize(img_size),
             torchvision.transforms.ToTensor()
         ]))
-        
+
+        if get_flipped:
+            train_dataset_flipped = torchvision.datasets.ImageFolder('/projects/cgw/FFHQ',  transform=torchvision.transforms.Compose([
+                torchvision.transforms.Resize(img_size),
+                torchvision.transforms.ToTensor(),
+                torchvision.transforms.RandomHorizontalFlip(p=1.0),
+            ]))
+
         if get_val_train_split:
-            train_dataset, val_dataset = val_train_split(dataset)
+            train_dataset, val_dataset = val_train_split(dataset, val_train_split_ratio)
+            if get_flipped:
+                train_dataset_flipped, val_dataset_flipped = val_train_split(train_dataset_flipped, val_train_split_ratio)
         else:
             train_dataset, val_dataset = dataset, None
+        
+        if get_flipped:
+            train_dataset = train_dataset = torch.utils.data.ConcatDataset([train_dataset, train_dataset_flipped])
+            if get_val_train_split:
+                val_dataset = torch.utils.data.ConcatDataset([val_dataset, val_dataset_flipped])
+            
+            log('Successfully concatenated datasets with horizontal flipping')
 
     train_loader = torch.utils.data.DataLoader(train_dataset, num_workers=num_workers, sampler=None, shuffle=shuffle, batch_size=batch_size, drop_last=drop_last)
     if val_dataset != None:

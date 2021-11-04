@@ -64,18 +64,18 @@ def main(H, vis):
     del optim
     del d_optim
 
-    _, val_loader = get_data_loader(
+    train_loader, _ = get_data_loader(
         H.dataset,
         H.img_size,
         H.batch_size,
-        get_val_train_split=True
+        get_val_train_split=False,
     )
 
     with torch.no_grad():
 
         images = []
-        for i, x in enumerate(val_loader):
-            x_hat, stats = ema_vqgan.val_iter(x[0].cuda(), H.load_step)
+        for i, x in tqdm(enumerate(train_loader)):
+            x_hat, _ = ema_vqgan.val_iter(x[0].cuda(), H.load_step)
             images.append(x_hat)
             if i == 0:
                 vis.images(x_hat.clamp(0,1), win='recon_sanity', opts=dict(title='recon_sanity'))
@@ -102,7 +102,7 @@ def main(H, vis):
             input2 = NoClassDataset(input2)
             input2_cache_name = 'lsun_churches_val'
         elif H.dataset == 'ffhq':
-            input2 = torchvision.datasets.ImageFolder('~/Repos/_datasets/FFHQ',  transform=torchvision.transforms.Compose([
+            input2 = torchvision.datasets.ImageFolder('/projects/cgw/FFHQ',  transform=torchvision.transforms.Compose([
                 torchvision.transforms.Resize(256),
                 torchvision.transforms.ToTensor()
             ]))

@@ -125,4 +125,4 @@ def add_vqgan_args(parser):
     parser.add_argument('--quantizer', type=str)
     parser.add_argument('--res_blocks', type=int)
     parser.add_argument('--probabilistic_generator', const=True, action='store_const', default=False)
-    
+    parser.add_argument('--horizontal_flip', const=True, action='store_const', default=False)
