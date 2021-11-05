@@ -22,7 +22,7 @@ def main(H, vis):
         H.dataset,
         H.img_size,
         H.batch_size,
-        get_val_train_split=(H.steps_per_eval != 0)
+        get_train_val_split=(H.steps_per_eval != 0)
     )
     train_iterator = cycle(train_loader)
     if val_loader != None:

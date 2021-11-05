@@ -53,7 +53,6 @@ def main(H, vis):
         samples = get_samples(H, generator, sampler, temp=H.temp)
         image = torchvision.utils.make_grid(samples.clamp(0,1), nrow=int(np.sqrt(samples.size(0))), padding=0)
         torchvision.utils.save_image(samples.clamp(0,1), f'/home/sam/Documents/VQGAN-EBM_Figures/grouped_samples/samples_{i}.png', nrow=int(np.sqrt(samples.size(0))), padding=0)
-    exit()
 
     sampler = None
 

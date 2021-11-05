@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch.distributions as dists
 import numpy as np
 import math
-import random
+from tqdm import tqdm
 from .sampler import Sampler
 
 
@@ -250,5 +250,89 @@ class AbsorbingDiffusion(Sampler):
         stats = {'loss': loss, 'vb_loss': vb_loss}
         return stats
 
+
+    def sample_shape(self, shape, num_samples, time_steps=1000, step=1):
+        device = 'cuda'
+        x_t = torch.ones((num_samples,) + shape, device='cuda').long() * self.mask_id
+        # time_steps = np.linspace(self.num_timesteps, 1, num=time_steps, endpoint=False, dtype=np.int)
+        x_lim, y_lim = shape[0] - self.shape[1], shape[1] - self.shape[2]
+
+        unmasked = torch.zeros_like(x_t, device=device).bool()
+
+        autoregressive_step = 0
+        for t in tqdm(list(reversed(list(range(1, time_steps+1))))):
+            t = torch.full((num_samples,), t, device='cuda', dtype=torch.long)
+
+            unmasking_method = 'autoregressive'
+            if unmasking_method == 'random':
+                # where to unmask
+                changes = torch.rand(x_t.shape, device=device) < 1/t.float().unsqueeze(-1).unsqueeze(-1)
+                # don't unmask somewhere already unmasked
+                changes = torch.bitwise_xor(changes, torch.bitwise_and(changes, unmasked))
+                # update mask with changes
+                unmasked = torch.bitwise_or(unmasked, changes)
+            elif unmasking_method == 'autoregressive':
+                changes = torch.zeros(x_t.shape, device=device).bool()
+                index = (int(autoregressive_step / shape[1]), autoregressive_step % shape[1])
+                changes[:, index[0], index[1]] = True
+                unmasked = torch.bitwise_or(unmasked, changes)
+                autoregressive_step += 1
+
+            # # make x_0 noisy
+            # x_t, _, mask = self.q_sample(x_0.reshape(x_0.size(0), -1), t)
+            # x_t = x_t.reshape(x_t.size(0), shape[0], shape[1])
+            # mask = mask.reshape(x_t.size(0), shape[0], shape[1])
+            # keep track of PoE probabilities
+            x_0_probs = torch.zeros((num_samples,) + shape + (self.codebook_size,), device='cuda')
+            # keep track of counts
+            count = torch.zeros((num_samples,) + shape, device='cuda')
+
+            # TODO: Monte carlo approximate this instead
+            for i in range(0, x_lim+1, step):
+                for j in range(0, y_lim+1, step):
+                    # collect local noisy area
+                    x_t_part = x_t[:,i:i+self.shape[1], j:j+self.shape[2]]
+
+                    # increment count
+                    count[:,i:i+self.shape[1], j:j+self.shape[2]] += 1.0
+
+                    # flatten
+                    x_t_part = x_t_part.reshape(x_t_part.size(0), -1)
+                    
+                    # denoise
+                    x_0_logits_part = self._denoise_fn(x_t_part, t=t)
+
+                    # unflatten
+                    x_0_logits_part = x_0_logits_part.reshape(x_t_part.size(0), self.shape[1], self.shape[2], -1)
+
+                    # multiply probabilities
+                    # for mixture
+                    x_0_probs[:,i:i+self.shape[1], j:j+self.shape[2]] += torch.softmax(x_0_logits_part, dim=-1)
+                    # for PoE
+                    # x_0_probs[:,i:i+self.shape[1], j:j+self.shape[2]] += torch.log_softmax(x_0_logits_part, dim=-1)
+
+            # TODO: Try both PoE and Mixture with new sampling
+
+            # Normalize probabilities
+            
+            # Product of Experts -ish (with count division probably same as a mixture)
+            # temp = 4.0
+            # temp = 1.0
+            # x_0_probs = torch.softmax((x_0_probs / count.unsqueeze(-1)) / temp, dim=-1)
+            # x_0_probs = torch.softmax((x_0_probs / temp), dim=-1)
+
+            # Mixture with Temperature
+            x_0_probs = x_0_probs / x_0_probs.sum(-1, keepdim=True)
+            temp = 0.8
+            C = torch.tensor(x_0_probs.size(-1)).float()
+            x_0_probs = torch.softmax((torch.log(x_0_probs) + torch.log(C)) / temp, dim=-1)
+
+            x_0_dist = dists.Categorical(probs=x_0_probs)
+            x_0_hat = x_0_dist.sample().long()
+
+            # update x_0 where anything has been masked
+            x_t[changes] = x_0_hat[changes]
+
+        return x_t
 # NOTE: Is there any point spending as long reducing the loss on the later time 
 #       steps when it can't be improved easily? Maybe that's why it's /t

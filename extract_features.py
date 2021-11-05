@@ -71,75 +71,78 @@ class NoClassDataset(torch.utils.data.Dataset):
         return self.length
 
 def main(H, vis):
-    image_dir = H.log_dir
-    assert image_dir is not None
+    # image_dir = H.log_dir
+    # assert image_dir is not None
 
-    data = 'ours_ffhq'
+    # data = 'ours_ffhq'
 
-    if data == 'ours':
-        images = BigDataset(f"logs/{image_dir}/images/", length=50000)
-    if data == 'ours_bedroom':
-        images = BigDataset(f"logs/absorbing-bedrooms-new-sampling-256steps/images/", length=50000)
-    if data == 'ours_ffhq':
-        images = BigDataset(f"logs/absorbing_ffhq_80m_hflip_temp09_70k/images/", length=70000)
-    elif data == 'stylegan2':
-        images = BigDataset(f"../stylegan2-ada-pytorch-orig/out/", length=50000)
-    elif data == 'stylegan2-ffhq':
-        images = BigDataset(f"../stylegan2-ada-pytorch-orig/out-ffhq/", length=50000)
-    elif data == 'stylegan_bedroom':
-        images = torchvision.datasets.ImageFolder(f"../stylegan/bedroom/",  transform=torchvision.transforms.Compose([
-            torchvision.transforms.Resize(256),
-            torchvision.transforms.ToTensor()
-        ]))
-        images = NoClassDataset(images, length=50000)
-    elif data == 'churches':
-        dataset = torchvision.datasets.LSUN('../../../data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
-                    torchvision.transforms.Resize(256),
-                    torchvision.transforms.CenterCrop(256),
-                    torchvision.transforms.ToTensor()
-                ]))
-        images = NoClassDataset(dataset, length=50000)
-    elif data == 'bedroom':
-        dataset = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
-                    torchvision.transforms.Resize(256),
-                    torchvision.transforms.CenterCrop(256),
-                    torchvision.transforms.ToTensor()
-                ]))
-        images = NoClassDataset(dataset, length=50000)
-    elif data == 'ffhq':
-        dataset = torchvision.datasets.ImageFolder('../../../data/FFHQ-256',  transform=torchvision.transforms.Compose([
-            torchvision.transforms.Resize(256),
-            torchvision.transforms.ToTensor()
-        ]))
-        images = NoClassDataset(dataset, length=50000)
-    elif data == 'vdvae':
-        images = BigDataset(f"../vdvae/out/", length=50000)
-    elif data == 'progan_churches':
-        images = BigDataset(f"../proGAN/churches/", length=50000)
-    elif data == 'progan_bedroom':
-        images = BigDataset(f"../proGAN/bedroom/211-lsun-bedroom-256x256/211-lsun-bedroom-256x256/", length=50000)
-    elif data == 'vqgan_ffhq':
-        images = BigDataset(f"../taming-transformers/logs/ffhq/samples/top_k_1024_temp_1.00_top_p_1.0/13750/", length=50000)
-    elif data == 'vqgan_churches':
-        images = BigDataset(f"logs/autoregressive-churches-flip-samples/images/", length=50000)
-    else:
-        raise Exception('Wrong data')
-    image_dataloader = torch.utils.data.DataLoader(images, batch_size=128)
+    # if data == 'ours':
+    #     images = BigDataset(f"logs/{image_dir}/images/", length=50000)
+    # if data == 'ours_bedroom':
+    #     images = BigDataset(f"logs/absorbing-bedrooms-new-sampling-256steps/images/", length=50000)
+    # if data == 'ours_ffhq':
+    #     images = BigDataset(f"logs/absorbing_ffhq_80m_hflip_70k/images/", length=69984)
+    # elif data == 'stylegan2':
+    #     images = BigDataset(f"../stylegan2-ada-pytorch-orig/out/", length=50000)
+    # elif data == 'stylegan2-ffhq':
+    #     images = BigDataset(f"../stylegan2-ada-pytorch-orig/out-ffhq/", length=50000)
+    # elif data == 'stylegan_bedroom':
+    #     images = torchvision.datasets.ImageFolder(f"../stylegan/bedroom/",  transform=torchvision.transforms.Compose([
+    #         torchvision.transforms.Resize(256),
+    #         torchvision.transforms.ToTensor()
+    #     ]))
+    #     images = NoClassDataset(images, length=50000)
+    # elif data == 'churches':
+    #     dataset = torchvision.datasets.LSUN('../../../data/LSUN', classes=['church_outdoor_train'], transform=torchvision.transforms.Compose([
+    #                 torchvision.transforms.Resize(256),
+    #                 torchvision.transforms.CenterCrop(256),
+    #                 torchvision.transforms.ToTensor()
+    #             ]))
+    #     images = NoClassDataset(dataset, length=50000)
+    # elif data == 'bedroom':
+    #     dataset = torchvision.datasets.LSUN('/projects/cgw/lsun', classes=['bedroom_train'], transform=torchvision.transforms.Compose([
+    #                 torchvision.transforms.Resize(256),
+    #                 torchvision.transforms.CenterCrop(256),
+    #                 torchvision.transforms.ToTensor()
+    #             ]))
+    #     images = NoClassDataset(dataset, length=50000)
+    # elif data == 'ffhq':
+    #     dataset = torchvision.datasets.ImageFolder('../../../data/FFHQ-256',  transform=torchvision.transforms.Compose([
+    #         torchvision.transforms.Resize(256),
+    #         torchvision.transforms.ToTensor()
+    #     ]))
+    #     images = NoClassDataset(dataset, length=50000)
+    # elif data == 'vdvae':
+    #     images = BigDataset(f"../vdvae/out/", length=50000)
+    # elif data == 'progan_churches':
+    #     images = BigDataset(f"../proGAN/churches/", length=50000)
+    # elif data == 'progan_bedroom':
+    #     images = BigDataset(f"../proGAN/bedroom/211-lsun-bedroom-256x256/211-lsun-bedroom-256x256/", length=50000)
+    # elif data == 'vqgan_ffhq':
+    #     images = BigDataset(f"../taming-transformers/logs/ffhq/samples/top_k_1024_temp_1.00_top_p_1.0/13750/", length=50000)
+    # elif data == 'vqgan_churches':
+    #     images = BigDataset(f"logs/autoregressive-churches-flip-samples/images/", length=50000)
+    # else:
+    #     raise Exception('Wrong data')
+    # image_dataloader = torch.utils.data.DataLoader(images, batch_size=128)
 
-    all_feats = []
-    distance_fn = Distance()
+    # all_feats = []
+    # distance_fn = Distance()
 
-    for batch in tqdm(image_dataloader):
-        batch = batch.cuda()
-        feats = distance_fn.extract_feats(batch)
-        all_feats.append(feats.cpu())
+    # for batch in tqdm(image_dataloader):
+    #     batch = batch.cuda()
+    #     feats = distance_fn.extract_feats(batch)
+    #     all_feats.append(feats.cpu())
 
-    torch.save(all_feats, f'all_feats_temp_09_{data}.pkl')
+    # torch.save(all_feats, f'all_feats_temp_1_{data}.pkl')
 
-    real_features = torch.load("ffhq_real_features")
-    metrics = compute_prdc(real_features=real_features,
-                        fake_features=all_feats,
-                        nearest_k=3)
+    all_feats = torch.cat(torch.load(f'all_feats_temp_1_ours_ffhq.pkl'), dim=0)[:50000].numpy()
+    real_features = torch.cat(torch.load("ffhq_real_feats.pkl"), dim=0)[:50000].numpy()
+    metrics = compute_prdc(
+        real_features=real_features,
+        fake_features=all_feats,
+        nearest_k=3
+    )
 
     print(metrics)
 
