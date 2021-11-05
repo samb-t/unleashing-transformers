@@ -8,7 +8,7 @@ import random
 from torchvision.transforms.functional import hflip
 from models.vqgan import VQGAN
 from hparams import get_vqgan_hparams
-from utils.data_utils import get_data_loader, cycle
+from utils.data_utils import get_data_loaders, cycle
 from utils.train_utils import EMA
 from utils.log_utils import log, log_stats, save_model, save_stats, save_images, \
                             display_images, setup_visdom, config_log, start_training_log
@@ -18,7 +18,7 @@ torch.backends.cudnn.benchmark = True
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
     # only load val_loader if running eval
-    train_loader, val_loader = get_data_loader(
+    train_loader, val_loader = get_data_loaders(
         H.dataset,
         H.img_size,
         H.batch_size,
@@ -78,7 +78,6 @@ def main(H, vis):
             eval_start_step = H.steps_per_eval
             log('Loaded stats')
         else:
-            log('No stats found for model, displaying stats from load step instead')
             log_start_step = start_step
             if H.steps_per_eval:
                 if H.steps_per_eval == 1:

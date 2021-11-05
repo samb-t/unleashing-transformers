@@ -22,7 +22,7 @@ def main(H, vis):
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
 
-    data_loader, _ = get_data_loader(H.dataset, H.img_size, H.batch_size, shuffle=False)
+    data_loader, _ = get_data_loaders(H.dataset, H.img_size, H.batch_size, shuffle=False)
     
     generator.load_state_dict(quanitzer_and_generator_state_dict)
     generator = generator.cuda()

@@ -1,4 +1,3 @@
-from models.perceiver import PerceiverIO
 import torch
 import deepspeed
 import numpy as np
@@ -7,17 +6,16 @@ import time
 import os
 from tqdm import tqdm
 from models import \
-    MyOneHotCategorical, VQAutoEncoder, Generator,\
-    EBM, BERT, MultinomialDiffusion, SegmentationUnet, \
-    AbsorbingDiffusion, Transformer, AutoregressiveTransformer, PerceiverIO
+    VQAutoEncoder, Generator,\
+    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
 from hparams import get_sampler_hparams
-from utils.data_utils import get_data_loader, cycle
+from utils.data_utils import get_data_loaders, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
     get_samples, unpack_sampler_stats
 from utils.train_utils import EMA, optim_warmup
 from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
     save_stats, load_stats, save_model, load_model, save_images, \
-    display_images, save_buffer
+    display_images
 
 # torch.backends.cudnn.benchmark = True
 
@@ -29,29 +27,6 @@ def get_sampler(H, embedding_weight):
         sampler = AbsorbingDiffusion(
             H, denoise_fn, H.codebook_size, embedding_weight)
 
-    elif H.sampler == 'bert':
-        sampler = BERT(H, embedding_weight)
-
-    elif H.sampler == 'diffusion':
-        if H.diffusion_net == 'unet':
-            denoise_fn = SegmentationUnet(H)
-        sampler = MultinomialDiffusion(H, embedding_weight, denoise_fn)
-
-    elif H.sampler == 'ebm':
-        # # UNTESTED - need to fix EBM training first!
-        # init_mean = get_init_mean(H, latent_loader)
-        # init_dist = MyOneHotCategorical(init_mean)
-        # # TODO put buffer loading in seperate function
-        # if H.load_step > 0:
-        #     buffer = load_buffer(H.load_step, H.log_dir)
-        # else:
-        #     buffer = []
-        #     for _ in range(int(H.buffer_size / 100)):
-        #         buffer.append(init_dist.sample((100,)).max(2)[1].cpu())
-        #     buffer = torch.cat(buffer, dim=0)
-        # sampler = EBM(H, embedding_weight, buffer)
-        pass
-
     elif H.sampler == 'autoregressive':
         sampler = AutoregressiveTransformer(H, embedding_weight)
 
@@ -62,23 +37,38 @@ def main(H, vis):
 
     latents_fp_suffix = '_flipped' if H.horizontal_flip else ''
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents{latents_fp_suffix}'
-    
+
     print(latents_filepath)
+
+    train_with_validation_dataset = False
+    if H.steps_per_eval:
+        train_with_validation_dataset = True
+
     if not os.path.exists(latents_filepath):
         ae_state_dict = retrieve_autoencoder_components_state_dicts(
-            H, ['encoder', 'quantize', 'generator'])
+            H, ['encoder', 'quantize', 'generator']
+        )
         ae = VQAutoEncoder(H)
         ae.load_state_dict(ae_state_dict)
-        train_loader, val_loader = get_data_loader(
-            H.dataset, H.img_size, H.batch_size, drop_last=False, shuffle=False, get_flipped=H.horizontal_flip)
+        # val_loader will be assigned to None if not training with validation dataest
+        train_loader, val_loader = get_data_loaders(
+            H.dataset,
+            H.img_size,
+            H.batch_size,
+            drop_last=False,
+            shuffle=False,
+            get_flipped=H.horizontal_flip,
+            get_val_dataloader=train_with_validation_dataset
+        )
+
+        log("Transferring autoencoder to GPU to generate latents...")
         ae = ae.cuda()  # put ae on GPU for generating
         generate_latent_ids(H, ae, train_loader, val_loader)
-        # TODO: test if this actually frees up GPU space or not
+        log("Deleting autoencoder to conserve GPU memory...")
         ae = ae.cpu()
-        # del ae
         ae = None
 
-    train_latent_loader, val_latent_loader = get_latent_loaders(H)
+    train_latent_loader, val_latent_loader = get_latent_loaders(H, get_validation_loader=train_with_validation_dataset)
 
     quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
         H,
@@ -146,11 +136,11 @@ def main(H, vis):
 
             # initialise plots
             vis.line(mean_losses, list(range(log_start_step, start_step, H.steps_per_log)),
-                     win='loss', opts=dict(title='Loss'))
+                    win='loss', opts=dict(title='Loss'))
             vis.line(elbo, list(range(log_start_step, start_step, H.steps_per_log)),
-                     win='ELBO', opts=dict(title='ELBO'))
+                    win='ELBO', opts=dict(title='ELBO'))
             vis.line(val_losses, list(range(H.steps_per_eval, start_step, H.steps_per_eval)),
-                     win='Val_loss', opts=dict(title='Validation Loss'))
+                    win='Val_loss', opts=dict(title='Validation Loss'))
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
             log_start_step = start_step
@@ -251,11 +241,11 @@ def main(H, vis):
 
             val_losses = np.append(val_losses, valid_loss)
             vis.line(np.array([valid_loss]), np.array([step]),
-                     win='Val_loss', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation Loss'))
+                    win='Val_loss', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation Loss'))
 
             if H.sampler == 'absorbing':
                 vis.line(np.array([valid_elbo]), np.array([step]),
-                         win='Val_elbo', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation ELBO'))
+                        win='Val_elbo', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation ELBO'))
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)
@@ -264,8 +254,7 @@ def main(H, vis):
             if H.ema:
                 save_model(ema_sampler, f'{H.sampler}_ema', step, H.log_dir)
 
-            if H.sampler == 'ebm':
-                save_buffer(sampler.buffer, step, H.log_dir)
+
             train_stats = {
                 'losses': losses,
                 'mean_losses': mean_losses,

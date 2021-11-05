@@ -3,7 +3,6 @@ from .base import HparamsBase
 class HparamsVQGAN(HparamsBase):
     def __init__(self, dataset):
         super().__init__(dataset)
-        
         # defaults that are same for all datasets
         self.base_lr = 4.5e-6
         self.beta = 0.25
@@ -13,58 +12,7 @@ class HparamsVQGAN(HparamsBase):
         self.quantizer = 'nearest'
         self.probabilistic_generator = False
 
-        if self.dataset == 'mnist':
-            self.attn_resolutions = [8]
-            self.batch_size = 128
-            self.ch_mult = [1,1,1]
-            self.codebook_size = 10
-            self.disc_layers = 1
-            self.disc_weight_max = 1000
-            self.disc_start_step = 2001
-            self.emb_dim = 64
-            self.img_size = 32
-            self.latent_shape = [1, 8, 8]
-            self.n_channels = 1
-            self.ndf = 16
-            self.nf = 32
-            self.perceptual_weight = 0.0
-            self.res_blocks = 1
-
-        elif self.dataset == 'cifar10':
-            self.attn_resolutions = [8]
-            self.batch_size = 128
-            self.ch_mult = [1,1,2]
-            self.codebook_size = 1024
-            self.disc_layers = 1
-            self.disc_weight_max = 1
-            self.disc_start_step = 30001
-            self.emb_dim = 256
-            self.img_size = 32
-            self.latent_shape = [1, 8, 8]
-            self.n_channels = 3
-            self.ndf = 32
-            self.nf = 64
-            self.perceptual_weight = 1.0
-            self.res_blocks = 1
-
-        elif self.dataset == 'flowers':
-            self.attn_resolutions = [8]
-            self.batch_size = 128
-            self.ch_mult = [1,1,2]
-            self.codebook_size = 128
-            self.disc_layers = 1
-            self.disc_weight_max = 1
-            self.disc_start_step = 10001
-            self.emb_dim = 256
-            self.img_size = 32
-            self.latent_shape = [1, 8, 8]
-            self.n_channels = 3
-            self.ndf = 32
-            self.nf = 64
-            self.perceptual_weight = 1.0
-            self.res_blocks = 1
-
-        elif self.dataset == 'churches':
+        if self.dataset == 'churches' or self.dataset == "bedrooms":
             self.attn_resolutions = [16]
             self.batch_size = 3
             self.ch_mult = [1, 1, 2, 2, 4]
@@ -81,7 +29,7 @@ class HparamsVQGAN(HparamsBase):
             self.perceptual_weight = 1.0
             self.res_blocks = 2
 
-        elif self.dataset == 'celeba' or self.dataset == 'ffhq':
+        elif self.dataset == 'ffhq':
 
             self.attn_resolutions = [16]
             self.batch_size = 3

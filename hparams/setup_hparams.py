@@ -25,7 +25,6 @@ def add_training_args(parser):
 # args required for logging
 def add_logging_args(parser):
     parser.add_argument('--log_dir', type=str, default='test')
-    parser.add_argument('--ncc', const=True, action='store_const', default=False)
     parser.add_argument('--save_individually', const=True, action='store_const', default=False)
     parser.add_argument('--steps_per_checkpoint', type=int, default=10000)
     parser.add_argument('--steps_per_display_output', type=int, default=250)
@@ -33,6 +32,7 @@ def add_logging_args(parser):
     parser.add_argument('--steps_per_log', type=int, default=1)
     parser.add_argument('--steps_per_save_output', type=int, default=1000)
     parser.add_argument('--visdom_port', type=int, default=8097)
+    parser.add_argument('--visdom_server', type=str)
 
 
 def add_deepspeed_args(parser):
@@ -68,9 +68,6 @@ def get_vqgan_hparams():
     
     return H
     
-def get_diffusion_decoder_hparams():
-    ...
-
 
 def get_sampler_hparams():
     parser = argparse.ArgumentParser('Parser for training discrete latent sampler models :)')

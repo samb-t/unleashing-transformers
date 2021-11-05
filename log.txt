@@ -1,0 +1,766 @@
+2021-11-06 11:41:51,324 - ---------------------------------
+2021-11-06 11:41:51,324 - Setting up training for absorbing
+2021-11-06 11:41:51,324 - Using following hparams:
+2021-11-06 11:41:51,324 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:41:51,325 - > ae_load_step: 1400000
+2021-11-06 11:41:51,325 - > amp: False
+2021-11-06 11:41:51,325 - > attn_pdrop: 0.0
+2021-11-06 11:41:51,325 - > attn_resolutions: [16]
+2021-11-06 11:41:51,325 - > base_lr: 4.5e-06
+2021-11-06 11:41:51,325 - > batch_size: 3
+2021-11-06 11:41:51,325 - > bert_n_emb: 256
+2021-11-06 11:41:51,325 - > bert_n_head: 16
+2021-11-06 11:41:51,326 - > bert_n_layers: 24
+2021-11-06 11:41:51,326 - > beta: 0.25
+2021-11-06 11:41:51,326 - > block_size: 256
+2021-11-06 11:41:51,326 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:41:51,326 - > codebook_size: 1024
+2021-11-06 11:41:51,326 - > dataset: ffhq
+2021-11-06 11:41:51,326 - > deepscale: False
+2021-11-06 11:41:51,327 - > deepspeed: False
+2021-11-06 11:41:51,327 - > deepspeed_mpi: False
+2021-11-06 11:41:51,327 - > diff_aug: False
+2021-11-06 11:41:51,327 - > diffusion_steps: 1000
+2021-11-06 11:41:51,327 - > disc_layers: 3
+2021-11-06 11:41:51,327 - > disc_start_step: 30001
+2021-11-06 11:41:51,327 - > disc_weight_max: 1
+2021-11-06 11:41:51,327 - > ema: True
+2021-11-06 11:41:51,328 - > ema_beta: 0.995
+2021-11-06 11:41:51,328 - > emb_dim: 256
+2021-11-06 11:41:51,328 - > embd_pdrop: 0.0
+2021-11-06 11:41:51,328 - > flip_images: False
+2021-11-06 11:41:51,328 - > greedy: False
+2021-11-06 11:41:51,328 - > groups: 8
+2021-11-06 11:41:51,328 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:41:51,329 - > gumbel_straight_through: False
+2021-11-06 11:41:51,329 - > horizontal_flip: True
+2021-11-06 11:41:51,329 - > img_size: 256
+2021-11-06 11:41:51,329 - > latent_shape: [1, 16, 16]
+2021-11-06 11:41:51,329 - > layers_per_cross_attn: 4
+2021-11-06 11:41:51,329 - > load_dir: test
+2021-11-06 11:41:51,329 - > load_optim: False
+2021-11-06 11:41:51,329 - > load_step: 0
+2021-11-06 11:41:51,330 - > local_rank: 0
+2021-11-06 11:41:51,330 - > log_dir: tidy_testing
+2021-11-06 11:41:51,330 - > loss_type: normed
+2021-11-06 11:41:51,330 - > lr: 0.0001
+2021-11-06 11:41:51,330 - > mask_schedule: fixed
+2021-11-06 11:41:51,330 - > n_channels: 3
+2021-11-06 11:41:51,330 - > n_samples: 16
+2021-11-06 11:41:51,331 - > ndf: 64
+2021-11-06 11:41:51,331 - > nf: 128
+2021-11-06 11:41:51,331 - > parametrization: x0
+2021-11-06 11:41:51,331 - > perceiver_dim_head: 64
+2021-11-06 11:41:51,331 - > perceiver_latent_chunks: 10
+2021-11-06 11:41:51,331 - > perceiver_latents: 64
+2021-11-06 11:41:51,332 - > perceiver_layers: 6
+2021-11-06 11:41:51,332 - > perceptual_weight: 1.0
+2021-11-06 11:41:51,332 - > probabilistic_generator: False
+2021-11-06 11:41:51,332 - > quantizer: nearest
+2021-11-06 11:41:51,332 - > res_blocks: 2
+2021-11-06 11:41:51,332 - > resid_pdrop: 0.0
+2021-11-06 11:41:51,332 - > sampler: absorbing
+2021-11-06 11:41:51,333 - > save_individually: False
+2021-11-06 11:41:51,333 - > steps_per_checkpoint: 100
+2021-11-06 11:41:51,333 - > steps_per_display_output: 100
+2021-11-06 11:41:51,333 - > steps_per_eval: 100
+2021-11-06 11:41:51,333 - > steps_per_log: 1
+2021-11-06 11:41:51,333 - > steps_per_save_output: 100
+2021-11-06 11:41:51,333 - > steps_per_update_ema: 10
+2021-11-06 11:41:51,333 - > temp: 1.0
+2021-11-06 11:41:51,334 - > train_steps: 100000000
+2021-11-06 11:41:51,334 - > visdom_port: 8901
+2021-11-06 11:41:51,334 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:41:51,334 - > vqgan_batch_size: 3
+2021-11-06 11:41:51,334 - > warmup_iters: 10000
+2021-11-06 11:42:17,572 - Step: 0  loss: 7.1022  vb_loss: 10.2411  step_time: 0.5632  mean_loss: 7.1022  
+2021-11-06 11:42:17,721 - Step: 1  loss: 7.1467  vb_loss: 10.3071  step_time: 0.1362  mean_loss: 7.1467  
+2021-11-06 11:42:17,815 - Step: 2  loss: 7.0371  vb_loss: 10.1345  step_time: 0.0862  mean_loss: 7.0371  
+2021-11-06 11:42:17,903 - Step: 3  loss: 7.0683  vb_loss: 10.1901  step_time: 0.0802  mean_loss: 7.0683  
+2021-11-06 11:42:17,990 - Step: 4  loss: 7.1353  vb_loss: 10.4565  step_time: 0.0797  mean_loss: 7.1353  
+2021-11-06 11:42:18,081 - Step: 5  loss: 7.0621  vb_loss: 10.1871  step_time: 0.0832  mean_loss: 7.0621  
+2021-11-06 11:42:18,169 - Step: 6  loss: 7.0613  vb_loss: 10.2133  step_time: 0.0804  mean_loss: 7.0613  
+2021-11-06 11:42:18,254 - Step: 7  loss: 7.0782  vb_loss: 10.2228  step_time: 0.0779  mean_loss: 7.0782  
+2021-11-06 11:42:18,339 - Step: 8  loss: 6.9862  vb_loss: 10.4660  step_time: 0.0770  mean_loss: 6.9862  
+2021-11-06 11:42:18,426 - Step: 9  loss: 7.0798  vb_loss: 10.2606  step_time: 0.0800  mean_loss: 7.0798  
+2021-11-06 11:42:18,512 - Step: 10  loss: 7.1161  vb_loss: 10.2196  step_time: 0.0778  mean_loss: 7.1161  
+2021-11-06 11:42:18,613 - Step: 11  loss: 7.0483  vb_loss: 10.2896  step_time: 0.0780  mean_loss: 7.0483  
+2021-11-06 11:42:18,699 - Step: 12  loss: 7.1016  vb_loss: 10.2222  step_time: 0.0788  mean_loss: 7.1016  
+2021-11-06 11:42:18,785 - Step: 13  loss: 7.0196  vb_loss: 10.1735  step_time: 0.0784  mean_loss: 7.0196  
+2021-11-06 11:42:18,871 - Step: 14  loss: 7.0708  vb_loss: 10.1851  step_time: 0.0782  mean_loss: 7.0708  
+2021-11-06 11:42:18,956 - Step: 15  loss: 7.1303  vb_loss: 10.2906  step_time: 0.0778  mean_loss: 7.1303  
+2021-11-06 11:42:19,041 - Step: 16  loss: 7.2125  vb_loss: 10.5849  step_time: 0.0773  mean_loss: 7.2125  
+2021-11-06 11:42:19,128 - Step: 17  loss: 7.0854  vb_loss: 10.2692  step_time: 0.0774  mean_loss: 7.0854  
+2021-11-06 11:42:19,212 - Step: 18  loss: 7.0704  vb_loss: 10.1980  step_time: 0.0772  mean_loss: 7.0704  
+2021-11-06 11:43:34,259 - ---------------------------------
+2021-11-06 11:43:34,260 - Setting up training for absorbing
+2021-11-06 11:43:34,260 - Using following hparams:
+2021-11-06 11:43:34,260 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:43:34,260 - > ae_load_step: 1400000
+2021-11-06 11:43:34,260 - > amp: False
+2021-11-06 11:43:34,260 - > attn_pdrop: 0.0
+2021-11-06 11:43:34,260 - > attn_resolutions: [16]
+2021-11-06 11:43:34,261 - > base_lr: 4.5e-06
+2021-11-06 11:43:34,261 - > batch_size: 3
+2021-11-06 11:43:34,261 - > bert_n_emb: 256
+2021-11-06 11:43:34,261 - > bert_n_head: 16
+2021-11-06 11:43:34,261 - > bert_n_layers: 24
+2021-11-06 11:43:34,261 - > beta: 0.25
+2021-11-06 11:43:34,261 - > block_size: 256
+2021-11-06 11:43:34,261 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:43:34,262 - > codebook_size: 1024
+2021-11-06 11:43:34,262 - > dataset: ffhq
+2021-11-06 11:43:34,262 - > deepscale: False
+2021-11-06 11:43:34,262 - > deepspeed: False
+2021-11-06 11:43:34,262 - > deepspeed_mpi: False
+2021-11-06 11:43:34,262 - > diff_aug: False
+2021-11-06 11:43:34,262 - > diffusion_steps: 1000
+2021-11-06 11:43:34,263 - > disc_layers: 3
+2021-11-06 11:43:34,263 - > disc_start_step: 30001
+2021-11-06 11:43:34,263 - > disc_weight_max: 1
+2021-11-06 11:43:34,263 - > ema: True
+2021-11-06 11:43:34,263 - > ema_beta: 0.995
+2021-11-06 11:43:34,263 - > emb_dim: 256
+2021-11-06 11:43:34,263 - > embd_pdrop: 0.0
+2021-11-06 11:43:34,263 - > flip_images: False
+2021-11-06 11:43:34,264 - > greedy: False
+2021-11-06 11:43:34,264 - > groups: 8
+2021-11-06 11:43:34,264 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:43:34,264 - > gumbel_straight_through: False
+2021-11-06 11:43:34,264 - > horizontal_flip: True
+2021-11-06 11:43:34,264 - > img_size: 256
+2021-11-06 11:43:34,264 - > latent_shape: [1, 16, 16]
+2021-11-06 11:43:34,264 - > layers_per_cross_attn: 4
+2021-11-06 11:43:34,265 - > load_dir: test
+2021-11-06 11:43:34,265 - > load_optim: False
+2021-11-06 11:43:34,265 - > load_step: 0
+2021-11-06 11:43:34,265 - > local_rank: 0
+2021-11-06 11:43:34,265 - > log_dir: tidy_testing
+2021-11-06 11:43:34,265 - > loss_type: normed
+2021-11-06 11:43:34,265 - > lr: 0.0001
+2021-11-06 11:43:34,265 - > mask_schedule: fixed
+2021-11-06 11:43:34,266 - > n_channels: 3
+2021-11-06 11:43:34,266 - > n_samples: 16
+2021-11-06 11:43:34,266 - > ndf: 64
+2021-11-06 11:43:34,266 - > nf: 128
+2021-11-06 11:43:34,266 - > parametrization: x0
+2021-11-06 11:43:34,266 - > perceiver_dim_head: 64
+2021-11-06 11:43:34,266 - > perceiver_latent_chunks: 10
+2021-11-06 11:43:34,267 - > perceiver_latents: 64
+2021-11-06 11:43:34,267 - > perceiver_layers: 6
+2021-11-06 11:43:34,267 - > perceptual_weight: 1.0
+2021-11-06 11:43:34,267 - > probabilistic_generator: False
+2021-11-06 11:43:34,267 - > quantizer: nearest
+2021-11-06 11:43:34,267 - > res_blocks: 2
+2021-11-06 11:43:34,267 - > resid_pdrop: 0.0
+2021-11-06 11:43:34,267 - > sampler: absorbing
+2021-11-06 11:43:34,268 - > save_individually: False
+2021-11-06 11:43:34,268 - > steps_per_checkpoint: 100
+2021-11-06 11:43:34,268 - > steps_per_display_output: 100
+2021-11-06 11:43:34,268 - > steps_per_eval: 100
+2021-11-06 11:43:34,268 - > steps_per_log: 1
+2021-11-06 11:43:34,268 - > steps_per_save_output: 100
+2021-11-06 11:43:34,268 - > steps_per_update_ema: 10
+2021-11-06 11:43:34,269 - > temp: 1.0
+2021-11-06 11:43:34,269 - > train_steps: 100000000
+2021-11-06 11:43:34,269 - > visdom_port: 8901
+2021-11-06 11:43:34,269 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:43:34,269 - > vqgan_batch_size: 3
+2021-11-06 11:43:34,269 - > warmup_iters: 10000
+2021-11-06 11:44:20,824 - ---------------------------------
+2021-11-06 11:44:20,825 - Setting up training for absorbing
+2021-11-06 11:44:20,825 - Using following hparams:
+2021-11-06 11:44:20,825 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:44:20,825 - > ae_load_step: 1400000
+2021-11-06 11:44:20,825 - > amp: False
+2021-11-06 11:44:20,825 - > attn_pdrop: 0.0
+2021-11-06 11:44:20,826 - > attn_resolutions: [16]
+2021-11-06 11:44:20,826 - > base_lr: 4.5e-06
+2021-11-06 11:44:20,826 - > batch_size: 3
+2021-11-06 11:44:20,826 - > bert_n_emb: 256
+2021-11-06 11:44:20,826 - > bert_n_head: 16
+2021-11-06 11:44:20,826 - > bert_n_layers: 24
+2021-11-06 11:44:20,826 - > beta: 0.25
+2021-11-06 11:44:20,826 - > block_size: 256
+2021-11-06 11:44:20,827 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:44:20,827 - > codebook_size: 1024
+2021-11-06 11:44:20,827 - > dataset: ffhq
+2021-11-06 11:44:20,827 - > deepscale: False
+2021-11-06 11:44:20,827 - > deepspeed: False
+2021-11-06 11:44:20,827 - > deepspeed_mpi: False
+2021-11-06 11:44:20,827 - > diff_aug: False
+2021-11-06 11:44:20,828 - > diffusion_steps: 1000
+2021-11-06 11:44:20,828 - > disc_layers: 3
+2021-11-06 11:44:20,828 - > disc_start_step: 30001
+2021-11-06 11:44:20,828 - > disc_weight_max: 1
+2021-11-06 11:44:20,828 - > ema: True
+2021-11-06 11:44:20,828 - > ema_beta: 0.995
+2021-11-06 11:44:20,828 - > emb_dim: 256
+2021-11-06 11:44:20,828 - > embd_pdrop: 0.0
+2021-11-06 11:44:20,829 - > flip_images: False
+2021-11-06 11:44:20,829 - > greedy: False
+2021-11-06 11:44:20,829 - > groups: 8
+2021-11-06 11:44:20,829 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:44:20,829 - > gumbel_straight_through: False
+2021-11-06 11:44:20,829 - > horizontal_flip: True
+2021-11-06 11:44:20,830 - > img_size: 256
+2021-11-06 11:44:20,830 - > latent_shape: [1, 16, 16]
+2021-11-06 11:44:20,830 - > layers_per_cross_attn: 4
+2021-11-06 11:44:20,830 - > load_dir: test
+2021-11-06 11:44:20,830 - > load_optim: False
+2021-11-06 11:44:20,830 - > load_step: 0
+2021-11-06 11:44:20,830 - > local_rank: 0
+2021-11-06 11:44:20,831 - > log_dir: tidy_testing
+2021-11-06 11:44:20,831 - > loss_type: normed
+2021-11-06 11:44:20,831 - > lr: 0.0001
+2021-11-06 11:44:20,831 - > mask_schedule: fixed
+2021-11-06 11:44:20,831 - > n_channels: 3
+2021-11-06 11:44:20,831 - > n_samples: 16
+2021-11-06 11:44:20,831 - > ndf: 64
+2021-11-06 11:44:20,831 - > nf: 128
+2021-11-06 11:44:20,832 - > parametrization: x0
+2021-11-06 11:44:20,832 - > perceiver_dim_head: 64
+2021-11-06 11:44:20,832 - > perceiver_latent_chunks: 10
+2021-11-06 11:44:20,832 - > perceiver_latents: 64
+2021-11-06 11:44:20,832 - > perceiver_layers: 6
+2021-11-06 11:44:20,832 - > perceptual_weight: 1.0
+2021-11-06 11:44:20,832 - > probabilistic_generator: False
+2021-11-06 11:44:20,833 - > quantizer: nearest
+2021-11-06 11:44:20,833 - > res_blocks: 2
+2021-11-06 11:44:20,833 - > resid_pdrop: 0.0
+2021-11-06 11:44:20,833 - > sampler: absorbing
+2021-11-06 11:44:20,833 - > save_individually: False
+2021-11-06 11:44:20,833 - > steps_per_checkpoint: 100
+2021-11-06 11:44:20,833 - > steps_per_display_output: 100
+2021-11-06 11:44:20,833 - > steps_per_eval: 100
+2021-11-06 11:44:20,834 - > steps_per_log: 1
+2021-11-06 11:44:20,834 - > steps_per_save_output: 100
+2021-11-06 11:44:20,834 - > steps_per_update_ema: 10
+2021-11-06 11:44:20,834 - > temp: 1.0
+2021-11-06 11:44:20,834 - > train_steps: 100000000
+2021-11-06 11:44:20,834 - > visdom_port: 8901
+2021-11-06 11:44:20,834 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:44:20,835 - > vqgan_batch_size: 3
+2021-11-06 11:44:20,835 - > warmup_iters: 10000
+2021-11-06 11:44:28,138 - Step: 0  loss: 6.9921  vb_loss: 10.6384  step_time: 0.2838  mean_loss: 6.9921  
+2021-11-06 11:44:28,264 - Step: 1  loss: 7.0427  vb_loss: 10.1759  step_time: 0.1186  mean_loss: 7.0427  
+2021-11-06 11:44:28,353 - Step: 2  loss: 7.0074  vb_loss: 10.1335  step_time: 0.0809  mean_loss: 7.0074  
+2021-11-06 11:44:28,445 - Step: 3  loss: 7.0433  vb_loss: 10.2007  step_time: 0.0844  mean_loss: 7.0433  
+2021-11-06 11:44:28,532 - Step: 4  loss: 7.1235  vb_loss: 10.2772  step_time: 0.0795  mean_loss: 7.1235  
+2021-11-06 11:44:28,616 - Step: 5  loss: 7.0812  vb_loss: 10.2286  step_time: 0.0767  mean_loss: 7.0812  
+2021-11-06 11:44:28,701 - Step: 6  loss: 7.0695  vb_loss: 10.2061  step_time: 0.0769  mean_loss: 7.0695  
+2021-11-06 11:44:28,784 - Step: 7  loss: 7.0416  vb_loss: 10.1277  step_time: 0.0760  mean_loss: 7.0416  
+2021-11-06 11:44:28,871 - Step: 8  loss: 6.9619  vb_loss: 10.1016  step_time: 0.0795  mean_loss: 6.9619  
+2021-11-06 11:44:28,958 - Step: 9  loss: 7.0115  vb_loss: 10.0941  step_time: 0.0790  mean_loss: 7.0115  
+2021-11-06 11:44:29,042 - Step: 10  loss: 6.9496  vb_loss: 10.0194  step_time: 0.0769  mean_loss: 6.9496  
+2021-11-06 11:44:29,142 - Step: 11  loss: 6.9999  vb_loss: 10.0823  step_time: 0.0762  mean_loss: 6.9999  
+2021-11-06 11:44:29,226 - Step: 12  loss: 7.0532  vb_loss: 10.1893  step_time: 0.0770  mean_loss: 7.0532  
+2021-11-06 11:44:29,310 - Step: 13  loss: 7.0468  vb_loss: 10.1604  step_time: 0.0761  mean_loss: 7.0468  
+2021-11-06 11:44:29,394 - Step: 14  loss: 7.0179  vb_loss: 10.1243  step_time: 0.0764  mean_loss: 7.0179  
+2021-11-06 11:44:29,479 - Step: 15  loss: 7.0207  vb_loss: 10.1203  step_time: 0.0779  mean_loss: 7.0207  
+2021-11-06 11:44:29,563 - Step: 16  loss: 7.0420  vb_loss: 10.1575  step_time: 0.0763  mean_loss: 7.0420  
+2021-11-06 11:44:29,647 - Step: 17  loss: 7.0424  vb_loss: 10.1887  step_time: 0.0766  mean_loss: 7.0424  
+2021-11-06 11:44:29,731 - Step: 18  loss: 7.1112  vb_loss: 10.2214  step_time: 0.0768  mean_loss: 7.1112  
+2021-11-06 11:44:29,815 - Step: 19  loss: 7.0186  vb_loss: 10.1532  step_time: 0.0759  mean_loss: 7.0186  
+2021-11-06 11:44:29,898 - Step: 20  loss: 7.0786  vb_loss: 10.2819  step_time: 0.0762  mean_loss: 7.0786  
+2021-11-06 11:44:29,997 - Step: 21  loss: 7.0093  vb_loss: 10.2692  step_time: 0.0751  mean_loss: 7.0093  
+2021-11-06 11:44:30,086 - Step: 22  loss: 7.0523  vb_loss: 10.2524  step_time: 0.0819  mean_loss: 7.0523  
+2021-11-06 11:44:30,172 - Step: 23  loss: 7.0014  vb_loss: 10.0944  step_time: 0.0775  mean_loss: 7.0014  
+2021-11-06 11:44:30,257 - Step: 24  loss: 7.0646  vb_loss: 10.1949  step_time: 0.0772  mean_loss: 7.0646  
+2021-11-06 11:44:30,341 - Step: 25  loss: 6.9795  vb_loss: 10.0802  step_time: 0.0765  mean_loss: 6.9795  
+2021-11-06 11:44:30,424 - Step: 26  loss: 7.1338  vb_loss: 10.3047  step_time: 0.0756  mean_loss: 7.1338  
+2021-11-06 11:44:30,507 - Step: 27  loss: 6.9890  vb_loss: 10.0825  step_time: 0.0758  mean_loss: 6.9890  
+2021-11-06 11:44:30,591 - Step: 28  loss: 7.0751  vb_loss: 10.2220  step_time: 0.0764  mean_loss: 7.0751  
+2021-11-06 11:44:30,679 - Step: 29  loss: 6.9842  vb_loss: 10.0823  step_time: 0.0779  mean_loss: 6.9842  
+2021-11-06 11:44:30,763 - Step: 30  loss: 6.9959  vb_loss: 10.0932  step_time: 0.0769  mean_loss: 6.9959  
+2021-11-06 11:44:30,868 - Step: 31  loss: 7.0998  vb_loss: 10.2736  step_time: 0.0813  mean_loss: 7.0998  
+2021-11-06 11:44:30,957 - Step: 32  loss: 7.1007  vb_loss: 10.2264  step_time: 0.0813  mean_loss: 7.1007  
+2021-11-06 11:44:31,043 - Step: 33  loss: 7.0410  vb_loss: 10.1472  step_time: 0.0777  mean_loss: 7.0410  
+2021-11-06 11:44:31,130 - Step: 34  loss: 6.8724  vb_loss: 9.4874  step_time: 0.0794  mean_loss: 6.8724  
+2021-11-06 11:44:31,219 - Step: 35  loss: 7.2119  vb_loss: 10.2031  step_time: 0.0813  mean_loss: 7.2119  
+2021-11-06 11:44:31,304 - Step: 36  loss: 6.9545  vb_loss: 10.0355  step_time: 0.0775  mean_loss: 6.9545  
+2021-11-06 11:44:31,388 - Step: 37  loss: 7.0694  vb_loss: 10.1479  step_time: 0.0764  mean_loss: 7.0694  
+2021-11-06 11:44:31,472 - Step: 38  loss: 6.9990  vb_loss: 10.0930  step_time: 0.0766  mean_loss: 6.9990  
+2021-11-06 11:44:31,556 - Step: 39  loss: 6.9528  vb_loss: 10.0199  step_time: 0.0764  mean_loss: 6.9528  
+2021-11-06 11:44:31,639 - Step: 40  loss: 6.9994  vb_loss: 10.1040  step_time: 0.0755  mean_loss: 6.9994  
+2021-11-06 11:44:31,737 - Step: 41  loss: 6.9943  vb_loss: 10.0941  step_time: 0.0752  mean_loss: 6.9943  
+2021-11-06 11:44:31,821 - Step: 42  loss: 7.0141  vb_loss: 10.1534  step_time: 0.0767  mean_loss: 7.0141  
+2021-11-06 11:44:31,904 - Step: 43  loss: 7.0749  vb_loss: 10.1979  step_time: 0.0755  mean_loss: 7.0749  
+2021-11-06 11:44:31,988 - Step: 44  loss: 7.0597  vb_loss: 10.2099  step_time: 0.0768  mean_loss: 7.0597  
+2021-11-06 11:44:32,072 - Step: 45  loss: 6.9872  vb_loss: 10.1160  step_time: 0.0758  mean_loss: 6.9872  
+2021-11-06 11:44:32,155 - Step: 46  loss: 6.9902  vb_loss: 10.0520  step_time: 0.0758  mean_loss: 6.9902  
+2021-11-06 11:44:32,238 - Step: 47  loss: 7.0009  vb_loss: 10.1294  step_time: 0.0756  mean_loss: 7.0009  
+2021-11-06 11:44:32,322 - Step: 48  loss: 7.0194  vb_loss: 10.1591  step_time: 0.0762  mean_loss: 7.0194  
+2021-11-06 11:44:32,404 - Step: 49  loss: 6.9878  vb_loss: 10.0870  step_time: 0.0751  mean_loss: 6.9878  
+2021-11-06 11:44:32,488 - Step: 50  loss: 7.0306  vb_loss: 10.1377  step_time: 0.0758  mean_loss: 7.0306  
+2021-11-06 11:44:32,586 - Step: 51  loss: 7.0307  vb_loss: 10.1212  step_time: 0.0756  mean_loss: 7.0307  
+2021-11-06 11:44:32,670 - Step: 52  loss: 6.9901  vb_loss: 10.0977  step_time: 0.0767  mean_loss: 6.9901  
+2021-11-06 11:44:32,754 - Step: 53  loss: 7.0314  vb_loss: 10.1472  step_time: 0.0759  mean_loss: 7.0314  
+2021-11-06 11:44:32,838 - Step: 54  loss: 7.0042  vb_loss: 10.0930  step_time: 0.0764  mean_loss: 7.0042  
+2021-11-06 11:44:32,920 - Step: 55  loss: 7.0616  vb_loss: 10.2051  step_time: 0.0754  mean_loss: 7.0616  
+2021-11-06 11:44:33,004 - Step: 56  loss: 6.9863  vb_loss: 10.1344  step_time: 0.0762  mean_loss: 6.9863  
+2021-11-06 11:44:33,087 - Step: 57  loss: 7.0057  vb_loss: 10.1202  step_time: 0.0755  mean_loss: 7.0057  
+2021-11-06 11:44:33,170 - Step: 58  loss: 6.9858  vb_loss: 10.0904  step_time: 0.0759  mean_loss: 6.9858  
+2021-11-06 11:44:33,254 - Step: 59  loss: 6.9876  vb_loss: 10.0862  step_time: 0.0756  mean_loss: 6.9876  
+2021-11-06 11:44:33,336 - Step: 60  loss: 7.0017  vb_loss: 10.1161  step_time: 0.0752  mean_loss: 7.0017  
+2021-11-06 11:44:39,565 - ---------------------------------
+2021-11-06 11:44:39,566 - Setting up training for absorbing
+2021-11-06 11:44:39,566 - Using following hparams:
+2021-11-06 11:44:39,566 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:44:39,566 - > ae_load_step: 1400000
+2021-11-06 11:44:39,566 - > amp: False
+2021-11-06 11:44:39,566 - > attn_pdrop: 0.0
+2021-11-06 11:44:39,566 - > attn_resolutions: [16]
+2021-11-06 11:44:39,567 - > base_lr: 4.5e-06
+2021-11-06 11:44:39,567 - > batch_size: 3
+2021-11-06 11:44:39,567 - > bert_n_emb: 256
+2021-11-06 11:44:39,567 - > bert_n_head: 16
+2021-11-06 11:44:39,567 - > bert_n_layers: 24
+2021-11-06 11:44:39,567 - > beta: 0.25
+2021-11-06 11:44:39,567 - > block_size: 256
+2021-11-06 11:44:39,568 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:44:39,568 - > codebook_size: 1024
+2021-11-06 11:44:39,568 - > dataset: ffhq
+2021-11-06 11:44:39,568 - > deepscale: False
+2021-11-06 11:44:39,568 - > deepspeed: False
+2021-11-06 11:44:39,568 - > deepspeed_mpi: False
+2021-11-06 11:44:39,568 - > diff_aug: False
+2021-11-06 11:44:39,568 - > diffusion_steps: 1000
+2021-11-06 11:44:39,569 - > disc_layers: 3
+2021-11-06 11:44:39,569 - > disc_start_step: 30001
+2021-11-06 11:44:39,569 - > disc_weight_max: 1
+2021-11-06 11:44:39,569 - > ema: True
+2021-11-06 11:44:39,569 - > ema_beta: 0.995
+2021-11-06 11:44:39,569 - > emb_dim: 256
+2021-11-06 11:44:39,569 - > embd_pdrop: 0.0
+2021-11-06 11:44:39,569 - > flip_images: False
+2021-11-06 11:44:39,570 - > greedy: False
+2021-11-06 11:44:39,570 - > groups: 8
+2021-11-06 11:44:39,570 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:44:39,570 - > gumbel_straight_through: False
+2021-11-06 11:44:39,570 - > horizontal_flip: True
+2021-11-06 11:44:39,570 - > img_size: 256
+2021-11-06 11:44:39,570 - > latent_shape: [1, 16, 16]
+2021-11-06 11:44:39,571 - > layers_per_cross_attn: 4
+2021-11-06 11:44:39,571 - > load_dir: test
+2021-11-06 11:44:39,571 - > load_optim: False
+2021-11-06 11:44:39,571 - > load_step: 0
+2021-11-06 11:44:39,571 - > local_rank: 0
+2021-11-06 11:44:39,571 - > log_dir: tidy_testing
+2021-11-06 11:44:39,571 - > loss_type: normed
+2021-11-06 11:44:39,571 - > lr: 0.0001
+2021-11-06 11:44:39,572 - > mask_schedule: fixed
+2021-11-06 11:44:39,572 - > n_channels: 3
+2021-11-06 11:44:39,572 - > n_samples: 16
+2021-11-06 11:44:39,572 - > ndf: 64
+2021-11-06 11:44:39,572 - > nf: 128
+2021-11-06 11:44:39,572 - > parametrization: x0
+2021-11-06 11:44:39,572 - > perceiver_dim_head: 64
+2021-11-06 11:44:39,573 - > perceiver_latent_chunks: 10
+2021-11-06 11:44:39,573 - > perceiver_latents: 64
+2021-11-06 11:44:39,573 - > perceiver_layers: 6
+2021-11-06 11:44:39,573 - > perceptual_weight: 1.0
+2021-11-06 11:44:39,573 - > probabilistic_generator: False
+2021-11-06 11:44:39,573 - > quantizer: nearest
+2021-11-06 11:44:39,573 - > res_blocks: 2
+2021-11-06 11:44:39,574 - > resid_pdrop: 0.0
+2021-11-06 11:44:39,574 - > sampler: absorbing
+2021-11-06 11:44:39,574 - > save_individually: False
+2021-11-06 11:44:39,574 - > steps_per_checkpoint: 100
+2021-11-06 11:44:39,574 - > steps_per_display_output: 100
+2021-11-06 11:44:39,574 - > steps_per_eval: 100
+2021-11-06 11:44:39,574 - > steps_per_log: 1
+2021-11-06 11:44:39,574 - > steps_per_save_output: 100
+2021-11-06 11:44:39,574 - > steps_per_update_ema: 10
+2021-11-06 11:44:39,575 - > temp: 1.0
+2021-11-06 11:44:39,575 - > train_steps: 100000000
+2021-11-06 11:44:39,575 - > visdom_port: 8901
+2021-11-06 11:44:39,575 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:44:39,575 - > vqgan_batch_size: 3
+2021-11-06 11:44:39,575 - > warmup_iters: 10000
+2021-11-06 11:44:46,896 - Step: 0  loss: 7.0637  vb_loss: 10.1989  step_time: 0.2457  mean_loss: 7.0637  
+2021-11-06 11:44:47,047 - Step: 1  loss: 7.1001  vb_loss: 10.2614  step_time: 0.1435  mean_loss: 7.1001  
+2021-11-06 11:44:47,141 - Step: 2  loss: 7.0050  vb_loss: 10.2505  step_time: 0.0836  mean_loss: 7.0050  
+2021-11-06 11:44:47,226 - Step: 3  loss: 7.1097  vb_loss: 10.2499  step_time: 0.0771  mean_loss: 7.1097  
+2021-11-06 11:44:47,310 - Step: 4  loss: 7.0897  vb_loss: 10.2421  step_time: 0.0762  mean_loss: 7.0897  
+2021-11-06 11:44:47,392 - Step: 5  loss: 7.0035  vb_loss: 10.1333  step_time: 0.0752  mean_loss: 7.0035  
+2021-11-06 11:44:47,475 - Step: 6  loss: 7.1350  vb_loss: 10.2864  step_time: 0.0752  mean_loss: 7.1350  
+2021-11-06 11:44:47,558 - Step: 7  loss: 7.0817  vb_loss: 10.2236  step_time: 0.0758  mean_loss: 7.0817  
+2021-11-06 11:44:47,643 - Step: 8  loss: 7.1346  vb_loss: 10.3194  step_time: 0.0775  mean_loss: 7.1346  
+2021-11-06 11:44:47,727 - Step: 9  loss: 7.1064  vb_loss: 10.2518  step_time: 0.0757  mean_loss: 7.1064  
+2021-11-06 11:44:47,809 - Step: 10  loss: 7.0765  vb_loss: 10.2167  step_time: 0.0754  mean_loss: 7.0765  
+2021-11-06 11:44:47,907 - Step: 11  loss: 7.1675  vb_loss: 10.2313  step_time: 0.0748  mean_loss: 7.1675  
+2021-11-06 11:44:47,991 - Step: 12  loss: 6.9569  vb_loss: 10.0673  step_time: 0.0764  mean_loss: 6.9569  
+2021-11-06 11:44:48,074 - Step: 13  loss: 7.0586  vb_loss: 10.1208  step_time: 0.0754  mean_loss: 7.0586  
+2021-11-06 11:44:48,157 - Step: 14  loss: 7.0051  vb_loss: 10.1018  step_time: 0.0753  mean_loss: 7.0051  
+2021-11-06 11:44:48,241 - Step: 15  loss: 7.1374  vb_loss: 20.0781  step_time: 0.0765  mean_loss: 7.1374  
+2021-11-06 11:44:48,324 - Step: 16  loss: 7.1269  vb_loss: 10.2767  step_time: 0.0754  mean_loss: 7.1269  
+2021-11-06 11:44:48,407 - Step: 17  loss: 7.1708  vb_loss: 10.3430  step_time: 0.0757  mean_loss: 7.1708  
+2021-11-06 11:44:48,490 - Step: 18  loss: 7.0999  vb_loss: 10.2984  step_time: 0.0754  mean_loss: 7.0999  
+2021-11-06 11:44:48,572 - Step: 19  loss: 7.0907  vb_loss: 10.2391  step_time: 0.0748  mean_loss: 7.0907  
+2021-11-06 11:44:48,655 - Step: 20  loss: 7.1441  vb_loss: 10.2962  step_time: 0.0753  mean_loss: 7.1441  
+2021-11-06 11:44:48,752 - Step: 21  loss: 7.1476  vb_loss: 10.3088  step_time: 0.0745  mean_loss: 7.1476  
+2021-11-06 11:44:48,837 - Step: 22  loss: 7.0857  vb_loss: 10.1877  step_time: 0.0772  mean_loss: 7.0857  
+2021-11-06 11:44:48,919 - Step: 23  loss: 7.0921  vb_loss: 10.2286  step_time: 0.0748  mean_loss: 7.0921  
+2021-11-06 11:44:49,002 - Step: 24  loss: 7.0889  vb_loss: 10.2084  step_time: 0.0755  mean_loss: 7.0889  
+2021-11-06 11:44:49,085 - Step: 25  loss: 7.0264  vb_loss: 10.0968  step_time: 0.0756  mean_loss: 7.0264  
+2021-11-06 11:44:49,168 - Step: 26  loss: 7.1265  vb_loss: 10.2853  step_time: 0.0757  mean_loss: 7.1265  
+2021-11-06 11:44:49,251 - Step: 27  loss: 6.9078  vb_loss: 10.8933  step_time: 0.0751  mean_loss: 6.9078  
+2021-11-06 11:44:49,333 - Step: 28  loss: 7.0475  vb_loss: 10.1972  step_time: 0.0751  mean_loss: 7.0475  
+2021-11-06 11:44:49,423 - Step: 29  loss: 6.9888  vb_loss: 10.0819  step_time: 0.0823  mean_loss: 6.9888  
+2021-11-06 11:44:49,513 - Step: 30  loss: 7.0110  vb_loss: 10.2275  step_time: 0.0816  mean_loss: 7.0110  
+2021-11-06 11:44:55,314 - Step: 31  loss: 7.1010  vb_loss: 10.1929  step_time: 0.0828  mean_loss: 7.1010  
+2021-11-06 11:44:55,397 - Step: 32  loss: 7.0736  vb_loss: 10.1677  step_time: 0.0756  mean_loss: 7.0736  
+2021-11-06 11:44:55,480 - Step: 33  loss: 7.0269  vb_loss: 10.1454  step_time: 0.0760  mean_loss: 7.0269  
+2021-11-06 11:44:55,563 - Step: 34  loss: 7.0277  vb_loss: 10.1921  step_time: 0.0749  mean_loss: 7.0277  
+2021-11-06 11:44:55,649 - Step: 35  loss: 6.9995  vb_loss: 10.1010  step_time: 0.0786  mean_loss: 6.9995  
+2021-11-06 11:44:55,732 - Step: 36  loss: 7.1023  vb_loss: 10.2128  step_time: 0.0756  mean_loss: 7.1023  
+2021-11-06 11:44:55,814 - Step: 37  loss: 7.1118  vb_loss: 10.2597  step_time: 0.0748  mean_loss: 7.1118  
+2021-11-06 11:44:55,897 - Step: 38  loss: 7.0773  vb_loss: 10.1995  step_time: 0.0750  mean_loss: 7.0773  
+2021-11-06 11:44:55,979 - Step: 39  loss: 7.0805  vb_loss: 10.2377  step_time: 0.0748  mean_loss: 7.0805  
+2021-11-06 11:44:56,062 - Step: 40  loss: 7.0528  vb_loss: 10.1319  step_time: 0.0753  mean_loss: 7.0528  
+2021-11-06 11:45:15,084 - ---------------------------------
+2021-11-06 11:45:15,084 - Setting up training for absorbing
+2021-11-06 11:45:15,085 - Using following hparams:
+2021-11-06 11:45:15,085 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:45:15,085 - > ae_load_step: 1400000
+2021-11-06 11:45:15,085 - > amp: False
+2021-11-06 11:45:15,085 - > attn_pdrop: 0.0
+2021-11-06 11:45:15,085 - > attn_resolutions: [16]
+2021-11-06 11:45:15,085 - > base_lr: 4.5e-06
+2021-11-06 11:45:15,086 - > batch_size: 3
+2021-11-06 11:45:15,086 - > bert_n_emb: 256
+2021-11-06 11:45:15,086 - > bert_n_head: 16
+2021-11-06 11:45:15,086 - > bert_n_layers: 24
+2021-11-06 11:45:15,086 - > beta: 0.25
+2021-11-06 11:45:15,086 - > block_size: 256
+2021-11-06 11:45:15,086 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:45:15,086 - > codebook_size: 1024
+2021-11-06 11:45:15,087 - > dataset: ffhq
+2021-11-06 11:45:15,087 - > deepscale: False
+2021-11-06 11:45:15,087 - > deepspeed: False
+2021-11-06 11:45:15,087 - > deepspeed_mpi: False
+2021-11-06 11:45:15,087 - > diff_aug: False
+2021-11-06 11:45:15,087 - > diffusion_steps: 1000
+2021-11-06 11:45:15,087 - > disc_layers: 3
+2021-11-06 11:45:15,088 - > disc_start_step: 30001
+2021-11-06 11:45:15,088 - > disc_weight_max: 1
+2021-11-06 11:45:15,088 - > ema: True
+2021-11-06 11:45:15,088 - > ema_beta: 0.995
+2021-11-06 11:45:15,088 - > emb_dim: 256
+2021-11-06 11:45:15,088 - > embd_pdrop: 0.0
+2021-11-06 11:45:15,088 - > flip_images: False
+2021-11-06 11:45:15,088 - > greedy: False
+2021-11-06 11:45:15,089 - > groups: 8
+2021-11-06 11:45:15,089 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:45:15,089 - > gumbel_straight_through: False
+2021-11-06 11:45:15,089 - > horizontal_flip: True
+2021-11-06 11:45:15,089 - > img_size: 256
+2021-11-06 11:45:15,089 - > latent_shape: [1, 16, 16]
+2021-11-06 11:45:15,089 - > layers_per_cross_attn: 4
+2021-11-06 11:45:15,090 - > load_dir: test
+2021-11-06 11:45:15,090 - > load_optim: False
+2021-11-06 11:45:15,090 - > load_step: 0
+2021-11-06 11:45:15,090 - > local_rank: 0
+2021-11-06 11:45:15,090 - > log_dir: tidy_testing
+2021-11-06 11:45:15,090 - > loss_type: normed
+2021-11-06 11:45:15,090 - > lr: 0.0001
+2021-11-06 11:45:15,090 - > mask_schedule: fixed
+2021-11-06 11:45:15,091 - > n_channels: 3
+2021-11-06 11:45:15,091 - > n_samples: 16
+2021-11-06 11:45:15,091 - > ndf: 64
+2021-11-06 11:45:15,091 - > nf: 128
+2021-11-06 11:45:15,091 - > parametrization: x0
+2021-11-06 11:45:15,091 - > perceiver_dim_head: 64
+2021-11-06 11:45:15,091 - > perceiver_latent_chunks: 10
+2021-11-06 11:45:15,091 - > perceiver_latents: 64
+2021-11-06 11:45:15,092 - > perceiver_layers: 6
+2021-11-06 11:45:15,092 - > perceptual_weight: 1.0
+2021-11-06 11:45:15,092 - > probabilistic_generator: False
+2021-11-06 11:45:15,092 - > quantizer: nearest
+2021-11-06 11:45:15,092 - > res_blocks: 2
+2021-11-06 11:45:15,092 - > resid_pdrop: 0.0
+2021-11-06 11:45:15,092 - > sampler: absorbing
+2021-11-06 11:45:15,093 - > save_individually: False
+2021-11-06 11:45:15,093 - > steps_per_checkpoint: 100
+2021-11-06 11:45:15,093 - > steps_per_display_output: 100
+2021-11-06 11:45:15,093 - > steps_per_eval: 100
+2021-11-06 11:45:15,093 - > steps_per_log: 1
+2021-11-06 11:45:15,093 - > steps_per_save_output: 100
+2021-11-06 11:45:15,093 - > steps_per_update_ema: 10
+2021-11-06 11:45:15,094 - > temp: 1.0
+2021-11-06 11:45:15,094 - > train_steps: 100000000
+2021-11-06 11:45:15,094 - > visdom_port: 8901
+2021-11-06 11:45:15,094 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:45:15,094 - > vqgan_batch_size: 3
+2021-11-06 11:45:15,094 - > warmup_iters: 10000
+2021-11-06 11:45:22,658 - Step: 0  loss: 7.1149  vb_loss: 10.2573  step_time: 0.2725  mean_loss: 7.1149  
+2021-11-06 11:45:22,828 - Step: 1  loss: 7.1791  vb_loss: 10.3943  step_time: 0.1318  mean_loss: 7.1791  
+2021-11-06 11:45:22,941 - Step: 2  loss: 7.1061  vb_loss: 10.2134  step_time: 0.0888  mean_loss: 7.1061  
+2021-11-06 11:45:23,055 - Step: 3  loss: 7.2098  vb_loss: 10.5042  step_time: 0.0877  mean_loss: 7.2098  
+2021-11-06 11:45:23,166 - Step: 4  loss: 7.0381  vb_loss: 10.0463  step_time: 0.0857  mean_loss: 7.0381  
+2021-11-06 11:45:23,276 - Step: 5  loss: 7.1787  vb_loss: 10.3515  step_time: 0.0864  mean_loss: 7.1787  
+2021-11-06 11:45:23,391 - Step: 6  loss: 7.0878  vb_loss: 10.1959  step_time: 0.0902  mean_loss: 7.0878  
+2021-11-06 11:45:23,508 - Step: 7  loss: 7.1979  vb_loss: 10.3390  step_time: 0.0881  mean_loss: 7.1979  
+2021-11-06 11:45:23,615 - Step: 8  loss: 7.1523  vb_loss: 10.3091  step_time: 0.0840  mean_loss: 7.1523  
+2021-11-06 11:45:23,722 - Step: 9  loss: 7.1323  vb_loss: 10.2904  step_time: 0.0840  mean_loss: 7.1323  
+2021-11-06 11:45:23,834 - Step: 10  loss: 7.2048  vb_loss: 10.3868  step_time: 0.0874  mean_loss: 7.2048  
+2021-11-06 11:45:23,957 - Step: 11  loss: 6.8310  vb_loss: 10.7402  step_time: 0.0845  mean_loss: 6.8310  
+2021-11-06 11:45:24,070 - Step: 12  loss: 7.0904  vb_loss: 10.2566  step_time: 0.0873  mean_loss: 7.0904  
+2021-11-06 11:45:24,186 - Step: 13  loss: 7.1302  vb_loss: 10.2849  step_time: 0.0922  mean_loss: 7.1302  
+2021-11-06 11:45:24,304 - Step: 14  loss: 7.1687  vb_loss: 10.3754  step_time: 0.0912  mean_loss: 7.1687  
+2021-11-06 11:46:17,374 - ---------------------------------
+2021-11-06 11:46:17,374 - Setting up training for absorbing
+2021-11-06 11:46:17,374 - Using following hparams:
+2021-11-06 11:46:17,374 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:46:17,375 - > ae_load_step: 1400000
+2021-11-06 11:46:17,375 - > amp: False
+2021-11-06 11:46:17,375 - > attn_pdrop: 0.0
+2021-11-06 11:46:17,375 - > attn_resolutions: [16]
+2021-11-06 11:46:17,375 - > base_lr: 4.5e-06
+2021-11-06 11:46:17,375 - > batch_size: 3
+2021-11-06 11:46:17,375 - > bert_n_emb: 256
+2021-11-06 11:46:17,376 - > bert_n_head: 16
+2021-11-06 11:46:17,376 - > bert_n_layers: 24
+2021-11-06 11:46:17,376 - > beta: 0.25
+2021-11-06 11:46:17,376 - > block_size: 256
+2021-11-06 11:46:17,376 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:46:17,376 - > codebook_size: 1024
+2021-11-06 11:46:17,376 - > dataset: ffhq
+2021-11-06 11:46:17,376 - > deepscale: False
+2021-11-06 11:46:17,377 - > deepspeed: False
+2021-11-06 11:46:17,377 - > deepspeed_mpi: False
+2021-11-06 11:46:17,377 - > diff_aug: False
+2021-11-06 11:46:17,377 - > diffusion_steps: 1000
+2021-11-06 11:46:17,377 - > disc_layers: 3
+2021-11-06 11:46:17,377 - > disc_start_step: 30001
+2021-11-06 11:46:17,377 - > disc_weight_max: 1
+2021-11-06 11:46:17,378 - > ema: True
+2021-11-06 11:46:17,378 - > ema_beta: 0.995
+2021-11-06 11:46:17,378 - > emb_dim: 256
+2021-11-06 11:46:17,378 - > embd_pdrop: 0.0
+2021-11-06 11:46:17,378 - > flip_images: False
+2021-11-06 11:46:17,378 - > greedy: False
+2021-11-06 11:46:17,378 - > groups: 8
+2021-11-06 11:46:17,378 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:46:17,379 - > gumbel_straight_through: False
+2021-11-06 11:46:17,379 - > horizontal_flip: True
+2021-11-06 11:46:17,379 - > img_size: 256
+2021-11-06 11:46:17,379 - > latent_shape: [1, 16, 16]
+2021-11-06 11:46:17,379 - > layers_per_cross_attn: 4
+2021-11-06 11:46:17,379 - > load_dir: test
+2021-11-06 11:46:17,379 - > load_optim: False
+2021-11-06 11:46:17,380 - > load_step: 0
+2021-11-06 11:46:17,380 - > local_rank: 0
+2021-11-06 11:46:17,380 - > log_dir: tidy_testing
+2021-11-06 11:46:17,380 - > loss_type: normed
+2021-11-06 11:46:17,380 - > lr: 0.0001
+2021-11-06 11:46:17,380 - > mask_schedule: fixed
+2021-11-06 11:46:17,380 - > n_channels: 3
+2021-11-06 11:46:17,380 - > n_samples: 16
+2021-11-06 11:46:17,381 - > ndf: 64
+2021-11-06 11:46:17,381 - > nf: 128
+2021-11-06 11:46:17,381 - > parametrization: x0
+2021-11-06 11:46:17,381 - > perceiver_dim_head: 64
+2021-11-06 11:46:17,381 - > perceiver_latent_chunks: 10
+2021-11-06 11:46:17,381 - > perceiver_latents: 64
+2021-11-06 11:46:17,381 - > perceiver_layers: 6
+2021-11-06 11:46:17,381 - > perceptual_weight: 1.0
+2021-11-06 11:46:17,382 - > probabilistic_generator: False
+2021-11-06 11:46:17,382 - > quantizer: nearest
+2021-11-06 11:46:17,382 - > res_blocks: 2
+2021-11-06 11:46:17,382 - > resid_pdrop: 0.0
+2021-11-06 11:46:17,382 - > sampler: absorbing
+2021-11-06 11:46:17,382 - > save_individually: False
+2021-11-06 11:46:17,382 - > steps_per_checkpoint: 100
+2021-11-06 11:46:17,383 - > steps_per_display_output: 100
+2021-11-06 11:46:17,383 - > steps_per_eval: 100
+2021-11-06 11:46:17,383 - > steps_per_log: 1
+2021-11-06 11:46:17,383 - > steps_per_save_output: 100
+2021-11-06 11:46:17,383 - > steps_per_update_ema: 10
+2021-11-06 11:46:17,383 - > temp: 1.0
+2021-11-06 11:46:17,383 - > train_steps: 100000000
+2021-11-06 11:46:17,383 - > visdom_port: 8901
+2021-11-06 11:46:17,384 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:46:17,384 - > vqgan_batch_size: 3
+2021-11-06 11:46:17,384 - > warmup_iters: 10000
+2021-11-06 11:49:28,708 - ---------------------------------
+2021-11-06 11:49:28,708 - Setting up training for absorbing
+2021-11-06 11:49:28,709 - Using following hparams:
+2021-11-06 11:49:28,709 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:49:28,709 - > ae_load_step: 1400000
+2021-11-06 11:49:28,709 - > amp: False
+2021-11-06 11:49:28,709 - > attn_pdrop: 0.0
+2021-11-06 11:49:28,709 - > attn_resolutions: [16]
+2021-11-06 11:49:28,710 - > base_lr: 4.5e-06
+2021-11-06 11:49:28,710 - > batch_size: 3
+2021-11-06 11:49:28,710 - > bert_n_emb: 256
+2021-11-06 11:49:28,710 - > bert_n_head: 16
+2021-11-06 11:49:28,710 - > bert_n_layers: 24
+2021-11-06 11:49:28,710 - > beta: 0.25
+2021-11-06 11:49:28,710 - > block_size: 256
+2021-11-06 11:49:28,710 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:49:28,711 - > codebook_size: 1024
+2021-11-06 11:49:28,711 - > dataset: ffhq
+2021-11-06 11:49:28,711 - > deepscale: False
+2021-11-06 11:49:28,711 - > deepspeed: False
+2021-11-06 11:49:28,711 - > deepspeed_mpi: False
+2021-11-06 11:49:28,711 - > diff_aug: False
+2021-11-06 11:49:28,711 - > diffusion_steps: 1000
+2021-11-06 11:49:28,712 - > disc_layers: 3
+2021-11-06 11:49:28,712 - > disc_start_step: 30001
+2021-11-06 11:49:28,712 - > disc_weight_max: 1
+2021-11-06 11:49:28,712 - > ema: True
+2021-11-06 11:49:28,712 - > ema_beta: 0.995
+2021-11-06 11:49:28,712 - > emb_dim: 256
+2021-11-06 11:49:28,712 - > embd_pdrop: 0.0
+2021-11-06 11:49:28,712 - > flip_images: False
+2021-11-06 11:49:28,713 - > greedy: False
+2021-11-06 11:49:28,713 - > groups: 8
+2021-11-06 11:49:28,713 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:49:28,713 - > gumbel_straight_through: False
+2021-11-06 11:49:28,713 - > horizontal_flip: True
+2021-11-06 11:49:28,713 - > img_size: 256
+2021-11-06 11:49:28,713 - > latent_shape: [1, 16, 16]
+2021-11-06 11:49:28,714 - > layers_per_cross_attn: 4
+2021-11-06 11:49:28,714 - > load_dir: test
+2021-11-06 11:49:28,714 - > load_optim: False
+2021-11-06 11:49:28,714 - > load_step: 0
+2021-11-06 11:49:28,714 - > local_rank: 0
+2021-11-06 11:49:28,714 - > log_dir: tidy_testing
+2021-11-06 11:49:28,714 - > loss_type: normed
+2021-11-06 11:49:28,714 - > lr: 0.0001
+2021-11-06 11:49:28,715 - > mask_schedule: fixed
+2021-11-06 11:49:28,715 - > n_channels: 3
+2021-11-06 11:49:28,715 - > n_samples: 16
+2021-11-06 11:49:28,715 - > ndf: 64
+2021-11-06 11:49:28,715 - > nf: 128
+2021-11-06 11:49:28,715 - > parametrization: x0
+2021-11-06 11:49:28,715 - > perceiver_dim_head: 64
+2021-11-06 11:49:28,715 - > perceiver_latent_chunks: 10
+2021-11-06 11:49:28,716 - > perceiver_latents: 64
+2021-11-06 11:49:28,716 - > perceiver_layers: 6
+2021-11-06 11:49:28,716 - > perceptual_weight: 1.0
+2021-11-06 11:49:28,716 - > probabilistic_generator: False
+2021-11-06 11:49:28,716 - > quantizer: nearest
+2021-11-06 11:49:28,716 - > res_blocks: 2
+2021-11-06 11:49:28,716 - > resid_pdrop: 0.0
+2021-11-06 11:49:28,717 - > sampler: absorbing
+2021-11-06 11:49:28,717 - > save_individually: False
+2021-11-06 11:49:28,717 - > steps_per_checkpoint: 100
+2021-11-06 11:49:28,717 - > steps_per_display_output: 100
+2021-11-06 11:49:28,717 - > steps_per_eval: 100
+2021-11-06 11:49:28,717 - > steps_per_log: 1
+2021-11-06 11:49:28,717 - > steps_per_save_output: 100
+2021-11-06 11:49:28,717 - > steps_per_update_ema: 10
+2021-11-06 11:49:28,718 - > temp: 1.0
+2021-11-06 11:49:28,718 - > train_steps: 100000000
+2021-11-06 11:49:28,718 - > visdom_port: 8901
+2021-11-06 11:49:28,718 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:49:28,718 - > vqgan_batch_size: 3
+2021-11-06 11:49:28,718 - > warmup_iters: 10000
+2021-11-06 11:49:55,981 - ---------------------------------
+2021-11-06 11:49:55,981 - Setting up training for absorbing
+2021-11-06 11:49:55,982 - Using following hparams:
+2021-11-06 11:49:55,982 - > ae_load_dir: vqgan_ffhq_with_hflip
+2021-11-06 11:49:55,982 - > ae_load_step: 1400000
+2021-11-06 11:49:55,982 - > amp: False
+2021-11-06 11:49:55,982 - > attn_pdrop: 0.0
+2021-11-06 11:49:55,982 - > attn_resolutions: [16]
+2021-11-06 11:49:55,982 - > base_lr: 4.5e-06
+2021-11-06 11:49:55,982 - > batch_size: 3
+2021-11-06 11:49:55,982 - > bert_n_emb: 256
+2021-11-06 11:49:55,982 - > bert_n_head: 16
+2021-11-06 11:49:55,983 - > bert_n_layers: 24
+2021-11-06 11:49:55,983 - > beta: 0.25
+2021-11-06 11:49:55,983 - > block_size: 256
+2021-11-06 11:49:55,983 - > ch_mult: [1, 1, 2, 2, 4]
+2021-11-06 11:49:55,983 - > codebook_size: 1024
+2021-11-06 11:49:55,983 - > dataset: ffhq
+2021-11-06 11:49:55,983 - > deepscale: False
+2021-11-06 11:49:55,983 - > deepspeed: False
+2021-11-06 11:49:55,983 - > deepspeed_mpi: False
+2021-11-06 11:49:55,983 - > diff_aug: False
+2021-11-06 11:49:55,984 - > diffusion_steps: 1000
+2021-11-06 11:49:55,984 - > disc_layers: 3
+2021-11-06 11:49:55,984 - > disc_start_step: 30001
+2021-11-06 11:49:55,984 - > disc_weight_max: 1
+2021-11-06 11:49:55,984 - > ema: True
+2021-11-06 11:49:55,984 - > ema_beta: 0.995
+2021-11-06 11:49:55,984 - > emb_dim: 256
+2021-11-06 11:49:55,984 - > embd_pdrop: 0.0
+2021-11-06 11:49:55,984 - > flip_images: False
+2021-11-06 11:49:55,984 - > greedy: False
+2021-11-06 11:49:55,984 - > groups: 8
+2021-11-06 11:49:55,985 - > gumbel_kl_weight: 1e-08
+2021-11-06 11:49:55,985 - > gumbel_straight_through: False
+2021-11-06 11:49:55,985 - > horizontal_flip: True
+2021-11-06 11:49:55,985 - > img_size: 256
+2021-11-06 11:49:55,985 - > latent_shape: [1, 16, 16]
+2021-11-06 11:49:55,985 - > layers_per_cross_attn: 4
+2021-11-06 11:49:55,985 - > load_dir: test
+2021-11-06 11:49:55,985 - > load_optim: False
+2021-11-06 11:49:55,985 - > load_step: 0
+2021-11-06 11:49:55,985 - > local_rank: 0
+2021-11-06 11:49:55,985 - > log_dir: tidy_testing
+2021-11-06 11:49:55,986 - > loss_type: normed
+2021-11-06 11:49:55,986 - > lr: 0.0001
+2021-11-06 11:49:55,986 - > mask_schedule: fixed
+2021-11-06 11:49:55,986 - > n_channels: 3
+2021-11-06 11:49:55,986 - > n_samples: 16
+2021-11-06 11:49:55,986 - > ndf: 64
+2021-11-06 11:49:55,986 - > nf: 128
+2021-11-06 11:49:55,986 - > parametrization: x0
+2021-11-06 11:49:55,986 - > perceiver_dim_head: 64
+2021-11-06 11:49:55,986 - > perceiver_latent_chunks: 10
+2021-11-06 11:49:55,986 - > perceiver_latents: 64
+2021-11-06 11:49:55,987 - > perceiver_layers: 6
+2021-11-06 11:49:55,987 - > perceptual_weight: 1.0
+2021-11-06 11:49:55,987 - > probabilistic_generator: False
+2021-11-06 11:49:55,987 - > quantizer: nearest
+2021-11-06 11:49:55,987 - > res_blocks: 2
+2021-11-06 11:49:55,987 - > resid_pdrop: 0.0
+2021-11-06 11:49:55,987 - > sampler: absorbing
+2021-11-06 11:49:55,987 - > save_individually: False
+2021-11-06 11:49:55,987 - > steps_per_checkpoint: 100
+2021-11-06 11:49:55,987 - > steps_per_display_output: 100
+2021-11-06 11:49:55,988 - > steps_per_eval: 100
+2021-11-06 11:49:55,988 - > steps_per_log: 1
+2021-11-06 11:49:55,988 - > steps_per_save_output: 100
+2021-11-06 11:49:55,988 - > steps_per_update_ema: 10
+2021-11-06 11:49:55,988 - > temp: 1.0
+2021-11-06 11:49:55,988 - > train_steps: 100000000
+2021-11-06 11:49:55,988 - > visdom_port: 8901
+2021-11-06 11:49:55,988 - > visdom_server: ncc1.clients.dur.ac.uk
+2021-11-06 11:49:55,988 - > vqgan_batch_size: 3
+2021-11-06 11:49:55,988 - > warmup_iters: 10000
+2021-11-06 11:50:03,282 - Step: 0  loss: 7.0751  vb_loss: 10.2120  step_time: 0.2529  mean_loss: 7.0751  
+2021-11-06 11:50:03,436 - Step: 1  loss: 7.1242  vb_loss: 10.2897  step_time: 0.1289  mean_loss: 7.1242  
+2021-11-06 11:50:03,550 - Step: 2  loss: 7.0987  vb_loss: 20.1059  step_time: 0.0901  mean_loss: 7.0987  
+2021-11-06 11:50:03,663 - Step: 3  loss: 7.0577  vb_loss: 10.1099  step_time: 0.0885  mean_loss: 7.0577  
+2021-11-06 11:50:03,761 - Step: 4  loss: 7.0797  vb_loss: 10.2338  step_time: 0.0803  mean_loss: 7.0797  
+2021-11-06 11:50:03,862 - Step: 5  loss: 7.1113  vb_loss: 10.2659  step_time: 0.0832  mean_loss: 7.1113  
+2021-11-06 11:50:03,975 - Step: 6  loss: 7.1527  vb_loss: 10.3338  step_time: 0.0878  mean_loss: 7.1527  
+2021-11-06 11:50:04,080 - Step: 7  loss: 7.1265  vb_loss: 10.2870  step_time: 0.0825  mean_loss: 7.1265  
+2021-11-06 11:50:04,190 - Step: 8  loss: 7.1242  vb_loss: 10.2940  step_time: 0.0868  mean_loss: 7.1242  
+2021-11-06 11:50:04,292 - Step: 9  loss: 7.1990  vb_loss: 10.3782  step_time: 0.0817  mean_loss: 7.1990  
+2021-11-06 11:50:04,402 - Step: 10  loss: 7.1154  vb_loss: 10.2756  step_time: 0.0849  mean_loss: 7.1154  
+2021-11-06 11:50:04,532 - Step: 11  loss: 7.1145  vb_loss: 10.3019  step_time: 0.0768  mean_loss: 7.1145  
+2021-11-06 11:50:04,642 - Step: 12  loss: 7.0798  vb_loss: 10.4176  step_time: 0.0869  mean_loss: 7.0798  
+2021-11-06 11:50:04,752 - Step: 13  loss: 7.0770  vb_loss: 10.2026  step_time: 0.0860  mean_loss: 7.0770  
+2021-11-06 11:50:04,863 - Step: 14  loss: 7.0822  vb_loss: 10.2139  step_time: 0.0879  mean_loss: 7.0822  
+2021-11-06 11:50:04,974 - Step: 15  loss: 7.1289  vb_loss: 10.2643  step_time: 0.0871  mean_loss: 7.1289  
+2021-11-06 11:50:05,086 - Step: 16  loss: 7.1250  vb_loss: 10.2855  step_time: 0.0901  mean_loss: 7.1250  
+2021-11-06 11:50:05,198 - Step: 17  loss: 7.1439  vb_loss: 10.2359  step_time: 0.0857  mean_loss: 7.1439  
+2021-11-06 11:50:05,314 - Step: 18  loss: 7.1477  vb_loss: 10.4829  step_time: 0.0879  mean_loss: 7.1477  
+2021-11-06 11:50:05,435 - Step: 19  loss: 7.0403  vb_loss: 10.1679  step_time: 0.0874  mean_loss: 7.0403  
+2021-11-06 11:50:05,550 - Step: 20  loss: 7.0328  vb_loss: 10.1279  step_time: 0.0875  mean_loss: 7.0328  
+2021-11-06 11:50:05,688 - Step: 21  loss: 7.1775  vb_loss: 10.4053  step_time: 0.0766  mean_loss: 7.1775  
+2021-11-06 11:50:05,797 - Step: 22  loss: 7.1709  vb_loss: 10.4732  step_time: 0.0885  mean_loss: 7.1709  
+2021-11-06 11:50:05,909 - Step: 23  loss: 7.0895  vb_loss: 10.2393  step_time: 0.0874  mean_loss: 7.0895  
+2021-11-06 11:50:06,028 - Step: 24  loss: 6.9737  vb_loss: 9.9893  step_time: 0.0896  mean_loss: 6.9737  
+2021-11-06 11:50:06,134 - Step: 25  loss: 7.1518  vb_loss: 10.2795  step_time: 0.0818  mean_loss: 7.1518  
+2021-11-06 11:50:06,250 - Step: 26  loss: 7.1119  vb_loss: 10.2633  step_time: 0.0909  mean_loss: 7.1119  
+2021-11-06 11:50:06,362 - Step: 27  loss: 7.1334  vb_loss: 10.2900  step_time: 0.0905  mean_loss: 7.1334  
+2021-11-06 11:50:06,472 - Step: 28  loss: 7.1378  vb_loss: 10.2962  step_time: 0.0904  mean_loss: 7.1378  
+2021-11-06 11:50:06,588 - Step: 29  loss: 7.1753  vb_loss: 10.3439  step_time: 0.0924  mean_loss: 7.1753  
