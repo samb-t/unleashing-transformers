@@ -108,8 +108,7 @@ def main(H, vis):
     if H.load_step > 0:
         start_step = H.load_step + 1
 
-        sampler = load_model(sampler, H.sampler,
-                             H.load_step, H.load_dir).cuda()
+        sampler = load_model(sampler, H.sampler, H.load_step, H.load_dir).cuda()
         if H.ema:
             # if EMA has not been generated previously, recopy newly loaded model
             try:
