@@ -6,7 +6,7 @@ class HparamsAbsorbing(HparamsBase):
 
         self.loss_type = 'new'
         self.sample_type = "v2"
-        self.mask_schedule = 'fixed'
+        self.mask_schedule = 'random'
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.

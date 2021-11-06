@@ -1,5 +1,6 @@
 from .base import HparamsBase
 
+
 class HparamsVQGAN(HparamsBase):
     def __init__(self, dataset):
         super().__init__(dataset)
