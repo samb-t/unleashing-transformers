@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class Sampler(nn.Module):
     def __init__(self, H, embedding_weight):
         super().__init__()
@@ -25,9 +26,9 @@ class Sampler(nn.Module):
 
     def embed(self, z):
         with torch.no_grad():
-            z_flattened = z.view(-1, self.codebook_size) # B*H*W, codebook_size
+            z_flattened = z.view(-1, self.codebook_size)  # B*H*W, codebook_size
             embedded = torch.matmul(z_flattened, self.embedding_weight).view(
-                z.size(0), 
+                z.size(0),
                 self.latent_shape[1],
                 self.latent_shape[2],
                 self.emb_dim

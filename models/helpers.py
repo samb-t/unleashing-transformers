@@ -1,5 +1,6 @@
 import torch
 
+
 class MyOneHotCategorical:
     def __init__(self, mean):
         self.mean = mean

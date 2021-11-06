@@ -34,18 +34,7 @@ def main(H, vis):
         ema_vqgan = copy.deepcopy(vqgan)
     else:
         ema_vqgan = None
-    
-    if H.deepspeed:
-        model_engine, optim, _, _ = deepspeed.initialize(
-                                        args=H,
-                                        model=vqgan.ae, 
-                                        model_parameters=vqgan.ae.parameters()
-                                    )
-        d_engine, d_optim, _, _ =  deepspeed.initialize(
-                                        args=H,
-                                        model=vqgan.disc, 
-                                        model_parameters=vqgan.disc.parameters()
-                                    )
+
     else:
         optim = torch.optim.Adam(vqgan.ae.parameters(), lr=H.lr)
         d_optim = torch.optim.Adam(vqgan.disc.parameters(), lr=H.lr)

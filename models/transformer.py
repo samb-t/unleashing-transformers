@@ -115,7 +115,6 @@ class Transformer(nn.Module):
         self.ln_f = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.codebook_size, bias=False)
 
-
     def get_block_size(self):
         return self.block_size
 

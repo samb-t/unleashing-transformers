@@ -11,7 +11,6 @@ class HparamsVQGAN(HparamsBase):
         self.gumbel_kl_weight = 1e-8
         self.gumbel_straight_through = False
         self.quantizer = 'nearest'
-        self.probabilistic_generator = False
 
         if self.dataset == 'churches' or self.dataset == "bedrooms":
             self.attn_resolutions = [16]
@@ -65,13 +64,12 @@ def add_vqgan_args(parser):
     parser.add_argument('--emb_dim', type=int)
     parser.add_argument('--gumbel_kl_weight', type=float)
     parser.add_argument('--gumbel_straight_through', const=True, action='store_const', default=False)
+    parser.add_argument('--horizontal_flip', const=True, action='store_const', default=False)
     parser.add_argument('--img_size', type=int)
     parser.add_argument('--latent_shape', nargs='+', type=int)
     parser.add_argument('--n_channels', type=int)
     parser.add_argument('--ndf', type=int)
     parser.add_argument('--nf', type=int)
     parser.add_argument('--perceptual_weight', type=int)
-    parser.add_argument('--quantizer', type=str)
+    parser.add_argument('--quantizer', type=str, chocies=["nearest", "gumbel"])
     parser.add_argument('--res_blocks', type=int)
-    parser.add_argument('--probabilistic_generator', const=True, action='store_const', default=False)
-    parser.add_argument('--horizontal_flip', const=True, action='store_const', default=False)
