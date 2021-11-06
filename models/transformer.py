@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class CausalSelfAttention(nn.Module):
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.
@@ -24,24 +25,19 @@ class CausalSelfAttention(nn.Module):
         # output projection
         self.proj = nn.Linear(H.bert_n_emb, H.bert_n_emb)
         self.n_head = H.bert_n_head
-        
-        self.causal = H.sampler == 'autoregressive'
+        self.causal = True if H.sampler == 'autoregressive' else False
         if self.causal:
             block_size = np.prod(H.latent_shape)
-            mask = torch.tril(torch.ones(block_size,
-                                         block_size))
+            mask = torch.tril(torch.ones(block_size, block_size))
             self.register_buffer("mask", mask.view(1, 1, block_size, block_size))
 
     def forward(self, x, layer_past=None):
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        k = self.key(x).view(B, T, self.n_head, C //
-                             self.n_head).transpose(1, 2)  # (B, nh, T, hs)
-        q = self.query(x).view(B, T, self.n_head, C //
-                               self.n_head).transpose(1, 2)  # (B, nh, T, hs)
-        v = self.value(x).view(B, T, self.n_head, C //
-                               self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
         present = torch.stack((k, v))
         if self.causal and layer_past is not None:
@@ -91,22 +87,6 @@ class Block(nn.Module):
             return x, present
         return x
 
-class SinusoidalPosEmb(nn.Module):
-    def __init__(self, dim, num_steps, rescale_steps=4000):
-        super().__init__()
-        self.dim = dim
-        self.num_steps = float(num_steps)
-        self.rescale_steps = float(rescale_steps)
-
-    def forward(self, x):
-        x = x / self.num_steps * self.rescale_steps
-        device = x.device
-        half_dim = self.dim // 2
-        emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = x[:, None] * emb[None, :]
-        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
-        return emb
 
 class Transformer(nn.Module):
     """  the full GPT language model, with a context size of block_size """
@@ -124,12 +104,10 @@ class Transformer(nn.Module):
             self.vocab_size = H.codebook_size
 
         self.tok_emb = nn.Embedding(self.vocab_size, self.n_embd)
-        # self.time_emb = nn.Embedding(H.diffusion_steps+1, self.n_embd)
         self.pos_emb = nn.Parameter(
             torch.zeros(1, self.block_size, self.n_embd))
-        self.start_tok = nn.Parameter(torch.zeros(1, 1, self.n_embd))
+        self.start_token = nn.Parameter(torch.zeros(1, 1, self.n_embd))
         self.drop = nn.Dropout(H.embd_pdrop)
-        # self.merge_time_tok = nn.Linear(self.n_embd*2, self.n_embd)
 
         # transformer
         self.blocks = nn.Sequential(*[Block(H) for _ in range(self.n_layers)])
@@ -137,16 +115,6 @@ class Transformer(nn.Module):
         self.ln_f = nn.LayerNorm(self.n_embd)
         self.head = nn.Linear(self.n_embd, self.codebook_size, bias=False)
 
-        # BUG: This breaks the autoregressive transformer. Is it bad for diffusion too?
-        # if not self.causal:
-        #     self.apply(self._init_weights)
-
-        #     self.time_pos_emb = SinusoidalPosEmb(self.n_embd, H.diffusion_steps)
-        #     self.mlp1 = nn.Sequential(
-        #         nn.Linear(self.n_embd, self.n_embd * 4),
-        #         nn.Softplus(),
-        #         nn.Linear(self.n_embd * 4, self.n_embd * self.n_layers)
-        #     )
 
     def get_block_size(self):
         return self.block_size
@@ -165,7 +133,10 @@ class Transformer(nn.Module):
         token_embeddings = self.tok_emb(idx)
 
         if self.causal:
-            token_embeddings = torch.cat((self.start_tok.repeat(token_embeddings.size(0),1,1), token_embeddings), dim=1)
+            token_embeddings = torch.cat(
+                (self.start_token.repeat(token_embeddings.size(0), 1, 1), token_embeddings),
+                dim=1
+            )
 
         t = token_embeddings.shape[1]
         assert t <= self.block_size, "Cannot forward, model block size is exhausted."
@@ -174,10 +145,8 @@ class Transformer(nn.Module):
         position_embeddings = self.pos_emb[:, :t, :]
 
         x = token_embeddings + position_embeddings
-        # x = torch.cat((x, time_embeddings), dim=-1)
         x = self.drop(x)
-        # x = self.merge_time_tok(x)
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             x = block(x)
         x = self.ln_f(x)
         logits = self.head(x)

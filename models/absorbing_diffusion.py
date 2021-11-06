@@ -162,7 +162,6 @@ class AbsorbingDiffusion(Sampler):
                 logits=x_0_logits)
             x_0_hat = x_0_dist.sample().long()
             x_0[x_t == self.mask_id] = x_0_hat[x_t == self.mask_id]
-            # print("x0 at", t, x_0, x_0.shape)
 
         return x_0
 
@@ -176,8 +175,6 @@ class AbsorbingDiffusion(Sampler):
             n_sample_steps = np.linspace(1, self.num_timesteps, num=sample_steps).astype(np.long)
         elif sample_stride == 'quadratic':
             n_sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
-        elif sample_stride == 'dynamic':
-            n_sample_steps = sample_steps
         elif sample_stride == 'magic':
             n_sample_steps = list(range(1, sample_steps+1))
 
@@ -196,8 +193,6 @@ class AbsorbingDiffusion(Sampler):
 
             # x_t, _, _ = self.q_sample(x_0, t)
             x_0_logits = self._denoise_fn(x_t, t=t)
-            # if self.mask is not None:
-            #     x_0_logits = x_0_logits + self.mask.reshape(1,1,-1)
             # scale by temperature
             x_0_logits = x_0_logits / temp
             x_0_dist = dists.Categorical(
@@ -238,7 +233,6 @@ class AbsorbingDiffusion(Sampler):
     def sample_shape(self, shape, num_samples, time_steps=1000, step=1):
         device = 'cuda'
         x_t = torch.ones((num_samples,) + shape, device='cuda').long() * self.mask_id
-        # time_steps = np.linspace(self.num_timesteps, 1, num=time_steps, endpoint=False, dtype=np.int)
         x_lim, y_lim = shape[0] - self.shape[1], shape[1] - self.shape[2]
 
         unmasked = torch.zeros_like(x_t, device=device).bool()
