@@ -10,6 +10,8 @@ Todo
 - [ ] Add actual paper link once on arxiv
 - [x] Give conda setup tutorial
 - [ ] Add pretrained models
+- [ ] Get CUDA version on NCC
+- [ ] Add thanks to NCC and Durham University(?)
 
 ## Setup
 
@@ -19,13 +21,13 @@ Todo
 
 If you already have a the conda tool available, you can skip this step.
 
-We recommend setting up a virtual environment using [conda](https://docs.conda.io/en/latest/) to run the code in this repository. This will enable you to install the exact same python version and other package versions as those used to gather the experimental data included in the paper. It is possible to use other versions of python and even other virtual environment tools, but identical results cannot be guaranteed.
+The authors recommend setting up a virtual environment using [conda](https://docs.conda.io/en/latest/) to run the code in this repository. This will enable you to install the exact same python version and other package versions as those used to gather the experimental data included in the paper. It is possible to use other versions of python and even other virtual environment tools, but identical results cannot be guaranteed.
 
 To get set up with conda quickly and easily, use [miniconda](https://docs.conda.io/en/latest/miniconda.html). It is available for most operating systems, is lightweight compared to the full version and requires no admin/sudo permissions. Install instructions for minoconda are available [here](https://conda.io/projects/conda/en/latest/user-guide/install/index.html).
 
 **Git CLI**
 
-We assume most users have git CLI installed on their system already, but if not a good tutorial is available [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+Most users will have git CLI installed on their system by default. But, if not, a good setup guide for most operating systems is available [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
 ### Set up conda environment
 
@@ -46,7 +48,13 @@ Finally, run:
 ```
 conda activate <env-name>
 ```
-You are now all set up!
+You should now be able to run all commands available in the following sections.
+
+### Hardware Requirements
+
+Currently, a dedicated graphics card capable of running CUDA is required to run the code used in this repository. All models used for the paper were trained on a single NVIDIA RTX 2080ti using CUDA version <x.x.x.x>. The largest models still took less than a week to converge. 
+
+It is ***not recommended*** that you attempt to run models on high-resolution datasets such as LSUN and FFHQ using only a CPU, as training will be very slow.  
 
 ## Useful Commands
 
@@ -73,8 +81,6 @@ python train_sampler.py --sampler absorbing --dataset ffhq --ae_load_dir <vqgan_
 ```
 python calc_FID.py --sampler absorbing --dataset ffhq --ema --visdom_server ncc1.clients.dur.ac.uk --ae_load_dir vqgan_ffhq_with_hflip --ae_load_step 1400000  --load_dir absorbing_ffhq_80M_new_loss_hflip_with_trained_vqgan --load_step 700000 --sample_type v2 --stepping magic-256 --n_samples 10000 --bert_n_emb 512 --bert_n_head 8 --bert_n_layers 24
 ```
-
-
 
 
 ## Features To be Added
