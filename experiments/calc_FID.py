@@ -95,7 +95,7 @@ def main(H):
         all_latents = []
         for i in tqdm(range(int(H.n_samples/H.batch_size))):
             if H.sampler == "absorbing":
-                if H.sample_type == "default":
+                if H.sample_type == "v1":
                     latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
                 elif H.sample_type == "v2":
                     latents = sampler.sample_v2(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)

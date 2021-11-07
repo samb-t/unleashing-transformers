@@ -3,20 +3,37 @@
 This is the repository containing code used for the [Unleashing Transformers paper](www.google.com).
 
 ### Abstract
->   Whilst diffusion probabilistic models can generate high quality image content, key limitations remain in terms of both generating high-resolution imagery and the associated high computational requirements. More recent Vector-Quantized image models have overcome the limitation of image resolution but are prohibitively slow and unidirectional as they predict tokens via piece-wise autoregressive sampling from the prior. By contrast, in this paper we propose a discrete diffusion probabilistic model which enables parallel prediction of such Vector-Quantized tokens by using a novel unconstrained Transformer architecture as the backbone. <......> This parallelism of Vector-Quantized token prediction in turn facilitates unconditional generation of globally consistent high-resolution imagery, with resolutions exceeding that of the original training set samples, at a fraction of the computational expense whilst additionally provisioning per-image likelihood estimates (in a departure from generative adversarial approaches). Our approach performs competitively with state-of-the-art approaches in terms of FID (LSUN Bedroom: 3.73; LSUN Churches: 4.23; FFHQ: 6.11), precision (LSUN Bedroom: 0.61; LSUN Churches: 0.70; FFHQ: 0.73) and recall (LSUN Bedroom: 0.44; LSUN Churches: 0.45; FFHQ: 0.48) whilst offering advantages in terms of computation, reduced training set requirements and probabilistic output. 
+>   *Whilst diffusion probabilistic models can generate high quality image content, key limitations remain in terms of both generating high-resolution imagery and the associated high computational requirements. More recent Vector-Quantized image models have overcome the limitation of image resolution but are prohibitively slow and unidirectional as they predict tokens via piece-wise autoregressive sampling from the prior. By contrast, in this paper we propose a discrete diffusion probabilistic model which enables parallel prediction of such Vector-Quantized tokens by using a novel unconstrained Transformer architecture as the backbone. <......> This parallelism of Vector-Quantized token prediction in turn facilitates unconditional generation of globally consistent high-resolution imagery, with resolutions exceeding that of the original training set samples, at a fraction of the computational expense whilst additionally provisioning per-image likelihood estimates (in a departure from generative adversarial approaches). Our approach performs competitively with state-of-the-art approaches in terms of FID (LSUN Bedroom: 3.73; LSUN Churches: 4.23; FFHQ: 6.11), precision (LSUN Bedroom: 0.61; LSUN Churches: 0.70; FFHQ: 0.73) and recall (LSUN Bedroom: 0.44; LSUN Churches: 0.45; FFHQ: 0.48) whilst offering advantages in terms of computation, reduced training set requirements and probabilistic output.*
+
+### Table of Contents
+
+- [Unleashing Transformers: Parallel Token Prediction with Discrete Diffusion Probabilistic Models for Fast High-Resolution Image Generation from Vector-Quantized Codes](#unleashing-transformers-parallel-token-prediction-with-discrete-diffusion-probabilistic-models-for-fast-high-resolution-image-generation-from-vector-quantized-codes)
+    - [Abstract](#abstract)
+    - [Table of Contents](#table-of-contents)
+  - [README To-Do](#readme-to-do)
+  - [Setup](#setup)
+    - [Install `conda` and `git`](#install-conda-and-git)
+    - [Set up conda environment](#set-up-conda-environment)
+    - [Hardware Requirements](#hardware-requirements)
+  - [Useful Commands](#useful-commands)
+  - [Features To be Added](#features-to-be-added)
+
 
 
 ## README To-Do
 
-Todo
 - [ ] Tidy commands and replace with commands non-NCC users will use.
 - [ ] Add nice pictures to header
 - [ ] Add actual paper link once on arxiv
 - [x] Give conda setup tutorial
 - [ ] Add pretrained models
 - [ ] Get CUDA version on NCC
-- [ ] Add thanks to NCC and Durham University(?)
-- [ ] Include section on results (FID etc.), and maybe some sort of abstract.
+- [ ] Add credit
+  - [ ] Taming Transformers code
+  - [ ] MinGPT
+  - [ ] NCC and Durham University(?)
+- [ ] Include section on results (FID etc.)
+- [x] Include abstract.
 - [ ] Update abstract
 ## Setup
 

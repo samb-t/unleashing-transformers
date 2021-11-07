@@ -30,7 +30,6 @@ class HparamsVQGAN(HparamsBase):
             self.res_blocks = 2
 
         elif self.dataset == 'ffhq':
-
             self.attn_resolutions = [16]
             self.batch_size = 3
             self.ch_mult = [1, 1, 2, 2, 4]
@@ -71,5 +70,5 @@ def add_vqgan_args(parser):
     parser.add_argument('--ndf', type=int)
     parser.add_argument('--nf', type=int)
     parser.add_argument('--perceptual_weight', type=int)
-    parser.add_argument('--quantizer', type=str, chocies=["nearest", "gumbel"])
+    parser.add_argument('--quantizer', type=str, choices=["nearest", "gumbel"])
     parser.add_argument('--res_blocks', type=int)

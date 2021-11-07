@@ -106,7 +106,7 @@ class Transformer(nn.Module):
         self.tok_emb = nn.Embedding(self.vocab_size, self.n_embd)
         self.pos_emb = nn.Parameter(
             torch.zeros(1, self.block_size, self.n_embd))
-        self.start_token = nn.Parameter(torch.zeros(1, 1, self.n_embd))
+        self.start_tok = nn.Parameter(torch.zeros(1, 1, self.n_embd))
         self.drop = nn.Dropout(H.embd_pdrop)
 
         # transformer
@@ -133,7 +133,7 @@ class Transformer(nn.Module):
 
         if self.causal:
             token_embeddings = torch.cat(
-                (self.start_token.repeat(token_embeddings.size(0), 1, 1), token_embeddings),
+                (self.start_tok.repeat(token_embeddings.size(0), 1, 1), token_embeddings),
                 dim=1
             )
 

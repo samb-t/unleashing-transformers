@@ -14,7 +14,10 @@ class AbsorbingDiffusion(Sampler):
         self.num_classes = H.codebook_size
         self.latent_emb_dim = H.emb_dim
         self.shape = tuple(H.latent_shape)
-        self.num_timesteps = H.diffusion_steps
+
+        # NOTE: this is legacy code, needs to be removed. Only kept to enable loading old models
+        self.num_timesteps = 1000
+
         self.mask_id = mask_id
         self._denoise_fn = denoise_fn
         self.n_samples = H.batch_size

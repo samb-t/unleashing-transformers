@@ -1,5 +1,5 @@
 '''
-VQGAN Code, largely based upon that used in Taming Transformers:
+VQGAN code, heavily borrowed from Taming Transformers:
 https://github.com/CompVis/taming-transformers/blob/master/taming/models/vqgan.py
 
 '''
@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .diffaug import DiffAugment
-from ..utils.vqgan_utils import normalize, swish, adopt_weight, hinge_d_loss, calculate_adaptive_weight
+from utils.vqgan_utils import normalize, swish, adopt_weight, hinge_d_loss, calculate_adaptive_weight
 
 
 #  Define VQVAE classes
