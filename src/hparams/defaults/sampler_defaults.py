@@ -66,10 +66,6 @@ class HparamsAutoregressive(HparamsBase):
             raise KeyError(f"Defaults not defined for BERT model on dataset: {self.dataset}")
 
 
-def add_FID_args(parser):
-    parser.add_argument("--n_samples", type=int)
-
-
 # arguments for all sampler models
 def add_sampler_args(parser):
     parser.add_argument("--ae_load_dir", type=str, required=True)

@@ -23,6 +23,12 @@ This is the repository containing code used for the [Unleashing Transformers pap
 ## README To-Do
 
 - [ ] Tidy commands and replace with commands non-NCC users will use.
+  - [ ] Training commands
+    - [ ] absorbing
+    - [ ] autoregressive (?)
+    - [ ] vqgan
+  - [ ] metric collection
+    - [ ] all in metric folder
 - [ ] Add nice pictures to header
 - [ ] Add actual paper link once on arxiv
 - [x] Give conda setup tutorial
@@ -89,19 +95,19 @@ srun -N 1 -c 1 --gres=gpu -p "res-gpu-small" --qos "long-high-prio" -J "<task_na
 **Train an FFHQ VQGAN**
 
 ```
-python train_vqgan.py --dataset ffhq --steps_per_log 50 --steps_per_display_output 1000 --steps_per_save_output 25000 --log_dir vqgan_sam_branch_testing --ema --steps_per_checkpoint 200000 --amp --batch_size 4 --visdom_server ncc1.clients.dur.ac.uk --visdom_port 8901 --steps_per_eval 250 --horizontal_flip --load_step 1400000 --load_optim --load_dir vqgan_sam_branch_testing
+python3 src/train_vqgan.py --dataset ffhq --steps_per_log 50 --steps_per_display_output 1000 --steps_per_save_output 25000 --log_dir vqgan_sam_branch_testing --ema --steps_per_checkpoint 200000 --amp --batch_size 4 --visdom_server ncc1.clients.dur.ac.uk --visdom_port 8901 --steps_per_eval 250 --horizontal_flip --load_step 1400000 --load_optim --load_dir vqgan_sam_branch_testing
 ```
 
 **Train an FFHQ Absorbing Diffusion Model**
 
 ```
-python train_sampler.py --sampler absorbing --dataset ffhq --ae_load_dir <vqgan_load_dir> --ae_load_step <vqgan_load_step> --loss_type new --visdom_server ncc1.clients.dur.ac.uk --visdom_port 8904 --steps_per_log 10 --steps_per_display_output 25000 --steps_per_save_output 50000 --steps_per_checkpoint 100000 --steps_per_eval 1000 --batch_size 512 
+python3 src/train_sampler.py --sampler absorbing --dataset ffhq --ae_load_dir <vqgan_load_dir> --ae_load_step <vqgan_load_step> --loss_type new --visdom_server ncc1.clients.dur.ac.uk --visdom_port 8901 --steps_per_log 10 --steps_per_display_output 25000 --steps_per_save_output 50000 --steps_per_checkpoint 100000 --steps_per_eval 1000 --batch_size 512 
 ```
 
 **Calc FID on FFHQ Absorbing Diffusion Model**
 
 ```
-python calc_FID.py --sampler absorbing --dataset ffhq --ema --visdom_server ncc1.clients.dur.ac.uk --ae_load_dir vqgan_ffhq_with_hflip --ae_load_step 1400000  --load_dir absorbing_ffhq_80M_new_loss_hflip_with_trained_vqgan --load_step 700000 --sample_type v2 --stepping magic-256 --n_samples 10000 --bert_n_emb 512 --bert_n_head 8 --bert_n_layers 24
+python3 calc_FID.py --sampler absorbing --dataset ffhq --ema --visdom_server ncc1.clients.dur.ac.uk --visdom_port 8901 --ae_load_dir vqgan_ffhq_with_hflip --ae_load_step 1400000  --load_dir absorbing_ffhq_80M_new_loss_hflip_with_trained_vqgan --load_step 700000 --sample_type v2 --stepping magic-256 --n_samples 10000 --bert_n_emb 512 --bert_n_head 8 --bert_n_layers 24
 ```
 
 

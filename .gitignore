@@ -2,7 +2,7 @@
 *.th
 __pycache__/
 logs/
-pkl_files/
+_backup_pkl_files/
 latents/
 *images/
 .vscode/settings.json

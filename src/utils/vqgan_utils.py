@@ -78,20 +78,6 @@ def load_vqgan_from_checkpoint(H, vqgan, optim, disc_optim, ema_vqgan):
     return vqgan, optim, disc_optim, ema_vqgan, train_stats
 
 
-# TODO: replace with non-manual key specification
-def unpack_vqgan_stats(stats):
-    return (
-        stats["losses"],
-        stats["mean_losses"],
-        stats["val_losses"],
-        stats["latent_ids"],
-        stats["fids"],
-        stats["best_fid"],
-        stats["steps_per_log"],
-        stats["steps_per_eval"]
-    )
-
-
 def calc_FID(H, model):
     images, recons = collect_ims_and_recons(H, model)
     images = TensorDataset(images)

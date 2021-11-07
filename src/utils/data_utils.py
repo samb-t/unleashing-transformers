@@ -1,7 +1,36 @@
+import imageio
+import os
 import torch
 import torchvision
 from torch.utils.data.dataset import Subset
 from torchvision.transforms import Compose, Resize, CenterCrop, RandomHorizontalFlip, ToTensor
+
+
+class BigDataset(torch.utils.data.Dataset):
+    def __init__(self, folder):
+        self.folder = folder
+        self.image_paths = os.listdir(folder)
+
+    def __getitem__(self, index):
+        path = self.image_paths[index]
+        img = imageio.imread(self.folder+path)
+        img = torch.from_numpy(img).permute(2, 0, 1)  # -> channels first
+        return img
+
+    def __len__(self):
+        return len(self.image_paths)
+
+
+class NoClassDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, length=None):
+        self.dataset = dataset
+        self.length = length if length is not None else len(dataset)
+
+    def __getitem__(self, index):
+        return self.dataset[index][0].mul(255).clamp_(0, 255).to(torch.uint8)
+
+    def __len__(self):
+        return self.length
 
 
 def cycle(iterable):
@@ -18,19 +47,14 @@ def train_val_split(dataset, train_val_ratio):
     return train_dataset, val_dataset
 
 
-def get_data_loaders(
+def get_datasets(
     dataset_name,
     img_size,
-    batch_size,
-    num_workers=1,
-    drop_last=True,
-    shuffle=True,
-    get_val_dataloader=True,
+    get_val_dataset=False,
     get_flipped=False,
     train_val_split_ratio=0.95,
     user_specified_dataset_path=None,
 ):
-
     transform = Compose([Resize(img_size), CenterCrop(img_size), ToTensor()])
     transform_with_flip = Compose([Resize(img_size), CenterCrop(img_size), RandomHorizontalFlip(p=1.0), ToTensor()])
 
@@ -38,6 +62,7 @@ def get_data_loaders(
         default_path = "/projects/cgw/lsun"
     elif dataset_name == "ffhq":
         default_path = "/projects/cgw/FFHQ"
+
     dataset_path = user_specified_dataset_path if user_specified_dataset_path else default_path
 
     if dataset_name == "churches":
@@ -52,7 +77,7 @@ def get_data_loaders(
                 classes=["church_outdoor_train"],
                 transform=transform_with_flip,
             )
-        if get_val_dataloader:
+        if get_val_dataset:
             val_dataset = torchvision.datasets.LSUN(
                 dataset_path,
                 classes=["church_outdoor_val"],
@@ -65,7 +90,7 @@ def get_data_loaders(
             classes=["bedroom_train"],
             transform=transform,
         )
-        if get_val_dataloader:
+        if get_val_dataset:
             val_dataset = torchvision.datasets.LSUN(
                 dataset_path,
                 classes=["bedroom_val"],
@@ -91,13 +116,41 @@ def get_data_loaders(
                 transform=transform_with_flip,
             )
 
-        if get_val_dataloader:
+        if get_val_dataset:
             train_dataset, val_dataset = train_val_split(train_dataset, train_val_split_ratio)
             if get_flipped:
                 train_dataset_flip, _ = train_val_split(train_dataset_flip, train_val_split_ratio)
 
     if get_flipped:
         train_dataset = torch.utils.data.ConcatDataset([train_dataset, train_dataset_flip])
+
+    if not get_val_dataset:
+        val_dataset = None
+
+    return train_dataset, val_dataset
+
+
+def get_data_loaders(
+    dataset_name,
+    img_size,
+    batch_size,
+    get_flipped=False,
+    train_val_split_ratio=0.95,
+    user_specified_dataset_path=None,
+    num_workers=1,
+    drop_last=True,
+    shuffle=True,
+    get_val_dataloader=False,
+):
+
+    train_dataset, val_dataset = get_datasets(
+        dataset_name,
+        img_size,
+        get_flipped=get_flipped,
+        get_val_dataset=get_val_dataloader,
+        train_val_split_ratio=train_val_split_ratio,
+        user_specified_dataset_path=user_specified_dataset_path,
+    )
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,

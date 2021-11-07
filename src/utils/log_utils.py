@@ -6,28 +6,18 @@ import torchvision
 import visdom
 
 
-def config_log(log_dir, filename="log.txt", level="DEBUG"):
+def config_log(log_dir, filename="log.txt"):
     log_dir = "logs/" + log_dir
     os.makedirs(log_dir, exist_ok=True)
     logging.basicConfig(
         filename=os.path.join(log_dir, filename),
-        level=level,
-        format="%(levelname)s:%(asctime)s - %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s - %(message)s"
     )
 
 
-def log(output, level="info"):
-    if level == "debug":
-        logging.debug(output)
-    elif level == "info":
-        logging.info(output)
-    elif level == "warning":
-        logging.warning(output)
-    elif level == "error":
-        logging.error(output)
-    else:
-        logging.warning(f"Invalid log level provided: {level}. Defaulting to 'info'")
-        log(output)
+def log(output):
+    logging.info(output)
     print(output)
 
 

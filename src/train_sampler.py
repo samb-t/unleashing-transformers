@@ -1,5 +1,4 @@
 import torch
-import deepspeed
 import numpy as np
 import copy
 import time
@@ -11,7 +10,7 @@ from models import \
 from hparams import get_sampler_hparams
 from utils.data_utils import get_data_loaders, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
-    get_samples, unpack_sampler_stats
+    get_samples
 from utils.train_utils import EMA, optim_warmup
 from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
     save_stats, load_stats, save_model, load_model, save_images, \
@@ -83,16 +82,11 @@ def main(H, vis):
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
 
-    # NOTE: can move generator to cpu to save memory if needbe - add flag?
     generator.load_state_dict(quanitzer_and_generator_state_dict)
     generator = generator.cuda()
     sampler = get_sampler(H, embedding_weight).cuda()
 
-    if H.deepspeed:
-        model_engine, optim, _, _ = deepspeed.initialize(
-            args=H, model=sampler, model_parameters=sampler.parameters())
-    else:
-        optim = torch.optim.Adam(sampler.parameters(), lr=H.lr)
+    optim = torch.optim.Adam(sampler.parameters(), lr=H.lr)
 
     if H.ema:
         ema = EMA(H.ema_beta)
@@ -114,7 +108,7 @@ def main(H, vis):
             try:
                 ema_sampler = load_model(
                     ema_sampler, f'{H.sampler}_ema', H.load_step, H.load_dir)
-            except:
+            except Exception:
                 ema_sampler = copy.deepcopy(sampler)
         if H.load_optim:
             optim = load_model(
@@ -125,21 +119,38 @@ def main(H, vis):
 
         try:
             train_stats = load_stats(H, H.load_step)
-        except:
+        except Exception:
             train_stats = None
 
         if train_stats is not None:
-            losses, mean_losses, val_losses, elbo, H.steps_per_log = unpack_sampler_stats(
-                train_stats)
+            losses, mean_losses, val_losses, elbo, H.steps_per_log
+
+            losses = train_stats["losses"],
+            mean_losses = train_stats["mean_losses"],
+            val_losses = train_stats["val_losses"],
+            elbo = train_stats["elbo"],
+            H.steps_per_log = train_stats["steps_per_log"]
             log_start_step = 0
 
             # initialise plots
-            vis.line(mean_losses, list(range(log_start_step, start_step, H.steps_per_log)),
-                    win='loss', opts=dict(title='Loss'))
-            vis.line(elbo, list(range(log_start_step, start_step, H.steps_per_log)),
-                    win='ELBO', opts=dict(title='ELBO'))
-            vis.line(val_losses, list(range(H.steps_per_eval, start_step, H.steps_per_eval)),
-                    win='Val_loss', opts=dict(title='Validation Loss'))
+            vis.line(
+                mean_losses,
+                list(range(log_start_step, start_step, H.steps_per_log)),
+                win='loss',
+                opts=dict(title='Loss')
+            )
+            vis.line(
+                elbo,
+                list(range(log_start_step, start_step, H.steps_per_log)),
+                win='ELBO',
+                opts=dict(title='ELBO')
+            )
+            vis.line(
+                val_losses,
+                list(range(H.steps_per_eval, start_step, H.steps_per_eval)),
+                win='Val_loss',
+                opts=dict(title='Validation Loss')
+            )
         else:
             log('No stats file found for loaded model, displaying stats from load step only.')
             log_start_step = start_step
@@ -160,12 +171,7 @@ def main(H, vis):
         x = next(train_iterator)
         x = x.cuda()
 
-        if H.deepspeed:
-            optim.zero_grad()
-            stats = sampler.train_iter(x)
-            model_engine.backward(stats['loss'])
-            model_engine.step()
-        elif H.amp:
+        if H.amp:
             optim.zero_grad()
             with torch.cuda.amp.autocast():
                 stats = sampler.train_iter(x)
@@ -193,33 +199,43 @@ def main(H, vis):
             mean_losses = np.append(mean_losses, mean_loss)
             losses = np.array([])
 
-            vis.line(np.array([mean_loss]), np.array([step]), win='loss',
-                     update=('append' if step > 0 else 'replace'), opts=dict(title='Loss'))
+            vis.line(
+                np.array([mean_loss]),
+                np.array([step]),
+                win='loss',
+                update=('append' if step > 0 else 'replace'),
+                opts=dict(title='Loss')
+            )
             log_stats(step, stats)
 
             if H.sampler == 'absorbing':
                 elbo = np.append(elbo, stats['vb_loss'].item())
-                vis.bar(sampler.loss_history, list(range(sampler.loss_history.size(0))),
-                        win='loss_bar', opts=dict(title='loss_bar'))
-
-                vis.line(np.array([stats['vb_loss'].item()]), np.array([step]),
-                         win='ELBO', update=('append' if step > 0 else 'replace'), opts=dict(title='ELBO'))
+                vis.bar(
+                    sampler.loss_history,
+                    list(range(sampler.loss_history.size(0))),
+                    win='loss_bar',
+                    opts=dict(title='loss_bar')
+                )
+                vis.line(
+                    np.array([stats['vb_loss'].item()]),
+                    np.array([step]),
+                    win='ELBO',
+                    update=('append' if step > 0 else 'replace'),
+                    opts=dict(title='ELBO')
+                )
 
         if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
             ema.update_model_average(ema_sampler, sampler)
 
         images = None
         if step % H.steps_per_display_output == 0 and step > 0:
-            images = get_samples(
-                H, generator, ema_sampler if H.ema else sampler)
+            images = get_samples(H, generator, ema_sampler if H.ema else sampler)
             display_images(vis, images, H, win_name=f'{H.sampler}_samples')
 
         if step % H.steps_per_save_output == 0 and step > 0:
-            if images == None:
-                images = get_samples(
-                    H, generator, ema_sampler if H.ema else sampler)
-            save_images(images, 'samples', step,
-                        H.log_dir, H.save_individually)
+            if images is None:
+                images = get_samples(H, generator, ema_sampler if H.ema else sampler)
+            save_images(images, 'samples', step, H.log_dir, H.save_individually)
 
         if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
             # calculate validation loss
@@ -239,12 +255,21 @@ def main(H, vis):
                 valid_elbo = valid_elbo / num_samples
 
             val_losses = np.append(val_losses, valid_loss)
-            vis.line(np.array([valid_loss]), np.array([step]),
-                    win='Val_loss', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation Loss'))
-
+            vis.line(
+                np.array([valid_loss]),
+                np.array([step]),
+                win='Val_loss',
+                update=('append' if step > 0 else 'replace'),
+                opts=dict(title='Validation Loss')
+            )
             if H.sampler == 'absorbing':
-                vis.line(np.array([valid_elbo]), np.array([step]),
-                        win='Val_elbo', update=('append' if step > 0 else 'replace'), opts=dict(title='Validation ELBO'))
+                vis.line(
+                    np.array([valid_elbo]),
+                    np.array([step]),
+                    win='Val_elbo',
+                    update=('append' if step > 0 else 'replace'),
+                    opts=dict(title='Validation ELBO')
+                )
 
         if step % H.steps_per_checkpoint == 0 and step > H.load_step:
             save_model(sampler, H.sampler, step, H.log_dir)
@@ -252,7 +277,6 @@ def main(H, vis):
 
             if H.ema:
                 save_model(ema_sampler, f'{H.sampler}_ema', step, H.log_dir)
-
 
             train_stats = {
                 'losses': losses,

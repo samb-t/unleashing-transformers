@@ -1,6 +1,7 @@
 import argparse
-from .defaults.sampler_defaults import HparamsAbsorbing, HparamsAutoregressive, add_sampler_args, add_FID_args
+from .defaults.sampler_defaults import HparamsAbsorbing, HparamsAutoregressive, add_sampler_args
 from .defaults.vqgan_defaults import HparamsVQGAN, add_vqgan_args
+from .defaults.experiment_defaults import add_PRDC_args, add_FID_args
 
 
 # args for training of all models: dataset, EMA and loading
@@ -70,6 +71,33 @@ def get_sampler_hparams(get_FID_args=False):
     if get_FID_args:
         add_FID_args(parser)
 
+    parser_args = parser.parse_args()
+    dataset = parser_args.dataset
+
+    # has to be in this order to overwrite duplicate defaults such as batch_size and lr
+    H = HparamsVQGAN(dataset)
+    H.vqgan_batch_size = H.batch_size  # used for generating samples and latents
+
+    if parser_args.sampler == "absorbing":
+        H_sampler = HparamsAbsorbing(dataset)
+    elif parser_args.sampler == "autoregressive":
+        H_sampler = HparamsAutoregressive(dataset)
+    H.update(H_sampler)  # overwrites old (vqgan) H.batch_size
+    H = apply_parser_values_to_H(H, parser_args)
+    return H
+
+
+def set_up_experiment_parser(parser):
+    set_up_base_parser(parser)
+    add_vqgan_args(parser)
+    add_sampler_args(parser)
+    return parser
+
+
+def get_PRDC_hparams():
+    parser = argparse.ArgumentParser("Script for calculating PRDC on trained samplers")
+    parser = set_up_experiment_parser(parser)
+    add_PRDC_args(parser)
     parser_args = parser.parse_args()
     dataset = parser_args.dataset
 
