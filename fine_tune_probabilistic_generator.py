@@ -33,13 +33,19 @@ def main(H, vis):
     else:
         ema_vqgan = None
 
-    vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
-    ema_vqgan = load_model(ema_vqgan, 'vqgan_ema', H.load_step, H.load_dir)
+    # vqgan = load_model(vqgan, 'vqgan', H.load_step, H.load_dir).cuda()
+    vqgan = load_model(ema_vqgan, 'vqgan_ema', H.load_step, H.load_dir)
 
-    vqgan.ae.generator.logsigma = nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=3, stride=1, padding=1).cuda()
-    ema_vqgan.ae.generator.logsigma = nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=3, stride=1, padding=1).cuda()
-    ema_vqgan.ae.generator.logsigma.weight.data = vqgan.ae.generator.logsigma.weight.data
-    ema_vqgan.ae.generator.logsigma.bias.data = vqgan.ae.generator.logsigma.bias.data
+    # vqgan.ae.generator.logsigma = nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=3, stride=1, padding=1).cuda()
+
+    vqgan.ae.generator.logsigma = nn.Sequential(
+                                        nn.Conv2d(vqgan.ae.generator.final_block_ch, vqgan.ae.generator.final_block_ch, kernel_size=3, stride=1, padding=1),
+                                        nn.ReLU(),
+                                        nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=1, stride=1, padding=0)).cuda()
+
+    # ema_vqgan.ae.generator.logsigma = nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=3, stride=1, padding=1).cuda()
+    # ema_vqgan.ae.generator.logsigma.weight.data = vqgan.ae.generator.logsigma.weight.data
+    # ema_vqgan.ae.generator.logsigma.bias.data = vqgan.ae.generator.logsigma.bias.data
 
     optim = torch.optim.Adam(vqgan.ae.generator.logsigma.parameters(), lr=1e-4)
 
@@ -119,11 +125,11 @@ def main(H, vis):
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     save_model(vqgan, 'vqgan', 0, H.log_dir)
-                    if H.ema:
-                        save_model(ema_vqgan, 'vqgan_ema', 0, H.log_dir)
+                    # if H.ema:
+                    #     save_model(ema_vqgan, 'vqgan_ema', 0, H.log_dir)
         
-        if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
-            ema.update_model_average(ema_vqgan, vqgan)
+        # if H.ema and step % H.steps_per_update_ema == 0 and step > 0:
+        #     ema.update_model_average(ema_vqgan, vqgan)
 
         if step % H.steps_per_display_output == 0 and step > 0:
             display_images(vis, x, H, 'Original Images')

@@ -106,11 +106,11 @@ def generate_latents_from_loader(H, ae, dataloader):
 @torch.no_grad()
 def get_latent_loaders(H, shuffle=True):
     if H.flip_images:
-        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip'
-        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents_flip'
+        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip{H.latent_append}'
+        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents_flip{H.latent_append}'
     else:
-        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
-        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents'
+        train_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents{H.latent_append}'
+        val_latents_fp = f'latents/{H.dataset}_{H.latent_shape[-1]}_val_latents{H.latent_append}'
     
     train_latent_ids = torch.load(train_latents_fp)
     val_latent_ids = torch.load(val_latents_fp)

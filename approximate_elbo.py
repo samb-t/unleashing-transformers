@@ -1,5 +1,6 @@
 import torch_fidelity
 import torch
+import torch.nn as nn
 from hparams import get_sampler_hparams
 from models import VQGAN, Generator
 from tqdm import tqdm
@@ -50,6 +51,10 @@ class NoClassDataset(torch.utils.data.Dataset):
 
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
+    vqgan.ae.generator.logsigma = nn.Sequential(
+                                        nn.Conv2d(vqgan.ae.generator.final_block_ch, vqgan.ae.generator.final_block_ch, kernel_size=3, stride=1, padding=1),
+                                        nn.ReLU(),
+                                        nn.Conv2d(vqgan.ae.generator.final_block_ch, H.n_channels, kernel_size=1, stride=1, padding=0)).cuda()
     vqgan = load_model(vqgan, 'vqgan', 0, H.ae_load_dir).cuda()
 
     quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
@@ -64,6 +69,7 @@ def main(H, vis):
         sampler =  load_model(sampler, f'{H.sampler}_ema', H.load_step, H.load_dir).cuda()
     
     sampler = sampler.eval()
+    sampler.num_timesteps = 256
 
     _, val_loader = get_data_loader(
         H.dataset,
@@ -92,7 +98,7 @@ def main(H, vis):
             # However, VDVAE uses 256^2*3 so...
             # Probably easier to just scale variable from 0-1 to 0-255
             # I.e. multiply mean by 256 and variance by 256^2 (add log(256) to logsigma)
-            nl_p_x = nl_p_x_z + nl_p_z + float(math.log(256.) * pixels)
+            nl_p_x = nl_p_x_z + nl_p_z + float(math.log(32.) * pixels) # 5 bit
             bpd = nl_p_x / (pixels * math.log(2.0))
             bpds.extend(bpd.tolist())
             print(bpd.mean(), nl_p_x_z.mean(), nl_p_z.mean())

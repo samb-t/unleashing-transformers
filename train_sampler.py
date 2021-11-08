@@ -62,9 +62,9 @@ def get_sampler(H, embedding_weight):
 def main(H, vis):
 
     if H.flip_images:
-        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip'
+        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents_flip{H.latent_append}'
     else:
-        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents'
+        latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents{H.latent_append}'
     if not os.path.exists(latents_filepath):        
         ae_state_dict = retrieve_autoencoder_components_state_dicts(H, ['encoder', 'quantize', 'generator'])
         ae = VQAutoEncoder(H)

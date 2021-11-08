@@ -236,10 +236,21 @@ class AbsorbingDiffusion(Sampler):
         t = torch.full((b,), t, device=device, dtype=torch.long)
         x_t, x_0_ignore, _ = self.q_sample(x_0, t)
         x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
-        #if self.mask is not None:
-        #    x_0_hat_logits = x_0_hat_logits + self.mask.reshape(1,-1,1)
         cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
         return cross_entropy_loss.mean()
+    
+    @torch.no_grad()
+    def elbo(self, x_0):
+        b, device = x_0.size(0), x_0.device
+        elbo = 0.0
+        for t in reversed(list(range(1, self.num_timesteps+1))):
+            print(f'Sample timestep {t:4d}', end='\r')
+            t = torch.full((b,), t, device=device, dtype=torch.long)
+            x_t, x_0_ignore, mask = self.q_sample(x_0=x_0, t=t)
+            x_0_hat_logits = self._denoise_fn(x_t, t=t).permute(0,2,1)
+            cross_entropy_loss = F.cross_entropy(x_0_hat_logits, x_0_ignore, ignore_index=-1, reduction='none').sum(1) 
+            elbo += cross_entropy_loss / t
+        return elbo
 
     def train_iter(self, x):
         loss, vb_loss = self._train_loss(x)
