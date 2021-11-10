@@ -1,88 +1,42 @@
-import imageio
-import os
-import torch
 import torch_fidelity
-import torchvision
+import torch
 from hparams import get_sampler_hparams
-from models import Generator
-from utils.log_utils import log, load_model, save_images, config_log, start_training_log
-from utils.sampler_utils import retrieve_autoencoder_components_state_dicts, latent_ids_to_onehot
-from utils.experiment_utils import generate_samples
-from tqdm import tqdm
-from train_sampler import get_sampler
-
-
-class BigDataset(torch.utils.data.Dataset):
-    def __init__(self, folder):
-        self.folder = folder
-        self.image_paths = os.listdir(folder)
-
-    def __getitem__(self, index):
-        path = self.image_paths[index]
-        img = imageio.imread(self.folder+path)
-        img = torch.from_numpy(img).permute(2, 0, 1)  # -> channels first
-        return img
-
-    def __len__(self):
-        return len(self.image_paths)
-
-
-class NoClassDataset(torch.utils.data.Dataset):
-
-    def __init__(self, dataset):
-        self.dataset = dataset
-
-    def __getitem__(self, index):
-        return self.dataset[index][0].mul(255).clamp_(0, 255).to(torch.uint8)
-
-    def __len__(self):
-        return len(self.dataset)
+from utils.log_utils import log, config_log, start_training_log
+from utils.experiment_utils import generate_images_from_latents, generate_samples, get_generator_and_embedding_weight
+from utils.data_utils import BigDataset, NoClassDataset, get_datasets
 
 
 def main(H):
+    real_dataset, _ = get_datasets(H.dataset, H.img_size, user_specified_dataset_path=H.custom_dataset_path)
+    real_dataset = NoClassDataset(real_dataset)
 
-    images = generate_samples(H, ...)
+    if not H.latents_path:
+        log(f"Generating {H.n_samples} samples for {H.dataset} dataset")
+        generate_samples(H)
+    else:
+        log(f"Loading latents from {H.latents_path}")
+        latents = torch.load(H.latents_path)
+        log("Generating samples from provided latents")
+        generator, embedding_weight = get_generator_and_embedding_weight(H)
+        generate_images_from_latents(H, latents, embedding_weight, generator)
 
-    if H.dataset == "cifar10":
-        input2 = "cifar10-train"
-        input2_cache_name = "cifar10-train"
-    elif H.dataset == "churches":
-        input2 = torchvision.datasets.LSUN(
-            "projects/cgw/LSUN",
-            classes=["church_outdoor_train"],
-            transform=torchvision.transforms.Compose([
-                torchvision.transforms.Resize(256),
-                torchvision.transforms.CenterCrop(256),
-                torchvision.transforms.ToTensor()
-            ])
-        )
-        input2 = NoClassDataset(input2)
-        input2_cache_name = "lsun_churches"
-    elif H.dataset == "ffhq":
-        input2 = torchvision.datasets.ImageFolder(
-            "/projects/cgw/FFHQ",
-            transform=torchvision.transforms.Compose([
-                torchvision.transforms.Resize(256),
-                torchvision.transforms.ToTensor()
-            ])
-        )
-        input2 = NoClassDataset(input2)
-        input2_cache_name = "ffhq"
+    fake_images_path = f"logs/{H.log_dir}/images/"
+    fake_dataset = BigDataset(fake_images_path)
 
+    log("Calculating FID metrics")
     metrics_dict = torch_fidelity.calculate_metrics(
-        input1=images,
-        input2=input2,
+        input1=fake_dataset,
+        input2=real_dataset,
         cuda=True,
         fid=True,
         verbose=True,
-        input2_cache_name=input2_cache_name
+        input2_cache_name=f"{H.dataset}_cache"
     )
     log(metrics_dict)
 
 
 if __name__ == "__main__":
     H = get_sampler_hparams(get_FID_args=True)
-    H.vqgan_batch_size = 32
     if H.log_dir == "test":  # i.e. if it hasn"t been set using a flag)
         H.log_dir = f"{H.load_dir}_FID_samples"
     config_log(H.log_dir)
@@ -92,4 +46,4 @@ if __name__ == "__main__":
         start_training_log(H)
         main(H)
     else:
-        raise ValueError("No value provided for load_step, cannot calculate FID for new model")
+        raise ValueError("No value provided for --load_step, cannot calculate FID for new model")

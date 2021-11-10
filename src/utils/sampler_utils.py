@@ -2,6 +2,20 @@ import os
 import torch
 from tqdm import tqdm
 from .log_utils import save_latents
+from models import Transformer, AbsorbingDiffusion, AutoregressiveTransformer
+
+
+def get_sampler(H, embedding_weight):
+
+    if H.sampler == 'absorbing':
+        denoise_fn = Transformer(H).cuda()
+        sampler = AbsorbingDiffusion(
+            H, denoise_fn, H.codebook_size, embedding_weight)
+
+    elif H.sampler == 'autoregressive':
+        sampler = AutoregressiveTransformer(H, embedding_weight)
+
+    return sampler
 
 
 @torch.no_grad()

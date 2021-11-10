@@ -1,5 +1,6 @@
 def add_FID_args(parser):
-    parser.add_argument("--n_samples", type=int)
+    parser.add_argument("--n_samples", type=int, required=True)
+    parser.add_argument("--latents_path", type=str)
 
 
 def add_PRDC_args(parser):

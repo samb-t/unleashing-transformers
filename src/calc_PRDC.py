@@ -42,7 +42,7 @@ def main(H):
     # get features from original dataset
     if not H.real_feats:
         log(f"Generating real features for {H.dataset}")
-        real_dataset, _ = get_datasets(H.dataset, H.img_size, user_specified_dataset_path=H.real_images_path)
+        real_dataset, _ = get_datasets(H.dataset, H.img_size, user_specified_dataset_path=H.custom_dataset_path)
         real_dataset = NoClassDataset(real_dataset, H.n_samples)  # n_images defaults to None
         real_data_loader = torch.utils.data.DataLoader(real_dataset, batch_size=H.batch_size)
         real_features = get_feats_from_loader(real_data_loader)
@@ -89,6 +89,9 @@ if __name__ == '__main__':
     H = get_PRDC_hparams()
     config_log(H.log_dir)
     log('---------------------------------')
-    log(f'Running PRDC calculations for sampler in {H.load_dir} at step {H.load_step}')
-    start_training_log(H)
-    main(H)
+    if H.load_step > 0:
+        log(f'Running PRDC calculations for sampler in {H.load_dir} at step {H.load_step}')
+        start_training_log(H)
+        main(H)
+    else:
+        raise ValueError("No value provided for --load_step, cannot calculate FID for new model")

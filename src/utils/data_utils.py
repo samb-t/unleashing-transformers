@@ -59,11 +59,17 @@ def get_datasets(
     transform_with_flip = Compose([Resize(img_size), CenterCrop(img_size), RandomHorizontalFlip(p=1.0), ToTensor()])
 
     if dataset_name in ["churches", "bedrooms"]:
-        default_path = "/projects/cgw/lsun"
+        dataset_path = "/projects/cgw/lsun"
     elif dataset_name == "ffhq":
-        default_path = "/projects/cgw/FFHQ"
-
-    dataset_path = user_specified_dataset_path if user_specified_dataset_path else default_path
+        dataset_path = "/projects/cgw/FFHQ"
+    elif dataset_name == "custom":
+        if user_specified_dataset_path:
+            dataset_path = user_specified_dataset_path
+        else:
+            raise ValueError("Custom dataset selected, but no path provided")
+    else:
+        raise ValueError(f"Invalid dataset chosen: {dataset_name}. To use a custom dataset, set --dataset \
+            flag to 'custom'.")
 
     if dataset_name == "churches":
         train_dataset = torchvision.datasets.LSUN(
@@ -104,7 +110,7 @@ def get_datasets(
                 transform=transform_with_flip,
             )
 
-    elif dataset_name == "ffhq":
+    elif dataset_name == "ffhq" or "custom":
         train_dataset = torchvision.datasets.ImageFolder(
             dataset_path,
             transform=transform,

@@ -8,6 +8,7 @@ from .defaults.experiment_defaults import add_PRDC_args, add_FID_args
 def add_training_args(parser):
     parser.add_argument("--amp", const=True, action="store_const", default=False)
     parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--custom_dataset_path", type=str)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ema_beta", type=float, default=0.995)
     parser.add_argument("--ema", const=True, action="store_const", default=False)

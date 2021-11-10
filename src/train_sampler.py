@@ -4,32 +4,16 @@ import copy
 import time
 import os
 from tqdm import tqdm
-from models import \
-    VQAutoEncoder, Generator,\
-    AbsorbingDiffusion, Transformer, AutoregressiveTransformer
+from models import VQAutoEncoder, Generator
 from hparams import get_sampler_hparams
 from utils.data_utils import get_data_loaders, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
-    get_samples
+    get_samples, get_sampler
 from utils.train_utils import EMA, optim_warmup
 from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
     save_stats, load_stats, save_model, load_model, save_images, \
     display_images
-
 # torch.backends.cudnn.benchmark = True
-
-
-def get_sampler(H, embedding_weight):
-
-    if H.sampler == 'absorbing':
-        denoise_fn = Transformer(H).cuda()
-        sampler = AbsorbingDiffusion(
-            H, denoise_fn, H.codebook_size, embedding_weight)
-
-    elif H.sampler == 'autoregressive':
-        sampler = AutoregressiveTransformer(H, embedding_weight)
-
-    return sampler
 
 
 def main(H, vis):
