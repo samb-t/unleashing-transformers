@@ -59,12 +59,7 @@ def load_vqgan_from_checkpoint(H, vqgan, optim, disc_optim, ema_vqgan):
 
     if H.ema:
         try:
-            ema_vqgan = load_model(
-                            ema_vqgan,
-                            "vqgan_ema",
-                            H.load_step,
-                            H.load_dir
-                        )
+            ema_vqgan = load_model(ema_vqgan, "vqgan_ema", H.load_step, H.load_dir)
         except FileNotFoundError:
             log("No EMA model found, starting EMA from model load point", level="warning")
             ema_vqgan = copy.deepcopy(vqgan)
@@ -108,11 +103,10 @@ def collect_ims_and_recons(H, model):
     )
     images = []
     recons = []
+    log("Generating recons for FID calculation")
     for x, *_ in tqdm(iter(data_loader)):
         images.append(x)
         x = x.cuda()
-        if H.deepspeed:
-            x = x.half()
         x_hat, *_ = model.ae(x)
         recons.append(x_hat.detach().cpu())
 

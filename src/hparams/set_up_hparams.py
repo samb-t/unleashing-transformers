@@ -1,7 +1,7 @@
 import argparse
 from .defaults.sampler_defaults import HparamsAbsorbing, HparamsAutoregressive, add_sampler_args
 from .defaults.vqgan_defaults import HparamsVQGAN, add_vqgan_args
-from .defaults.experiment_defaults import add_PRDC_args, add_sampler_FID_args, add_vqgan_FID_args
+from .defaults.experiment_defaults import add_PRDC_args, add_sampler_FID_args
 
 
 # args for training of all models: dataset, EMA and loading
@@ -106,13 +106,3 @@ def get_sampler_FID_hparams():
     parser = set_up_sampler_parser(parser)
     H = get_sampler_H_from_parser(parser)
     return H
-
-
-def get_vqgan_FID_hparams():
-    parser = argparse.ArgumentParser("Script for calculating FID of a trained VQGAN")
-    set_up_base_parser(parser)
-    add_vqgan_args(parser)
-    add_vqgan_FID_args(parser)
-    args = parser.parse_args()
-    H = HparamsVQGAN(args.dataset)
-    H = apply_parser_values_to_H(H, args)
