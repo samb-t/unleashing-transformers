@@ -53,7 +53,7 @@ def get_datasets(
     get_val_dataset=False,
     get_flipped=False,
     train_val_split_ratio=0.95,
-    user_specified_dataset_path=None,
+    custom_dataset_path=None,
 ):
     transform = Compose([Resize(img_size), CenterCrop(img_size), ToTensor()])
     transform_with_flip = Compose([Resize(img_size), CenterCrop(img_size), RandomHorizontalFlip(p=1.0), ToTensor()])
@@ -63,8 +63,8 @@ def get_datasets(
     elif dataset_name == "ffhq":
         dataset_path = "/projects/cgw/FFHQ"
     elif dataset_name == "custom":
-        if user_specified_dataset_path:
-            dataset_path = user_specified_dataset_path
+        if custom_dataset_path:
+            dataset_path = custom_dataset_path
         else:
             raise ValueError("Custom dataset selected, but no path provided")
     else:
@@ -142,7 +142,7 @@ def get_data_loaders(
     batch_size,
     get_flipped=False,
     train_val_split_ratio=0.95,
-    user_specified_dataset_path=None,
+    custom_dataset_path=None,
     num_workers=1,
     drop_last=True,
     shuffle=True,
@@ -155,7 +155,7 @@ def get_data_loaders(
         get_flipped=get_flipped,
         get_val_dataset=get_val_dataloader,
         train_val_split_ratio=train_val_split_ratio,
-        user_specified_dataset_path=user_specified_dataset_path,
+        custom_dataset_path=custom_dataset_path,
     )
 
     train_loader = torch.utils.data.DataLoader(

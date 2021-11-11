@@ -42,7 +42,7 @@ def main(H):
     # get features from original dataset
     if not H.real_feats:
         log(f"Generating real features for {H.dataset}")
-        real_dataset, _ = get_datasets(H.dataset, H.img_size, user_specified_dataset_path=H.custom_dataset_path)
+        real_dataset, _ = get_datasets(H.dataset, H.img_size, custom_dataset_path=H.custom_dataset_path)
         real_dataset = NoClassDataset(real_dataset, H.n_samples)  # n_images defaults to None
         real_data_loader = torch.utils.data.DataLoader(real_dataset, batch_size=H.batch_size)
         real_features = get_feats_from_loader(real_data_loader)

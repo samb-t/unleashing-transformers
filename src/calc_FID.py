@@ -7,7 +7,7 @@ from utils.data_utils import BigDataset, NoClassDataset, get_datasets
 
 
 def main(H):
-    real_dataset, _ = get_datasets(H.dataset, H.img_size, user_specified_dataset_path=H.custom_dataset_path)
+    real_dataset, _ = get_datasets(H.dataset, H.img_size, custom_dataset_path=H.custom_dataset_path)
     real_dataset = NoClassDataset(real_dataset)
 
     if not H.latents_path:
@@ -30,7 +30,7 @@ def main(H):
         cuda=True,
         fid=True,
         verbose=True,
-        input2_cache_name=f"{H.dataset}_cache"
+        input2_cache_name=f"{H.dataset}_sample_cache" if H.dataset != "custom" else None,
     )
     log(metrics_dict)
 

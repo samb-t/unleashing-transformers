@@ -3,8 +3,8 @@ import torch
 import torch_fidelity
 import torch.nn.functional as F
 from tqdm import tqdm
-from .data_utils import get_data_loaders
-from .log_utils import load_model, load_stats, log
+from .data_utils import get_data_loaders, BigDataset, NoClassDataset, get_datasets
+from .log_utils import load_model, load_stats, log, save_images
 
 
 def normalize(in_channels):
@@ -74,22 +74,24 @@ def load_vqgan_from_checkpoint(H, vqgan, optim, disc_optim, ema_vqgan):
 
 
 def calc_FID(H, model):
-    images, recons = collect_ims_and_recons(H, model)
-    images = TensorDataset(images)
-    recons = TensorDataset(recons)
+    generate_recons(H, model)
+    real_dataset, _ = get_datasets(H.dataset, H.img_size, custom_dataset_path=H.custom_dataset_path)
+    real_dataset = NoClassDataset(real_dataset)
+    recons = BigDataset(f"logs/{H.log_dir}/FID_recons/images/")
     fid = torch_fidelity.calculate_metrics(
-        input1=recons,
-        input2=images,
+        input1=real_dataset,
+        input2=recons,
         cuda=True,
         fid=True,
         verbose=True,
+        input2_cache_name=f"{H.dataset}_recon_cache" if H.dataset != "custom" else None,
     )["frechet_inception_distance"]
 
     return fid
 
 
 @torch.no_grad()
-def collect_ims_and_recons(H, model):
+def generate_recons(H, model):
     # if using validation on FFHQ, don't want to include validation set images in FID calc
     training_with_validation = True if H.steps_per_eval else False
 
@@ -101,21 +103,10 @@ def collect_ims_and_recons(H, model):
         drop_last=False,
         shuffle=False,
     )
-    images = []
-    recons = []
     log("Generating recons for FID calculation")
-    for x, *_ in tqdm(iter(data_loader)):
-        images.append(x)
-        x = x.cuda()
+
+    for idx, x in tqdm(enumerate(iter(data_loader))):
+        x = x[0].cuda()  # TODO check this for multiple datasets
         x_hat, *_ = model.ae(x)
-        recons.append(x_hat.detach().cpu())
-
-    images = convert_to_RGB(torch.cat(images, dim=0))
-    recons = convert_to_RGB(torch.cat(recons, dim=0))
-    return images, recons
-
-
-def convert_to_RGB(image_estimate):
-    # images = torch.round((image_estimate * 255)).to(torch.uint8).clamp(0,255)
-    images = (image_estimate * 255).clamp(0, 255).to(torch.uint8)
-    return images
+        save_images(x_hat, "recon", idx, f"{H.log_dir}/FID_recons", save_individually=True)
+        break
