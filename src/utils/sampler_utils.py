@@ -39,16 +39,6 @@ def get_samples(H, generator, sampler, temp=1.0, stride="all", sample_steps=None
     return images
 
 
-def unpack_sampler_stats(stats):
-    return (
-        stats["losses"],
-        stats["mean_losses"],
-        stats["val_losses"],
-        stats["elbo"],
-        stats["steps_per_log"]
-    )
-
-
 def latent_ids_to_onehot(latent_ids, latent_shape, codebook_size):
     min_encoding_indices = latent_ids.view(-1).unsqueeze(1)
     encodings = torch.zeros(

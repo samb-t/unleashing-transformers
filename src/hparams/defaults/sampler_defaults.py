@@ -15,14 +15,13 @@ class HparamsAbsorbing(HparamsBase):
 
         super().__init__(dataset)
         if self.dataset == "churches" or self.dataset == "bedrooms":
-            self.batch_size = 6
-            self.bert_n_emb = 1024
-            self.bert_n_head = 16
+            self.batch_size = 20
+            self.bert_n_emb = 512
+            self.bert_n_head = 8
             self.bert_n_layers = 24
-            self.block_size = 512
+            self.block_size = 256
             self.lr = 1e-4
-            self.n_samples = 16
-            self.warmup_iters = 10000
+            self.warmup_iters = 30000
 
         elif self.dataset == "ffhq":
             self.batch_size = 20
@@ -31,8 +30,7 @@ class HparamsAbsorbing(HparamsBase):
             self.bert_n_layers = 24
             self.block_size = 256
             self.lr = 1e-4
-            self.n_samples = 16
-            self.warmup_iters = 10000
+            self.warmup_iters = 30000
 
         else:
             raise KeyError(f"Defaults not defined for multinomial diffusion model on dataset: {self.dataset}")

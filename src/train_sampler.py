@@ -80,6 +80,7 @@ def main(H, vis):
     losses = np.array([])
     val_losses = np.array([])
     elbo = np.array([])
+    val_elbos = np.array([])
     mean_losses = np.array([])
     start_step = 0
     log_start_step = 0
@@ -239,6 +240,7 @@ def main(H, vis):
                 valid_elbo = valid_elbo / num_samples
 
             val_losses = np.append(val_losses, valid_loss)
+            val_elbos = np.append(val_elbos, valid_elbo)
             vis.line(
                 np.array([valid_loss]),
                 np.array([step]),
@@ -267,7 +269,9 @@ def main(H, vis):
                 'mean_losses': mean_losses,
                 'val_losses': val_losses,
                 'elbo': elbo,
-                'steps_per_log': H.steps_per_log
+                'val_elbos': val_elbos,
+                'steps_per_log': H.steps_per_log,
+                'steps_per_eval': H.steps_per_eval,
             }
             save_stats(H, train_stats, step)
 
