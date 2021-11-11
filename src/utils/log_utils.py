@@ -59,10 +59,10 @@ def display_images(vis, images, H, win_name=None):
     vis.image(images, win=win_name, opts=dict(title=win_name))
 
 
-def save_images(images, im_name, step, log_dir, save_indivudally=False):
+def save_images(images, im_name, step, log_dir, save_individually=False):
     log_dir = "logs/" + log_dir + "/images"
     os.makedirs(log_dir, exist_ok=True)
-    if save_indivudally:
+    if save_individually:
         for idx in range(len(images)):
             torchvision.utils.save_image(torch.clamp(images[idx], 0, 1), f"{log_dir}/{im_name}_{step}_{idx}.png")
     else:

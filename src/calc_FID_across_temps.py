@@ -120,7 +120,7 @@ def main(H, vis):
                 ).permute(0, 3, 1, 2).contiguous()
                 gen_images = generator(q)
                 vis.images(gen_images[:64].clamp(0,1), win='FID_sample_check', opts=dict(title='FID_sample_check'))
-                save_images(gen_images.detach().cpu(), f'sample', idx, im_dir, save_indivudally=True)
+                save_images(gen_images.detach().cpu(), f'sample', idx, im_dir, save_individually=True)
             
             images = BigDataset(f"logs/{im_dir}/images/")
             generator = generator.cpu()

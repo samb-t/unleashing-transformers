@@ -1,7 +1,5 @@
 import torch
 import time
-
-from torch.nn.functional import embedding
 from models import Generator
 from utils.log_utils import log, load_model, save_images
 from utils.sampler_utils import retrieve_autoencoder_components_state_dicts, latent_ids_to_onehot
@@ -64,7 +62,7 @@ def get_generator_and_embedding_weight(H):
         remove_component_from_key=True
     )
     embedding_weight = quanitzer_and_generator_state_dict.pop("embedding.weight")
-    embedding_weight = embedding_weight.cuda()    
+    embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
     generator.load_state_dict(quanitzer_and_generator_state_dict)
     return generator, embedding_weight
