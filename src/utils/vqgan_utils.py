@@ -74,17 +74,17 @@ def load_vqgan_from_checkpoint(H, vqgan, optim, disc_optim, ema_vqgan):
 
 
 def calc_FID(H, model):
-    generate_recons(H, model)
+    # generate_recons(H, model)
     real_dataset, _ = get_datasets(H.dataset, H.img_size, custom_dataset_path=H.custom_dataset_path)
     real_dataset = NoClassDataset(real_dataset)
     recons = BigDataset(f"logs/{H.log_dir}/FID_recons/images/")
     fid = torch_fidelity.calculate_metrics(
-        input1=real_dataset,
-        input2=recons,
+        input1=recons,
+        input2=real_dataset,
         cuda=True,
         fid=True,
         verbose=True,
-        input2_cache_name=f"{H.dataset}_recon_cache" if H.dataset != "custom" else None,
+        input2_cache_name=f"{H.dataset}_cache" if H.dataset != "custom" else None,
     )["frechet_inception_distance"]
 
     return fid
@@ -109,4 +109,3 @@ def generate_recons(H, model):
         x = x[0].cuda()  # TODO check this for multiple datasets
         x_hat, *_ = model.ae(x)
         save_images(x_hat, "recon", idx, f"{H.log_dir}/FID_recons", save_individually=True)
-        break

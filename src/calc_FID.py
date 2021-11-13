@@ -30,7 +30,7 @@ def main(H):
         cuda=True,
         fid=True,
         verbose=True,
-        input2_cache_name=f"{H.dataset}_sample_cache" if H.dataset != "custom" else None,
+        input2_cache_name=f"{H.dataset}_cache" if H.dataset != "custom" else None,
     )
     log(metrics_dict)
 

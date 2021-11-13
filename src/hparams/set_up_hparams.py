@@ -78,6 +78,7 @@ def get_sampler_H_from_parser(parser):
     H = apply_parser_values_to_H(H, parser_args)
     return H
 
+
 def set_up_sampler_parser(parser):
     set_up_base_parser(parser)
     add_vqgan_args(parser)
