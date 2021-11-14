@@ -32,7 +32,7 @@ def main(H, vis):
             H, ['encoder', 'quantize', 'generator']
         )
         ae = VQAutoEncoder(H)
-        ae.load_state_dict(ae_state_dict)
+        ae.load_state_dict(ae_state_dict, strict=False)
         # val_loader will be assigned to None if not training with validation dataest
         train_loader, val_loader = get_data_loaders(
             H.dataset,
@@ -66,7 +66,7 @@ def main(H, vis):
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
 
-    generator.load_state_dict(quanitzer_and_generator_state_dict)
+    generator.load_state_dict(quanitzer_and_generator_state_dict, strict=False)
     generator = generator.cuda()
     sampler = get_sampler(H, embedding_weight).cuda()
 

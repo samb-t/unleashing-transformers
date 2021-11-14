@@ -18,7 +18,7 @@ def main(H):
     embedding_weight = quanitzer_and_generator_state_dict.pop('embedding.weight')
     embedding_weight = embedding_weight.cuda()
     generator = Generator(H)
-    generator.load_state_dict(quanitzer_and_generator_state_dict)
+    generator.load_state_dict(quanitzer_and_generator_state_dict, strict=False)
     generator = generator.cuda()
 
     model = get_sampler(H, embedding_weight)

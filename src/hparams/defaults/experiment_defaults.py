@@ -1,7 +1,6 @@
 def add_sampler_FID_args(parser):
     parser.add_argument("--n_samples", type=int, required=True)
     parser.add_argument("--latents_path", type=str)
-    parser.add_argument("--FID_temps", type=float, nargs="+", default=[1.0], help="Temperatures to calculate FIDs on.",)
 
 
 def add_vqgan_FID_args(parser):
