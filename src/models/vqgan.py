@@ -5,6 +5,7 @@ https://github.com/CompVis/taming-transformers/blob/master/taming/models/vqgan.p
 '''
 
 import lpips
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -305,14 +306,25 @@ class Generator(nn.Module):
 
         self.blocks = nn.ModuleList(blocks)
 
-        self.final_block_ch = block_in_ch
-        if H.probabilistic_generator:
-            self.logsigma = nn.Conv2d(block_in_ch, self.out_channels, kernel_size=3, stride=1, padding=1)
+        # used for calculating ELBO - fine tuned after training
+        self.logsigma = nn.Sequential(
+                            nn.Conv2d(block_in_ch, block_in_ch, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(block_in_ch, H.n_channels, kernel_size=1, stride=1, padding=0)
+                        ).cuda()
 
     def forward(self, x):
         for block in self.blocks:
             x = block(x)
         return x
+
+    def probabilistic(self, x):
+        with torch.no_grad():
+            for block in self.blocks[:-1]:
+                x = block(x)
+            mu = self.blocks[-1](x)
+        logsigma = self.logsigma(x)
+        return mu, logsigma
 
 
 class VQAutoEncoder(nn.Module):
@@ -495,5 +507,22 @@ class VQGAN(nn.Module):
         stats["g_loss"] = g_loss.item()
         stats["codebook_loss"] = codebook_loss.item()
         stats["latent_ids"] = quant_stats["min_encoding_indices"].squeeze(1).reshape(x.shape[0], -1)
+
+        return x_hat, stats
+
+    def probabilistic(self, x):
+        stats = {}
+
+        mu, logsigma, quant_stats = self.ae.probabilistic(x)
+        recon = 0.5 * torch.exp(2*torch.log(torch.abs(x - mu)) - 2*logsigma)
+        if torch.isnan(recon.mean()):
+            print("nan detected")
+            print(torch.log(torch.abs(x - mu)).max(), torch.log(torch.abs(x - mu)).min())
+            print(logsigma.max(), logsigma.min())
+        nll = recon + logsigma + 0.5*np.log(2*np.pi)
+        stats['nll'] = nll.mean(0).sum() / (np.log(2) * np.prod(x.shape[1:]))
+        stats['nll_raw'] = nll.sum((1, 2, 3))
+        stats['latent_ids'] = quant_stats['min_encoding_indices'].squeeze(1).reshape(x.shape[0], -1)
+        x_hat = mu + 0.5*torch.exp(logsigma)*torch.randn_like(logsigma)
 
         return x_hat, stats
