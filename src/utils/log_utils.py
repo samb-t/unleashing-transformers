@@ -25,7 +25,11 @@ def log_stats(step, stats):
     log_str = f"Step: {step}  "
     for stat in stats:
         if "latent_ids" not in stat:
-            log_str += f"{stat}: {stats[stat]:.4f}  "
+            try:
+                log_str += f"{stat}: {stats[stat]:.4f}  "
+            except TypeError:
+                log_str += f"{stat}: {stats[stat].mean().item():.4f}  "
+
     log(log_str)
 
 
@@ -45,9 +49,9 @@ def save_model(model, model_save_name, step, log_dir):
     torch.save(model.state_dict(), os.path.join(log_dir, model_name))
 
 
-def load_model(model, model_load_name, step, log_dir):
+def load_model(model, model_load_name, step, log_dir, strict=True):
     log_dir = "logs/" + log_dir + "/saved_models"
-    model.load_state_dict(torch.load(os.path.join(log_dir, f"{model_load_name}_{step}.th")))
+    model.load_state_dict(torch.load(os.path.join(log_dir, f"{model_load_name}_{step}.th")), strict=strict)
     log(f"Loading {model_load_name}_{str(step)}.th")
     return model
 

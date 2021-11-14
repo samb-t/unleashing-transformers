@@ -88,9 +88,9 @@ def main(H, vis):
     steps_per_epoch = len(train_loader)
     log(f'Epoch length: {steps_per_epoch}')
 
-    print("ae", sum(p.numel() for p in vqgan.ae.parameters()))
-    print("disc", sum(p.numel() for p in vqgan.disc.parameters()))
-    print("total", sum(p.numel() for p in vqgan.ae.parameters()) + sum(p.numel() for p in vqgan.disc.parameters()))
+    log("ae params:", sum(p.numel() for p in vqgan.ae.parameters()))
+    log("disc params:", sum(p.numel() for p in vqgan.disc.parameters()))
+    log("total params:", sum(p.numel() for p in vqgan.ae.parameters()) + sum(p.numel() for p in vqgan.disc.parameters()))
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()

@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import numpy as np
 import math
 import time
@@ -7,7 +6,7 @@ from models.vqgan import VQGAN
 from tqdm import tqdm
 from hparams import get_sampler_hparams
 from utils.sampler_utils import get_sampler, retrieve_autoencoder_components_state_dicts
-from utils.data_utils import get_data_loader, cycle
+from utils.data_utils import get_data_loaders, cycle
 from utils.log_utils import (
     log, log_stats, save_model,
     display_images, setup_visdom,
@@ -21,15 +20,15 @@ torch.backends.cudnn.benchmark = True
 def main(H, vis):
     vqgan = VQGAN(H).cuda()
 
-    train_loader, val_loader = get_data_loader(
+    train_loader, val_loader = get_data_loaders(
         H.dataset,
         H.img_size,
         H.batch_size,
-        get_val_train_split=(H.steps_per_eval != 0)
+        get_val_dataloader=True,
     )
     train_iterator = cycle(train_loader)
 
-    vqgan = load_model(vqgan, 'vqgan_ema', H.load_step, H.load_dir)
+    vqgan = load_model(vqgan, 'vqgan_ema', H.ae_load_step, H.ae_load_dir, strict=False)
 
     quanitzer_and_generator_state_dict = retrieve_autoencoder_components_state_dicts(
         H,
@@ -41,9 +40,8 @@ def main(H, vis):
     embedding_weight = embedding_weight.cuda()
 
     sampler = get_sampler(H, embedding_weight)
-    if H.load_step > 0:
-        sampler = load_model(
-            sampler, f"{H.sampler}_ema", H.load_step, H.load_dir).cuda()
+    sampler = load_model(
+        sampler, f"{H.sampler}_ema", H.load_step, H.load_dir).cuda()
 
     sampler = sampler.eval()
     sampler.num_timesteps = 256
@@ -69,12 +67,12 @@ def main(H, vis):
         optim.zero_grad()
         if H.amp:
             with torch.cuda.amp.autocast():
-                x_hat, stats = vqgan.probabilistic(x, step)
+                x_hat, stats = vqgan.probabilistic(x)
             scaler.scale(stats['nll']).backward()
             scaler.step(optim)
             scaler.update()
         else:
-            x_hat, stats = vqgan.probabilistic(x, step)
+            x_hat, stats = vqgan.probabilistic(x)
             if torch.isnan(stats['nll']):
                 print("skipping step")
                 continue
@@ -103,12 +101,12 @@ def main(H, vis):
             sampler = sampler.cuda()
             with torch.no_grad():
                 bpds = []
-                for x in tqdm(val_loader, total=len(val_loader)):
-                    if isinstance(x, list):
-                        x = x[0]
-                    x = x.cuda()
+                for x_val in tqdm(val_loader, total=len(val_loader)):
+                    if isinstance(x_val, list):
+                        x_val = x_val[0]
+                    x_val = x_val.cuda()
 
-                    x_hat, stats = vqgan.probabilistic(x)
+                    _, stats = vqgan.probabilistic(x_val)
                     nl_p_x_z = stats["nll_raw"]
 
                     z = stats["latent_ids"]
@@ -138,6 +136,11 @@ if __name__ == '__main__':
     vis = setup_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
-    log(f'Setting up training for VQGAN on {H.dataset}')
+    if H.load_step and H.steps_per_eval:
+        log(f'Approximating ELBO for sampler from {H.log_dir} at step {H.load_step}')
+    elif H.load_step == 0:
+        log("Please specify a sampler load step using the --load_step flag")
+    elif H.steps_per_eval == 0:
+        log("Please specify how often to approximate ELBO using the --steps_per_eval flag")
     start_training_log(H)
     main(H, vis)
