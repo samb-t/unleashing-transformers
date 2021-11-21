@@ -1,3 +1,4 @@
+from numpy.core.fromnumeric import mean
 import torch
 import numpy as np
 import copy
@@ -113,9 +114,19 @@ def main(H, vis):
             losses = train_stats["losses"],
             mean_losses = train_stats["mean_losses"],
             val_losses = train_stats["val_losses"],
+            val_elbos = train_stats["val_elbos"]
             elbo = train_stats["elbo"],
             H.steps_per_log = train_stats["steps_per_log"]
             log_start_step = 0
+
+            # print(mean_losses)
+            # print(type(mean_losses[0]))
+
+            losses = losses[0]
+            mean_losses = mean_losses[0]
+            val_losses = val_losses[0]
+            val_elbos = val_elbos[0]
+            elbo = elbo[0]
 
             # initialise plots
             vis.line(
@@ -142,7 +153,7 @@ def main(H, vis):
 
     scaler = torch.cuda.amp.GradScaler()
     train_iterator = cycle(train_latent_loader)
-    val_iterator = cycle(val_latent_loader)
+    # val_iterator = cycle(val_latent_loader)
 
     print("params", sum(p.numel() for p in sampler.parameters()))
 
@@ -225,16 +236,16 @@ def main(H, vis):
         if H.steps_per_eval and step % H.steps_per_eval == 0 and step > 0:
             # calculate validation loss
             valid_loss, valid_elbo, num_samples = 0.0, 0.0, 0
-            eval_repeats = 3
+            eval_repeats = 5
             print("Evaluating")
             for _ in tqdm(range(eval_repeats)):
-                x = next(val_iterator)
-                with torch.no_grad():
-                    stats = sampler.train_iter(x.cuda())
-                    valid_loss += stats['loss'].item()
-                    if H.sampler == 'absorbing':
-                        valid_elbo += stats['vb_loss'].item()
-                    num_samples += x.size(0)
+                for x in val_latent_loader:
+                    with torch.no_grad():
+                        stats = sampler.train_iter(x.cuda())
+                        valid_loss += stats['loss'].item()
+                        if H.sampler == 'absorbing':
+                            valid_elbo += stats['vb_loss'].item()
+                        num_samples += x.size(0)
             valid_loss = valid_loss / num_samples
             if H.sampler == 'absorbing':
                 valid_elbo = valid_elbo / num_samples

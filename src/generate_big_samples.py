@@ -7,6 +7,7 @@ from train_sampler import get_sampler
 import torchvision
 import imageio
 
+
 def main(H):
     vis = setup_visdom(H)
 
