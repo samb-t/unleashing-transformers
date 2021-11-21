@@ -224,7 +224,7 @@ class AbsorbingDiffusion(Sampler):
         stats = {'loss': loss, 'vb_loss': vb_loss}
         return stats
 
-    def sample_shape(self, shape, num_samples, time_steps=1000, step=1):
+    def sample_shape(self, shape, num_samples, time_steps=1000, step=1, temp=0.8):
         device = 'cuda'
         x_t = torch.ones((num_samples,) + shape, device='cuda').long() * self.mask_id
         x_lim, y_lim = shape[0] - self.shape[1], shape[1] - self.shape[2]
@@ -279,7 +279,6 @@ class AbsorbingDiffusion(Sampler):
 
             # Mixture with Temperature
             x_0_probs = x_0_probs / x_0_probs.sum(-1, keepdim=True)
-            temp = 0.8
             C = torch.tensor(x_0_probs.size(-1)).float()
             x_0_probs = torch.softmax((torch.log(x_0_probs) + torch.log(C)) / temp, dim=-1)
 

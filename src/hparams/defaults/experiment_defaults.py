@@ -30,3 +30,8 @@ def add_PRDC_args(parser):
         type=str,
         help="Path to folder containing sampled images, if not provided, will attempt to generate images instead"
     )
+
+
+def add_big_sample_args(parser):
+    parser.add_argument("--shape", type=int, nargs=2, help="Shape of latents to generate. Pass as two seperate integers"
+                        ", in the form H W", required=True)

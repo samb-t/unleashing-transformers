@@ -1,7 +1,7 @@
 import argparse
 from .defaults.sampler_defaults import HparamsAbsorbing, HparamsAutoregressive, add_sampler_args
 from .defaults.vqgan_defaults import HparamsVQGAN, add_vqgan_args
-from .defaults.experiment_defaults import add_PRDC_args, add_sampler_FID_args
+from .defaults.experiment_defaults import add_PRDC_args, add_sampler_FID_args, add_big_sample_args
 
 
 # args for training of all models: dataset, EMA and loading
@@ -104,6 +104,14 @@ def get_PRDC_hparams():
 def get_sampler_FID_hparams():
     parser = argparse.ArgumentParser("Script for calculating FID on trained samplers")
     add_sampler_FID_args(parser)
+    parser = set_up_sampler_parser(parser)
+    H = get_sampler_H_from_parser(parser)
+    return H
+
+
+def get_big_samples_hparams():
+    parser = argparse.ArgumentParser("Script for generating larger-than-training samples")
+    add_big_sample_args(parser)
     parser = set_up_sampler_parser(parser)
     H = get_sampler_H_from_parser(parser)
     return H
