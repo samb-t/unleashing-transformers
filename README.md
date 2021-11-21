@@ -19,7 +19,7 @@ This is the repository containing code used for the [Unleashing Transformers pap
     - [Dataset Set Up](#dataset-set-up)
   - [Commands](#commands)
     - [Set up visdom server](#set-up-visdom-server)
-    - [Train a Vector-Quantized Image Model on FFHQ](#train-a-vector-quantized-image-model-on-ffhq)
+    - [Train a Vector-Quantized autoencoder on FFHQ](#train-a-vector-quantized-autoencoder-on-ffhq)
     - [Train an Absorbing Diffusion sampler using the above Vector-Quantized autoencoder](#train-an-absorbing-diffusion-sampler-using-the-above-vector-quantized-autoencoder)
     - [Experiments on trained Absorbing Diffusion Sampler](#experiments-on-trained-absorbing-diffusion-sampler)
   - [Features To be Added](#features-to-be-added)
@@ -44,7 +44,7 @@ Most users will have git CLI installed on their system by default. But, if not, 
 
 In any folder of your choice, run the following command:
 ```
-git clone https://github.com/samb-t/VQGAN-EBM.git && cd VQGAN-EBM
+git clone https://github.com/samb-t/unleashing-transformers.git && cd unleashing-transformers
 ```
 This will clone this repo into your local machine and cd into it.
 
@@ -97,9 +97,9 @@ This starts a visdom server listening on port 8097, which is the default used by
 
 To specify a different port when training any models, use the `--visdom_port` flag.
 
-### Train a Vector-Quantized Image Model on FFHQ
+### Train a Vector-Quantized autoencoder on FFHQ
 
-The following command starts the training for a Vector-Quantized image model on FFHQ: 
+The following command starts the training for a Vector-Quantized autoencoder on FFHQ: 
 ```
 python3 src/train_vqgan.py --dataset ffhq --log_dir vqae_ffhq --amp --batch_size 4
 ```
