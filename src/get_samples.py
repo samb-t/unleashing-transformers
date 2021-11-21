@@ -1,7 +1,7 @@
 
 from models import Generator
 from hparams import get_sampler_hparams
-from utils.log_utils import save_images, setup_visdom, config_log, log, start_training_log, display_images, load_model
+from utils.log_utils import save_images, set_up_visdom, config_log, log, start_training_log, display_images, load_model
 from utils.sampler_utils import get_sampler, get_samples, retrieve_autoencoder_components_state_dicts
 
 
@@ -35,7 +35,7 @@ def main(H, vis):
 
 if __name__ == '__main__':
     H = get_sampler_hparams()
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
     log(f'Setting up training for {H.sampler}')

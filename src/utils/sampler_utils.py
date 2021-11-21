@@ -1,7 +1,7 @@
 import os
 import torch
 from tqdm import tqdm
-from .log_utils import save_latents
+from .log_utils import save_latents, log
 from models import Transformer, AbsorbingDiffusion, AutoregressiveTransformer
 
 
@@ -111,7 +111,7 @@ def retrieve_autoencoder_components_state_dicts(H, components_list, remove_compo
     ae_load_path = f"logs/{H.ae_load_dir}/saved_models/vqgan_ema_{H.ae_load_step}.th"
     if not os.path.exists(ae_load_path):
         ae_load_path = f"logs/{H.ae_load_dir}/saved_models/vqgan_{H.ae_load_step}.th"
-    print(f"Loading VQGAN from {ae_load_path}")
+    log(f"Loading VQGAN from {ae_load_path}")
     full_vqgan_state_dict = torch.load(ae_load_path, map_location="cpu")
 
     for key in full_vqgan_state_dict:

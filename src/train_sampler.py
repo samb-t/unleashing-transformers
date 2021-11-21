@@ -11,7 +11,7 @@ from utils.data_utils import get_data_loaders, cycle
 from utils.sampler_utils import generate_latent_ids, get_latent_loaders, retrieve_autoencoder_components_state_dicts,\
     get_samples, get_sampler
 from utils.train_utils import EMA, optim_warmup
-from utils.log_utils import log, log_stats, setup_visdom, config_log, start_training_log, \
+from utils.log_utils import log, log_stats, set_up_visdom, config_log, start_training_log, \
     save_stats, load_stats, save_model, load_model, save_images, \
     display_images
 # torch.backends.cudnn.benchmark = True
@@ -21,8 +21,6 @@ def main(H, vis):
 
     latents_fp_suffix = '_flipped' if H.horizontal_flip else ''
     latents_filepath = f'latents/{H.dataset}_{H.latent_shape[-1]}_train_latents{latents_fp_suffix}'
-
-    print(latents_filepath)
 
     train_with_validation_dataset = False
     if H.steps_per_eval:
@@ -119,9 +117,6 @@ def main(H, vis):
             H.steps_per_log = train_stats["steps_per_log"]
             log_start_step = 0
 
-            # print(mean_losses)
-            # print(type(mean_losses[0]))
-
             losses = losses[0]
             mean_losses = mean_losses[0]
             val_losses = val_losses[0]
@@ -155,7 +150,7 @@ def main(H, vis):
     train_iterator = cycle(train_latent_loader)
     # val_iterator = cycle(val_latent_loader)
 
-    print("params", sum(p.numel() for p in sampler.parameters()))
+    log("Sampler params total:", sum(p.numel() for p in sampler.parameters()))
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()
@@ -179,7 +174,7 @@ def main(H, vis):
             stats = sampler.train_iter(x)
 
             if torch.isnan(stats['loss']).any():
-                print(f'Skipping step {step} with NaN loss')
+                log(f'Skipping step {step} with NaN loss')
                 continue
             optim.zero_grad()
             stats['loss'].backward()
@@ -237,7 +232,7 @@ def main(H, vis):
             # calculate validation loss
             valid_loss, valid_elbo, num_samples = 0.0, 0.0, 0
             eval_repeats = 5
-            print("Evaluating")
+            log("Evaluating")
             for _ in tqdm(range(eval_repeats)):
                 for x in val_latent_loader:
                     with torch.no_grad():
@@ -289,7 +284,7 @@ def main(H, vis):
 
 if __name__ == '__main__':
     H = get_sampler_hparams()
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
     log(f'Setting up training for {H.sampler}')

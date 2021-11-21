@@ -113,7 +113,7 @@ def load_stats(H, step):
     return stats
 
 
-def setup_visdom(H):
+def set_up_visdom(H):
     server = H.visdom_server
     try:
         if server:

@@ -10,7 +10,7 @@ from hparams import get_vqgan_hparams
 from utils.data_utils import get_data_loaders, cycle
 from utils.train_utils import EMA
 from utils.log_utils import log, log_stats, save_model, save_stats, save_images, \
-                            display_images, setup_visdom, config_log, start_training_log
+                            display_images, set_up_visdom, config_log, start_training_log
 from utils.vqgan_utils import load_vqgan_from_checkpoint, calc_FID
 
 torch.backends.cudnn.benchmark = True
@@ -228,7 +228,7 @@ def main(H, vis):
 
 if __name__ == '__main__':
     H = get_vqgan_hparams()
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
     log(f'Setting up training for VQGAN on {H.dataset}')

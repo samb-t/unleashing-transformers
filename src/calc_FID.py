@@ -1,6 +1,6 @@
 import torch_fidelity
 import torch
-from hparams import get_sampler_hparams
+from hparams import get_sampler_FID_hparams
 from utils.log_utils import log, config_log, start_training_log
 from utils.experiment_utils import generate_images_from_latents, generate_samples, get_generator_and_embedding_weight
 from utils.data_utils import BigDataset, NoClassDataset, get_datasets
@@ -36,7 +36,7 @@ def main(H):
 
 
 if __name__ == "__main__":
-    H = get_sampler_hparams(get_FID_args=True)
+    H = get_sampler_FID_hparams()
     if H.log_dir == "test":  # i.e. if it hasn"t been set using a flag)
         H.log_dir = f"{H.load_dir}_FID_samples"
     config_log(H.log_dir)

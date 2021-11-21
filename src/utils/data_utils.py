@@ -1,9 +1,11 @@
-import imageio
 import os
+
+import imageio
+import yaml
 import torch
 import torchvision
 from torch.utils.data.dataset import Subset
-from torchvision.transforms import Compose, Resize, CenterCrop, RandomHorizontalFlip, ToTensor
+from torchvision.transforms import (CenterCrop, Compose, RandomHorizontalFlip, Resize, ToTensor)
 
 
 class BigDataset(torch.utils.data.Dataset):
@@ -39,6 +41,17 @@ def cycle(iterable):
             yield x
 
 
+def get_default_dataset_paths():
+    with open("datasets.yaml") as yaml_file:
+        read_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+
+    paths = {}
+    for i in range(len(read_data)):
+        paths[read_data[i]["dataset"]] = read_data[i]["path"]
+
+    return paths
+
+
 def train_val_split(dataset, train_val_ratio):
     indices = list(range(len(dataset)))
     split_index = int(len(dataset) * train_val_ratio)
@@ -58,10 +71,10 @@ def get_datasets(
     transform = Compose([Resize(img_size), CenterCrop(img_size), ToTensor()])
     transform_with_flip = Compose([Resize(img_size), CenterCrop(img_size), RandomHorizontalFlip(p=1.0), ToTensor()])
 
-    if dataset_name in ["churches", "bedrooms"]:
-        dataset_path = "/projects/cgw/lsun"
-    elif dataset_name == "ffhq":
-        dataset_path = "/projects/cgw/FFHQ"
+    default_paths = get_default_dataset_paths()
+
+    if dataset_name in default_paths:
+        dataset_path = default_paths[dataset_name]
     elif dataset_name == "custom":
         if custom_dataset_path:
             dataset_path = custom_dataset_path

@@ -1,5 +1,5 @@
 '''
-VQGAN code, heavily borrowed from Taming Transformers:
+VQGAN code, adapted from the original created by the Taming Transformers authors:
 https://github.com/CompVis/taming-transformers/blob/master/taming/models/vqgan.py
 
 '''
@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .diffaug import DiffAugment
 from utils.vqgan_utils import normalize, swish, adopt_weight, hinge_d_loss, calculate_adaptive_weight
+from utils.log_utils import log
 
 
 #  Define VQVAE classes
@@ -83,9 +84,6 @@ class GumbelQuantizer(nn.Module):
         self.embed = nn.Embedding(codebook_size, emb_dim)
 
     def forward(self, z):
-        if torch.isnan(z).any():
-            print("Wow, found nan in z")
-
         hard = self.straight_through if self.training else True
 
         logits = self.proj(z)
@@ -258,9 +256,7 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         for block in self.blocks:
-            # print(block)
             x = block(x)
-        # print(x.shape)
         return x
 
 
@@ -516,9 +512,7 @@ class VQGAN(nn.Module):
         mu, logsigma, quant_stats = self.ae.probabilistic(x)
         recon = 0.5 * torch.exp(2*torch.log(torch.abs(x - mu)) - 2*logsigma)
         if torch.isnan(recon.mean()):
-            print("nan detected")
-            print(torch.log(torch.abs(x - mu)).max(), torch.log(torch.abs(x - mu)).min())
-            print(logsigma.max(), logsigma.min())
+            log("nan detected in probabilsitic VQGAN")
         nll = recon + logsigma + 0.5*np.log(2*np.pi)
         stats['nll'] = nll.mean(0).sum() / (np.log(2) * np.prod(x.shape[1:]))
         stats['nll_raw'] = nll.sum((1, 2, 3))

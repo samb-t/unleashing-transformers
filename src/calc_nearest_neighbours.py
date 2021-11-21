@@ -4,7 +4,7 @@ import torch
 from models import Generator
 from hparams import get_sampler_hparams
 from utils.sampler_utils import retrieve_autoencoder_components_state_dicts, get_samples
-from utils.log_utils import log, setup_visdom, config_log, start_training_log, load_model, save_images
+from utils.log_utils import log, set_up_visdom, config_log, start_training_log, load_model, save_images
 from train_sampler import get_sampler
 from tqdm import tqdm
 import torchvision
@@ -73,7 +73,7 @@ def main(H, vis):
 
 if __name__ == "__main__":
     H = get_sampler_hparams()
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     config_log(H.log_dir)
     log("---------------------------------")
     log(f"Generating nearest neighbours for {H.sampler} model loaded from {H.load_dir}")

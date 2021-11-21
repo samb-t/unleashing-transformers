@@ -3,7 +3,7 @@ import torch
 from hparams import get_big_samples_hparams
 from models import Generator
 from train_sampler import get_sampler
-from utils.log_utils import (config_log, load_model, log, setup_visdom, start_training_log)
+from utils.log_utils import (config_log, load_model, log, set_up_visdom, start_training_log)
 from utils.sampler_utils import (latent_ids_to_onehot, retrieve_autoencoder_components_state_dicts)
 
 
@@ -47,7 +47,7 @@ def main(H, vis):
 if __name__ == '__main__':
     H = get_big_samples_hparams()
     config_log(H.log_dir)
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     log('---------------------------------')
     if H.load_step > 0:
         # log(f'Calculating FID for {H.sampler} loaded from step {H.load_step}')  what????

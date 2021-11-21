@@ -9,7 +9,7 @@ from utils.sampler_utils import get_sampler, retrieve_autoencoder_components_sta
 from utils.data_utils import get_data_loaders, cycle
 from utils.log_utils import (
     log, log_stats, save_model,
-    display_images, setup_visdom,
+    display_images, set_up_visdom,
     config_log, start_training_log,
     load_model
 )
@@ -74,7 +74,7 @@ def main(H, vis):
         else:
             x_hat, stats = vqgan.probabilistic(x)
             if torch.isnan(stats['nll']):
-                print("skipping step")
+                log(f"nan detected, skipping step {step}")
                 continue
             stats['nll'].backward()
             torch.nn.utils.clip_grad_norm_(vqgan.ae.generator.logsigma.parameters(), 0.1)
@@ -133,7 +133,7 @@ def main(H, vis):
 
 if __name__ == '__main__':
     H = get_sampler_hparams()
-    vis = setup_visdom(H)
+    vis = set_up_visdom(H)
     config_log(H.log_dir)
     log('---------------------------------')
     if H.load_step and H.steps_per_eval:
