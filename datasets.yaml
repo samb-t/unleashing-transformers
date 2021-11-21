@@ -1,6 +1,0 @@
-- dataset: churches
-  path: "/projects/cgw/lsun"
-- dataset: bedrooms
-  path: "/projects/cgw/lsun"
-- dataset: ffhq
-  path: "/projects/cgw/FFHQ"

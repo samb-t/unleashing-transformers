@@ -12,7 +12,6 @@ This is the repository containing code used for the [Unleashing Transformers pap
 - [Unleashing Transformers: Parallel Token Prediction with Discrete Diffusion Probabilistic Models for Fast High-Resolution Image Generation from Vector-Quantized Codes](#unleashing-transformers-parallel-token-prediction-with-discrete-diffusion-probabilistic-models-for-fast-high-resolution-image-generation-from-vector-quantized-codes)
     - [Abstract](#abstract)
     - [Table of Contents](#table-of-contents)
-  - [README To-Do](#readme-to-do)
   - [Setup](#setup)
     - [Install `conda` and `git`](#install-conda-and-git)
     - [Set up conda environment](#set-up-conda-environment)
@@ -25,30 +24,6 @@ This is the repository containing code used for the [Unleashing Transformers pap
     - [Experiments on trained Absorbing Diffusion Sampler](#experiments-on-trained-absorbing-diffusion-sampler)
   - [Features To be Added](#features-to-be-added)
 
-
-
-## README To-Do
-
-- [ ] Dataset configuration guide
-- [ ] Tidy commands and replace with commands non-NCC users will use.
-  - [ ] Training commands
-    - [ ] absorbing
-    - [ ] autoregressive (?)
-    - [ ] vqgan
-  - [ ] metric collection
-    - [ ] all in metric folder
-- [ ] Add nice pictures to header
-- [ ] Add actual paper link once on arxiv
-- [x] Give conda setup tutorial
-- [ ] Add pretrained models
-- [ ] Get CUDA version on NCC
-- [ ] Add credit
-  - [ ] Taming Transformers code
-  - [ ] MinGPT
-  - [ ] NCC and Durham University(?)
-- [ ] Include section on results (FID etc.)
-- [x] Include abstract.
-- [x] Update abstract
 ## Setup
 
 ### Install `conda` and `git`
@@ -75,20 +50,21 @@ This will clone this repo into your local machine and cd into it.
 
 Next, run:
 ```
-conda create --name <env-name> --file requirements.txt
+conda create --name unleashing --file requirements.txt
 ```
-replacing `<env-name>` with your desired name for the environment. 
+optionally replacing `unleashing` with your desired name for the environment. 
 
 Finally, run:
 
 ```
-conda activate <env-name>
+conda activate unleashing && pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html         
 ```
+
 You should now be able to run all commands available in the following sections.
 
 ### Hardware Requirements
 
-Currently, a dedicated graphics card capable of running CUDA is required to run the code used in this repository. All models used for the paper were trained on a single NVIDIA RTX 2080ti using CUDA version <x.x.x.x>. The largest models still took less than a week to converge. 
+Currently, a dedicated graphics card capable of running CUDA is required to run the code used in this repository. All models used for the paper were trained on a single NVIDIA RTX 2080ti using CUDA version 11.1. The largest models still took less than a week to converge. 
 
 It is ***not recommended*** that you attempt to run models on high-resolution datasets such as LSUN and FFHQ using only a CPU, as training will be very slow. Support for CPU-only training on small datasets may be added in the future. 
 
@@ -97,10 +73,10 @@ To configure the default paths for datasets used for training the models in this
 
 Download links for the datasets used in the paper are given below:
 
-| Dataset | Download Links                                                                                     |
-| ------- | -------------------------------------------------------------------------------------------------- |
-| FFHQ    | [Academic Torrents](https://academictorrents.com/details/1c1e60f484e911b564de6b4d8b643e19154d5809) |
-| LSUN    | [Academic Torrents](https://academictorrents.com/details/c53c374bd6de76da7fe76ed5c9e3c7c6c691c489)                                                                                             |
+| Dataset | Download Link                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------- |
+| FFHQ    | [Academic Torrents FFHQ](https://academictorrents.com/details/1c1e60f484e911b564de6b4d8b643e19154d5809) |
+| LSUN    | [Academic Torrents LSNU](https://academictorrents.com/details/c53c374bd6de76da7fe76ed5c9e3c7c6c691c489) |
 
 ## Commands
 This section contains details on the basic commands for training and calculating metrics on the Absorbing Diffusion models. All training was completed on a single 2080ti and these commands presume the same level of hardware. If your GPU has less vRAM than a 2080ti then you may need to train using smaller batch sizes and/or smaller models than the defaults.
