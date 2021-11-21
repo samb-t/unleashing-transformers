@@ -22,7 +22,6 @@ This is the repository containing code used for the [Unleashing Transformers pap
     - [Train a Vector-Quantized autoencoder on FFHQ](#train-a-vector-quantized-autoencoder-on-ffhq)
     - [Train an Absorbing Diffusion sampler using the above Vector-Quantized autoencoder](#train-an-absorbing-diffusion-sampler-using-the-above-vector-quantized-autoencoder)
     - [Experiments on trained Absorbing Diffusion Sampler](#experiments-on-trained-absorbing-diffusion-sampler)
-  - [Features To be Added](#features-to-be-added)
 
 ## Setup
 
@@ -50,11 +49,11 @@ This will clone this repo into your local machine and cd into it.
 
 Next, run:
 ```
-conda create --name unleashing --file requirements.txt
+conda create --name unleashing --file requirements.yml
 ```
 optionally replacing `unleashing` with your desired name for the environment. 
 
-Finally, run:
+Finally, run the following to activate the environment and install the correct PyTorch versions:
 
 ```
 conda activate unleashing && pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html         
@@ -108,7 +107,7 @@ As specified with the `--log_dir` flag, results will be saved to the directory `
 
 ### Train an Absorbing Diffusion sampler using the above Vector-Quantized autoencoder
 
-After training the Vector-Quantized model using the previous command for at least 100000 steps, you'll be able to run the following commands to train a discrete diffusion prior on the latent space of the Vector-Quantized model:
+After training the VQ model using the previous command for at least 100000 steps, you'll be able to run the following commands to train a discrete diffusion prior on the latent space of the Vector-Quantized model:
 
 ```
 python3 src/train_sampler.py --sampler absorbing --dataset ffhq --log_dir absorbing_ffhq --ae_load_dir vqae_ffhq --ae_load_step 100000 --amp 
@@ -157,9 +156,3 @@ python src/generate_big_samples.py --sampler absorbing --dataset ffhq --log_dir 
 ```
 
 Use the `--shape` flag to specify the dimensions of the latents to generate.
-
-## Features To be Added
-This is a list of features that we hope to add in the near future:
-- [ ] Tidier Code
-- [ ] Centralised checkpointing
-- [ ] Easier integration of new datasets
