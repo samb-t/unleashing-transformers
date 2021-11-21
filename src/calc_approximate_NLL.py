@@ -117,8 +117,9 @@ def main(H, vis):
                     nl_p_x = nl_p_x_z + nl_p_z + float(math.log(32.) * pixels)  # 5 bit
                     bpd = nl_p_x / (pixels * math.log(2.0))
                     bpds.extend(bpd.tolist())
+                    break
+            log(f"NLL approximation: {torch.tensor(bpds).mean()}")
 
-            log(f"ELBO approximation: {torch.tensor(bpds).mean()}")
             sampler = sampler.cpu()
 
         if step % H.steps_per_display_output == 0 and step > 0:

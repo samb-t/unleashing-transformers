@@ -24,11 +24,11 @@ def add_training_args(parser):
 def add_logging_args(parser):
     parser.add_argument("--log_dir", type=str, default="test")
     parser.add_argument("--save_individually", const=True, action="store_const", default=False)
-    parser.add_argument("--steps_per_checkpoint", type=int, default=10000)
-    parser.add_argument("--steps_per_display_output", type=int, default=250)
+    parser.add_argument("--steps_per_checkpoint", type=int, default=25000)
+    parser.add_argument("--steps_per_display_output", type=int, default=5000)
     parser.add_argument("--steps_per_eval", type=int, default=0)
-    parser.add_argument("--steps_per_log", type=int, default=1)
-    parser.add_argument("--steps_per_save_output", type=int, default=1000)
+    parser.add_argument("--steps_per_log", type=int, default=10)
+    parser.add_argument("--steps_per_save_output", type=int, default=5000)
     parser.add_argument("--visdom_port", type=int, default=8097)
     parser.add_argument("--visdom_server", type=str)
 
