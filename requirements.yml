@@ -23,6 +23,7 @@ dependencies:
   - xz=5.2.5=h7b6447c_0
   - zlib=1.2.11=h7b6447c_3
   - pip:
+    - --find-links https://download.pytorch.org/whl/torch_stable.html 
     - charset-normalizer==2.0.7
     - idna==3.3
     - imageio==2.9.0
@@ -44,3 +45,5 @@ dependencies:
     - urllib3==1.26.7
     - visdom==0.1.8.9
     - websocket-client==1.2.1
+    - torch==1.7.1+cu110
+    - torchvision==0.8.2+cu110

@@ -14,8 +14,6 @@ class AbsorbingDiffusion(Sampler):
         self.num_classes = H.codebook_size
         self.latent_emb_dim = H.emb_dim
         self.shape = tuple(H.latent_shape)
-
-        # NOTE: this is legacy code, needs to be removed. Only kept to enable loading old models
         self.num_timesteps = 1000
 
         self.mask_id = mask_id
@@ -35,7 +33,6 @@ class AbsorbingDiffusion(Sampler):
             if not (self.Lt_count > 10).all():
                 return self.sample_time(b, device, method='uniform')
 
-            # why do we square just to sqrt again!?!?
             Lt_sqrt = torch.sqrt(self.Lt_history + 1e-10) + 0.0001
             Lt_sqrt[0] = Lt_sqrt[1]  # Overwrite decoder term with L1.
             pt_all = Lt_sqrt / Lt_sqrt.sum()
@@ -51,7 +48,6 @@ class AbsorbingDiffusion(Sampler):
             pt = torch.ones_like(t).float() / self.num_timesteps
             return t, pt
 
-        # try cosine noise schedule
         else:
             raise ValueError
 
@@ -109,20 +105,14 @@ class AbsorbingDiffusion(Sampler):
         vb_loss = vb_loss / (math.log(2) * x_0.shape[1:].numel())
         if self.loss_type == 'elbo':
             loss = vb_loss
-        elif self.loss_type == 'normed':
+        elif self.loss_type == 'mlm':
             denom = mask.float().sum(1)
             denom[denom == 0] = 1  # prevent divide by 0 errors.
             loss = cross_entropy_loss / denom
-        elif self.loss_type == 'new':
+        elif self.loss_type == 'reweighted_elbo':
             weight = (1 - (t / self.num_timesteps))
             loss = weight * cross_entropy_loss
             loss = loss / (math.log(2) * x_0.shape[1:].numel())
-        elif self.loss_type == 'new-normed':
-            denom = mask.float().sum(1)
-            denom[denom == 0] = 1  # prevent divide by 0 errors.
-            loss = cross_entropy_loss / denom
-            weight = (1 - (t / self.num_timesteps))
-            loss = weight * loss
         else:
             raise ValueError
 
@@ -141,18 +131,37 @@ class AbsorbingDiffusion(Sampler):
 
         return loss.mean(), vb_loss.mean()
 
-    def sample(self, sample_stride='all', temp=1.0, sample_steps=None):
+    def sample(self, temp=1.0, sample_steps=None):
+        b, device = self.n_samples, 'cuda'
+        x_t = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
+        unmasked = torch.zeros_like(x_t, device=device).bool()
+        sample_steps = list(range(1, sample_steps+1))
+
+        for t in reversed(sample_steps):
+            print(f'Sample timestep {t:4d}', end='\r')
+            t = torch.full((b,), t, device=device, dtype=torch.long)
+
+            # where to unmask
+            changes = torch.rand(x_t.shape, device=device) < 1/t.float().unsqueeze(-1)
+            # don't unmask somewhere already unmasked
+            changes = torch.bitwise_xor(changes, torch.bitwise_and(changes, unmasked))
+            # update mask with changes
+            unmasked = torch.bitwise_or(unmasked, changes)
+
+            x_0_logits = self._denoise_fn(x_t, t=t)
+            # scale by temperature
+            x_0_logits = x_0_logits / temp
+            x_0_dist = dists.Categorical(
+                logits=x_0_logits)
+            x_0_hat = x_0_dist.sample().long()
+            x_t[changes] = x_0_hat[changes]
+
+        return x_t
+
+    def sample_mlm(self, temp=1.0, sample_steps=None):
         b, device = self.n_samples, 'cuda'
         x_0 = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
-
-        if sample_stride == 'all':
-            sample_steps = list(range(1, self.num_timesteps+1))
-        elif sample_stride == 'even':
-            sample_steps = np.linspace(1, self.num_timesteps, num=sample_steps).astype(np.long)
-        elif sample_stride == 'quadratic':
-            sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
-        elif sample_stride == 'dynamic':
-            sample_steps = sample_steps
+        sample_steps = np.linspace(1, self.num_timesteps, num=sample_steps).astype(np.long)
 
         for t in reversed(sample_steps):
             print(f'Sample timestep {t:4d}', end='\r')
@@ -167,44 +176,6 @@ class AbsorbingDiffusion(Sampler):
             x_0[x_t == self.mask_id] = x_0_hat[x_t == self.mask_id]
 
         return x_0
-
-    def sample_v2(self, sample_stride='all', temp=1.0, sample_steps=None):
-        b, device = self.n_samples, 'cuda'
-        x_t = torch.ones((b, np.prod(self.shape)), device=device).long() * self.mask_id
-
-        if sample_stride == 'all':
-            n_sample_steps = list(range(1, self.num_timesteps+1))
-        elif sample_stride == 'even':
-            n_sample_steps = np.linspace(1, self.num_timesteps, num=sample_steps).astype(np.long)
-        elif sample_stride == 'quadratic':
-            n_sample_steps = [x**2 for x in range(1, int(np.sqrt(self.num_timesteps)))]
-        elif sample_stride == 'magic':
-            n_sample_steps = list(range(1, sample_steps+1))
-
-        unmasked = torch.zeros_like(x_t, device=device).bool()
-
-        for t in reversed(n_sample_steps):
-            print(f'Sample timestep {t:4d}', end='\r')
-            t = torch.full((b,), t, device=device, dtype=torch.long)
-
-            # where to unmask
-            changes = torch.rand(x_t.shape, device=device) < 1/t.float().unsqueeze(-1)
-            # don't unmask somewhere already unmasked
-            changes = torch.bitwise_xor(changes, torch.bitwise_and(changes, unmasked))
-            # update mask with changes
-            unmasked = torch.bitwise_or(unmasked, changes)
-
-            # x_t, _, _ = self.q_sample(x_0, t)
-            x_0_logits = self._denoise_fn(x_t, t=t)
-            # scale by temperature
-            x_0_logits = x_0_logits / temp
-            x_0_dist = dists.Categorical(
-                logits=x_0_logits)
-            x_0_hat = x_0_dist.sample().long()
-            x_t[changes] = x_0_hat[changes]
-            # print("x0 at", t, x_0, x_0.shape)
-
-        return x_t
 
     @torch.no_grad()
     def elbo(self, x_0):
@@ -226,7 +197,7 @@ class AbsorbingDiffusion(Sampler):
 
     def sample_shape(self, shape, num_samples, time_steps=1000, step=1, temp=0.8):
         device = 'cuda'
-        x_t = torch.ones((num_samples,) + shape, device='cuda').long() * self.mask_id
+        x_t = torch.ones((num_samples,) + shape, device=device).long() * self.mask_id
         x_lim, y_lim = shape[0] - self.shape[1], shape[1] - self.shape[2]
 
         unmasked = torch.zeros_like(x_t, device=device).bool()

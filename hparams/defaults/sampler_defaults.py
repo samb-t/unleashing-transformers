@@ -4,10 +4,11 @@ from .base import HparamsBase
 class HparamsAbsorbing(HparamsBase):
     def __init__(self, dataset):
 
-        self.loss_type = "new"
-        self.sample_type = "v2"
+        self.loss_type = "reweighted_elbo"
+        self.sample_type = "diffusion"
         self.mask_schedule = "random"
-        self.stepping = "magic-256"
+        self.total_steps = 256
+        self.samples_steps = 256
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
@@ -76,12 +77,13 @@ def add_sampler_args(parser):
     parser.add_argument("--embd_pdrop", type=float)
     parser.add_argument("--greedy_epochs", type=int)
     parser.add_argument("--greedy", const=True, action="store_const", default=False)
-    parser.add_argument("--loss_type", type=str)
+    parser.add_argument("--loss_type", type=str, choices=["reweighted_elbo", "elbo", "mlm"])
     parser.add_argument("--mask_schedule", type=str)
     parser.add_argument("--resid_pdrop", type=float)
     parser.add_argument("--sample_block_size", type=int)
-    parser.add_argument("--sample_type", type=str, choices=["v1", "v2"])
+    parser.add_argument("--sample_type", type=str, choices=["diffusion", "mlm"])
     parser.add_argument("--sampler", type=str, required=True, choices=["absorbing", "autoregressive"])
-    parser.add_argument("--stepping", type=str)
+    parser.add_argument("--total_steps", type=int)
+    parser.add_argument("--sample_steps", type=int)
     parser.add_argument("--temp", type=float)
     parser.add_argument("--warmup_iters", type=int)

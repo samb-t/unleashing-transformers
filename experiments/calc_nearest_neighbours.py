@@ -30,7 +30,7 @@ def main(H, vis):
     sampler = load_model(
         sampler, f"{H.sampler}_ema", H.load_step, H.load_dir).cuda()
 
-    samples = get_samples(H, generator, sampler, temp=H.temp)
+    samples = get_samples(H, generator, sampler)
     sampler = None
 
     distance_fn = lpips.LPIPS(net="alex").cuda()

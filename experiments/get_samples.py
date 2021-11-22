@@ -28,7 +28,7 @@ def main(H, vis):
     sampler.n_samples = 25  # get samples in 5x5 grid
 
     for i in range(100):
-        images = get_samples(H, generator, sampler, temp=H.temp, stride="magic", sample_steps=256)
+        images = get_samples(H, generator, sampler)
         display_images(vis, images, H, win_name=f'{H.sampler}_samples')
         save_images(images, "samples", i, H.log_dir)
 

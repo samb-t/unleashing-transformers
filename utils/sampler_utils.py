@@ -19,15 +19,15 @@ def get_sampler(H, embedding_weight):
 
 
 @torch.no_grad()
-def get_samples(H, generator, sampler, temp=1.0, stride="all", sample_steps=None):
+def get_samples(H, generator, sampler):
 
     if H.sampler == "absorbing":
-        if H.sample_type == "v2":
+        if H.sample_type == "diffusion":
             sample_stride, sample_steps = H.stepping.split("-")
             sample_steps = int(sample_steps)
-            latents = sampler.sample_v2(sample_stride=sample_stride, sample_steps=sample_steps, temp=temp)
+            latents = sampler.sample(sample_stride=sample_stride, sample_steps=sample_steps, temp=temp)
         else:
-            latents = sampler.sample(sample_stride=stride, temp=temp, sample_steps=sample_steps)
+            latents = sampler.sample_mlm(temp=H.temp, sample_steps=H.sample_steps)
 
     elif H.sampler == "autoregressive":
         latents = sampler.sample()
