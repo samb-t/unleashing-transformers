@@ -7,7 +7,7 @@ This is the repository containing code used for the [Unleashing Transformers pap
 [**Unleashing Transformers: Parallel Token Prediction with Discrete Absorbing Diffusion for Fast High-Resolution Image Generation from Vector-Quantized Codes**](https://samb-t.github.io/unleashing-transformers)<br/>
 [Sam Bond-Taylor](https://samb-t.github.io/)\*,
 [Peter Hessey](https://www.durham.ac.uk/staff/peter-hessey/)\*,
-[Hiroshi Sasaki](https://www.durham.ac.uk/staff/hiroshi-sasaki/)
+[Hiroshi Sasaki](https://www.durham.ac.uk/staff/hiroshi-sasaki/),
 [Toby P. Breckon](https://breckon.org/toby/),
 [Chris G. Willcocks](https://cwkx.github.io/)<br/>
 \* Authors contributed equally
