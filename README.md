@@ -21,12 +21,10 @@ This is the repository containing code used for the [Unleashing Transformers pap
 
 ### Table of Contents
 
-- [Abstract](#summary)
+- [Abstract](#abstract)
 - [Table of Contents](#table-of-contents)
 - [Setup](#setup)
-  - [Install `conda` and `git`](#install-conda-and-git)
   - [Set up conda environment](#set-up-conda-environment)
-  - [Hardware Requirements](#hardware-requirements)
   - [Dataset Set Up](#dataset-setup)
 - [Commands](#commands)
   - [Set up visdom server](#set-up-visdom-server)
