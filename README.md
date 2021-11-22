@@ -58,7 +58,7 @@ To configure the default paths for datasets used for training the models in this
 
 | Dataset | Official Link                                           | Academic Torrents Link |
 | ------- | --------------------------------------------------------|------------------------|
-| FFHQ    | [Official FFHQ](https://github.com/NVlabs/ffhq-dataset) | [Academic Torrents FFHQ](ttps://academictorrents.com/details/1c1e60f484e911b564de6b4d8b643e19154d5809) |
+| FFHQ    | [Official FFHQ](https://github.com/NVlabs/ffhq-dataset) | [Academic Torrents FFHQ](https://academictorrents.com/details/1c1e60f484e911b564de6b4d8b643e19154d5809) |
 | LSUN    | [Official LSUN](https://github.com/fyu/lsun)            | [Academic Torrents LSUN](https://academictorrents.com/details/c53c374bd6de76da7fe76ed5c9e3c7c6c691c489) |
 
 ## Commands
