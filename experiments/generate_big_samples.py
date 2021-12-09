@@ -1,5 +1,6 @@
+import sys
+sys.path.append('.')
 import torch
-
 from hparams import get_big_samples_hparams
 from models import Generator
 from train_sampler import get_sampler

@@ -1,3 +1,5 @@
+import sys
+sys.path.append('.')
 import torch_fidelity
 import torch
 from hparams import get_sampler_FID_hparams

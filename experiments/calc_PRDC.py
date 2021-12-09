@@ -1,3 +1,5 @@
+import sys
+sys.path.append('.')
 import torch
 import time
 from hparams import get_PRDC_hparams

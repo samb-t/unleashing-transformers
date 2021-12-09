@@ -1,9 +1,9 @@
-
+import sys
+sys.path.append('.')
 from models import Generator
 from hparams import get_sampler_hparams
 from utils.log_utils import save_images, set_up_visdom, config_log, log, start_training_log, display_images, load_model
 from utils.sampler_utils import get_sampler, get_samples, retrieve_autoencoder_components_state_dicts
-
 
 def main(H, vis):
 

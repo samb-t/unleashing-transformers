@@ -23,9 +23,7 @@ def get_samples(H, generator, sampler):
 
     if H.sampler == "absorbing":
         if H.sample_type == "diffusion":
-            sample_stride, sample_steps = H.stepping.split("-")
-            sample_steps = int(sample_steps)
-            latents = sampler.sample(sample_stride=sample_stride, sample_steps=sample_steps, temp=temp)
+            latents = sampler.sample(sample_steps=H.sample_steps, temp=H.temp)
         else:
             latents = sampler.sample_mlm(temp=H.temp, sample_steps=H.sample_steps)
 

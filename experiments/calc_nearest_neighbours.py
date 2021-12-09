@@ -1,3 +1,5 @@
+import sys
+sys.path.append('.')
 from utils.data_utils import get_data_loaders
 import lpips
 import torch

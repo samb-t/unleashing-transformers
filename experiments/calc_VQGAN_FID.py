@@ -1,3 +1,5 @@
+import sys
+sys.path.append('.')
 from hparams import get_vqgan_hparams
 from utils.log_utils import log, config_log, start_training_log
 from models import VQGAN

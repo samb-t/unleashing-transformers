@@ -8,7 +8,7 @@ class HparamsAbsorbing(HparamsBase):
         self.sample_type = "diffusion"
         self.mask_schedule = "random"
         self.total_steps = 256
-        self.samples_steps = 256
+        self.sample_steps = 256
         self.attn_pdrop = 0.
         self.embd_pdrop = 0.
         self.resid_pdrop = 0.
