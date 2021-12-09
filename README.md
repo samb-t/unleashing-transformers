@@ -84,7 +84,7 @@ To specify a different port when training any models, use the `--visdom_port` fl
 
 The following command starts the training for a VQGAN on LSUN Churches: 
 ```
-python3 train_vqgan.py --dataset churches --log_dir vqae_churches --amp --batch_size 4
+python3 train_vqgan.py --dataset churches --log_dir vqae_churches --amp --ema --batch_size 4
 ```
 
 As specified with the `--log_dir` flag, results will be saved to the directory `logs/vqae_churches`. This includes all logs, model checkpoints and saved outputs. The `--amp` flag enables mixed-precision training, necessary for training using a batch size of 4 (the default) on a single 2080 Ti.
@@ -94,7 +94,7 @@ As specified with the `--log_dir` flag, results will be saved to the directory `
 After training the VQ model using the previous command, you'll be able to run the following commands to train a discrete diffusion prior on the latent space of the Vector-Quantized model:
 
 ```
-python3 train_sampler.py --sampler absorbing --dataset churches --log_dir absorbing_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --amp 
+python3 train_sampler.py --sampler absorbing --dataset churches --log_dir absorbing_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --amp --ema
 ```
 
 The sampler needs to load the trained Vector-Quantized autoencoder in order to generate the latents it will use as for training (and validation). Latents are cached after the first time this is run to speed up training.
@@ -106,13 +106,13 @@ This section contains simple template commands for calculating metrics and other
 **Calculate FID**
 
 ```
-python experiments/calc_FID.py --sampler absorbing --dataset churches --log_dir FID_log --ae_load_dir vqae_churches --ae_load_step 2200000  --load_dir absorbing_churches --load_step 2000000 --n_samples 50000
+python experiments/calc_FID.py --sampler absorbing --dataset churches --log_dir FID_log --ae_load_dir vqae_churches --ae_load_step 2200000  --load_dir absorbing_churches --load_step 2000000 --ema --n_samples 50000
 ```
 
 **Calculate PRDC Scores**
 
 ```
-python experiments/calc_PRDC.py --sampler absorbing --dataset churches --log_dir PRDC_log --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000 --n_samples 50000
+python experiments/calc_PRDC.py --sampler absorbing --dataset churches --log_dir PRDC_log --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000 --ema --n_samples 50000
 ```
 
 
@@ -121,7 +121,7 @@ python experiments/calc_PRDC.py --sampler absorbing --dataset churches --log_dir
 The following command fine-tunes a Vector-Quantized autoencoder to compute reconstruction likelihood, and then evaluates the ELBO of the overall model.
 
 ```
-python experiments/calc_approximate_ELBO.py --sampler absorbing --dataset ffhq --log_dir nll_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000 --steps_per_eval 5000 --train_steps 10000
+python experiments/calc_approximate_ELBO.py --sampler absorbing --dataset ffhq --log_dir nll_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000 --ema --steps_per_eval 5000 --train_steps 10000
 ```
 
 NOTE: the `--steps_per_eval` flag is required for this script, as a validation dataset is used. 
@@ -132,7 +132,7 @@ NOTE: the `--steps_per_eval` flag is required for this script, as a validation d
 Produces a random batch of samples and finds the nearest neighbour images in the training set based on LPIPS distance.
 
 ```
-python experiments/calc_nearest_neighbours.py --sampler absorbing --dataset churches --log_dir nearest_neighbours_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000
+python experiments/calc_nearest_neighbours.py --sampler absorbing --dataset churches --log_dir nearest_neighbours_churches --ae_load_dir vqae_churches --ae_load_step 2200000 --load_dir absorbing_churches --load_step 2000000 --ema
 ```
 
 **Generate Higher Resolution Samples**
@@ -140,7 +140,7 @@ python experiments/calc_nearest_neighbours.py --sampler absorbing --dataset chur
 By applying the absorbing diffusion model to various locations at once and aggregating denoising probabilities, larger samples than observed during training are able to be generated (see Figures 4 and 11).
 
 ```
-python experiments/generate_big_samples.py --sampler absorbing --dataset churches --log_dir big_samples_churches --ae_load_dir vqae_churches --ae_load_step 2200000 load_dir absorbing_churches --load_step 2000000 --shape 32 16
+python experiments/generate_big_samples.py --sampler absorbing --dataset churches --log_dir big_samples_churches --ae_load_dir vqae_churches --ae_load_step 2200000 load_dir absorbing_churches --load_step 2000000 --ema --shape 32 16
 ```
 
 Use the `--shape` flag to specify the dimensions of the latents to generate.
