@@ -14,7 +14,7 @@ class AbsorbingDiffusion(Sampler):
         self.num_classes = H.codebook_size
         self.latent_emb_dim = H.emb_dim
         self.shape = tuple(H.latent_shape)
-        self.num_timesteps = 1000
+        self.num_timesteps = H.total_steps
 
         self.mask_id = mask_id
         self._denoise_fn = denoise_fn
