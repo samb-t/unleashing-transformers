@@ -42,7 +42,7 @@ def cycle(iterable):
 
 
 def get_default_dataset_paths():
-    with open("datasets.yaml") as yaml_file:
+    with open("datasets.yml") as yaml_file:
         read_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
     paths = {}
