@@ -150,7 +150,7 @@ def main(H, vis):
     train_iterator = cycle(train_latent_loader)
     # val_iterator = cycle(val_latent_loader)
 
-    log("Sampler params total:", sum(p.numel() for p in sampler.parameters()))
+    log(f"Sampler params total: {sum(p.numel() for p in sampler.parameters())}")
 
     for step in range(start_step, H.train_steps):
         step_start_time = time.time()

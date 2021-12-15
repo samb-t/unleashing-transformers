@@ -21,8 +21,8 @@ class HparamsAbsorbing(HparamsBase):
             self.bert_n_head = 8
             self.bert_n_layers = 24
             self.block_size = 256
-            self.lr = 1e-4
-            self.warmup_iters = 30000
+            self.lr = 2e-4
+            self.warmup_iters = 10000
 
         elif self.dataset == "ffhq":
             self.batch_size = 20
@@ -47,12 +47,13 @@ class HparamsAutoregressive(HparamsBase):
         self.temp = 1.0
 
         if self.dataset == "churches" or "bedrooms":
-            self.batch_size = 32
-            self.bert_n_emb = 256
+            self.batch_size = 20
+            self.bert_n_emb = 512
             self.bert_n_head = 8
-            self.bert_n_layers = 8
+            self.bert_n_layers = 24
             self.block_size = 256
-            self.lr = 1e-4
+            self.lr = 2e-4
+            self.warmup_iters = 10000
 
         elif self.dataset == "ffhq":
             self.batch_size = 20
@@ -61,6 +62,7 @@ class HparamsAutoregressive(HparamsBase):
             self.bert_n_layers = 24
             self.block_size = 256
             self.lr = 1e-4
+            self.warmup_iters = 30000
         else:
             raise KeyError(f"Defaults not defined for BERT model on dataset: {self.dataset}")
 
