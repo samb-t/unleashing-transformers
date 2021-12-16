@@ -5,7 +5,7 @@ from utils.log_utils import log, load_model, save_images
 from utils.sampler_utils import retrieve_autoencoder_components_state_dicts, latent_ids_to_onehot
 from tqdm import tqdm
 from train_sampler import get_sampler
-
+import os
 
 @torch.no_grad()
 def generate_images_from_latents(H, all_latents, embedding_weight, generator):
@@ -26,23 +26,18 @@ def generate_images_from_latents(H, all_latents, embedding_weight, generator):
 
 @torch.no_grad()
 def generate_latents(H, sampler):
-    if H.stepping is not None:
-        sample_stride, sample_steps = H.stepping.split("-")
-        if sample_stride == "even":
-            sample_steps = int(sample_steps)
-        elif sample_stride == "magic":
-            sample_steps = int(sample_steps)
-
     log(f"Sampling with temperature {H.temp}")
     all_latents = []
+    os.makedirs('_pkl_files', exist_ok=True)
     for _ in tqdm(range(int(H.n_samples/H.batch_size))):
         if H.sampler == "absorbing":
-            if H.sample_type == "v1":
-                latents = sampler.sample(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
-            elif H.sample_type == "v2":
-                latents = sampler.sample_v2(temp=H.temp, sample_stride=sample_stride, sample_steps=sample_steps)
-        else:
-            latents = sampler.sample(temp=H.temp)
+            if H.sample_type == "diffusion":
+                latents = sampler.sample(sample_steps=H.sample_steps, temp=H.temp)
+            else:
+                latents = sampler.sample_mlm(temp=H.temp, sample_steps=H.sample_steps)
+
+        elif H.sampler == "autoregressive":
+            latents = sampler.sample(H.temp)
 
         all_latents.append(latents.cpu())
 
@@ -50,8 +45,8 @@ def generate_latents(H, sampler):
     all_latents = torch.cat(all_latents, dim=0)
     timestamp = int(time.time())
 
-    log(f"Saving latents to src/_pkl_files/latents_backup_{H.dataset}_{timestamp}.pkl")
-    torch.save(all_latents, f"src/_pkl_files/latents_backup_{H.dataset}_{timestamp}.pkl")
+    log(f"Saving latents to _pkl_files/latents_backup_{H.dataset}_{timestamp}.pkl")
+    torch.save(all_latents, f"_pkl_files/latents_backup_{H.dataset}_{timestamp}.pkl")
     return all_latents
 
 

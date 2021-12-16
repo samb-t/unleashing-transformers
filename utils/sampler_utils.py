@@ -28,7 +28,7 @@ def get_samples(H, generator, sampler):
             latents = sampler.sample_mlm(temp=H.temp, sample_steps=H.sample_steps)
 
     elif H.sampler == "autoregressive":
-        latents = sampler.sample()
+        latents = sampler.sample(H.temp)
 
     latents_one_hot = latent_ids_to_onehot(latents, H.latent_shape, H.codebook_size)
     q = sampler.embed(latents_one_hot)

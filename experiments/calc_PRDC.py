@@ -9,7 +9,7 @@ from utils.data_utils import BigDataset, NoClassDataset, get_datasets
 from utils.log_utils import log, config_log, start_training_log
 from utils.experiment_utils import generate_samples
 from prdc import compute_prdc
-
+import os
 
 def spatial_average(in_tens, keepdim=True):
     return in_tens.mean([2, 3], keepdim=keepdim)
@@ -42,6 +42,7 @@ def get_feats_from_loader(data_loader):
 
 def main(H):
     # get features from original dataset
+    os.makedirs('_pkl_files', exist_ok=True)
     if not H.real_feats:
         log(f"Generating real features for {H.dataset}")
         real_dataset, _ = get_datasets(H.dataset, H.img_size, custom_dataset_path=H.custom_dataset_path)
@@ -49,11 +50,11 @@ def main(H):
         real_data_loader = torch.utils.data.DataLoader(real_dataset, batch_size=H.batch_size)
         real_features = get_feats_from_loader(real_data_loader)
         timestamp = int(time.time())
-        torch.save(real_features, f"src/_pkl_files/{H.dataset}_real_features_{timestamp}.pkl")
+        torch.save(real_features, f"_pkl_files/{H.dataset}_real_features_{timestamp}.pkl")
 
     else:
-        log(f"Loading real features from src/_pkl_files/{H.real_feats}")
-        real_features = torch.load(f"src/_pkl_files/{H.real_feats}")
+        log(f"Loading real features from _pkl_files/{H.real_feats}")
+        real_features = torch.load(f"_pkl_files/{H.real_feats}")
 
     # get features from model-generated samples
     if not H.fake_feats:
@@ -69,11 +70,11 @@ def main(H):
         log("Generating fake samples features")
         fake_features = get_feats_from_loader(fake_data_loader)
         timestamp = int(time.time())
-        torch.save(fake_features, f"src/_pkl_files/{H.dataset}_fake_features_{timestamp}.pkl")
+        torch.save(fake_features, f"_pkl_files/{H.dataset}_fake_features_{timestamp}.pkl")
 
     else:
-        log(f"Loading fake features from src/_pkl_files/{H.fake_feats}")
-        fake_features = torch.load(f"src/_pkl_files/{H.fake_feats}")
+        log(f"Loading fake features from _pkl_files/{H.fake_feats}")
+        fake_features = torch.load(f"_pkl_files/{H.fake_feats}")
 
     real_features = torch.cat(real_features, dim=0)[:H.n_samples].numpy()
     fake_features = torch.cat(fake_features, dim=0)[:H.n_samples].numpy()
