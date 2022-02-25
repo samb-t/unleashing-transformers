@@ -18,7 +18,7 @@ class HparamsVQGAN(HparamsBase):
             self.ch_mult = [1, 1, 2, 2, 4]
             self.codebook_size = 1024
             self.disc_layers = 3
-            self.disc_weight_max = 1000
+            self.disc_weight_max = 1
             self.disc_start_step = 30001
             self.emb_dim = 256
             self.img_size = 256
