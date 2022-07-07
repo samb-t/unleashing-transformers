@@ -156,7 +156,7 @@ def get_data_loaders(
     get_flipped=False,
     train_val_split_ratio=0.95,
     custom_dataset_path=None,
-    num_workers=1,
+    num_workers=4,
     drop_last=True,
     shuffle=True,
     get_val_dataloader=False,
