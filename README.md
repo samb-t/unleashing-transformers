@@ -1,6 +1,6 @@
 ## Unleashing Transformers: Parallel Token Prediction with Discrete Absorbing Diffusion for Fast High-Resolution Image Generation from Vector-Quantized Codes
 
-This is the repository containing code used for the [Unleashing Transformers paper](https://arxiv.org/abs/2111.12701).
+This repository contains code used for the ECCV 2022 paper [Unleashing Transformers](https://arxiv.org/abs/2111.12701).
 
 ![front_page_sample](assets/samples.png)
 
@@ -160,10 +160,10 @@ The following papers were particularly helpful when developing this work:
 ## BibTeX
 
 ```
-@article{bond2021unleashing,
-  title     = {Unleashing Transformers: Parallel Token Prediction with Discrete Absorbing Diffusion for Fast High-Resolution Image Generation from Vector-Quantized Codes},
-  author    = {Sam Bond-Taylor and Peter Hessey and Hiroshi Sasaki and Toby P. Breckon and Chris G. Willcocks},
-  journal   = {arXiv preprint arXiv:2111.12701},
-  year      = {2021}
+@inproceedings{bond2021unleashing,
+  title       = {Unleashing Transformers: Parallel Token Prediction with Discrete Absorbing Diffusion for Fast High-Resolution Image Generation from Vector-Quantized Codes},
+  author      = {Sam Bond-Taylor and Peter Hessey and Hiroshi Sasaki and Toby P. Breckon and Chris G. Willcocks},
+  booktitle   = {European Conference on Computer Vision (ECCV)},
+  year        = {2022}
 }
 ```
