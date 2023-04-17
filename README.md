@@ -88,7 +88,7 @@ To specify a different port when training any models, use the `--visdom_port` fl
 
 The following command starts the training for a VQGAN on LSUN Churches: 
 ```
-python3 train_vqgan.py --dataset churches --log_dir vqgan_churches --amp --ema --batch_size 4
+python3 train_vqgan.py --dataset churches --log_dir vqgan_churches --amp --ema --batch_size 4 --diff_aug
 ```
 
 As specified with the `--log_dir` flag, results will be saved to the directory `logs/vqae_churches`. This includes all logs, model checkpoints and saved outputs. The `--amp` flag enables mixed-precision training, necessary for training using a batch size of 4 (the default) on a single 2080 Ti.
